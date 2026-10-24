@@ -55,7 +55,7 @@ class HostRegistry {
   static const _activeKey = 'active_host_id';
 
   final FlutterSecureStorage _secureStorage;
-  SharedPreferences? _prefsOverride;
+  final SharedPreferences? _prefsOverride;
   Future<SharedPreferences>? _prefsFuture;
 
   HostRegistry({
@@ -70,7 +70,7 @@ class HostRegistry {
   }
 
   Future<SharedPreferences> _prefs() async {
-    if (_prefsOverride != null) return _prefsOverride!;
+    if (_prefsOverride != null) return _prefsOverride;
     final f = _prefsFuture;
     if (f != null) return f;
     return SharedPreferences.getInstance();

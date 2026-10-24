@@ -84,8 +84,8 @@ void main() {
             width: 360,
             child: ToolCard(
               toolName: 'edit',
-              args: const {'path': 'src/x.ts'},
-              result: const {'details': {'diff': '--- a\n+++ b\n@@ -1 +1 @@\n-foo()\n+bar()'}},
+              args: {'path': 'src/x.ts'},
+              result: {'details': {'diff': '--- a\n+++ b\n@@ -1 +1 @@\n-foo()\n+bar()'}},
             ),
           ),
         );
@@ -101,7 +101,7 @@ void main() {
             width: 360,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 DiffRow(line: '+bar()'),
                 DiffRow(line: '-foo()'),
                 DiffRow(line: ' ctx'),

@@ -73,7 +73,7 @@ void main() {
       expect(find.byType(DecodeText), findsOneWidget);
 
       // Ready → exit choreography: text-out (360) + hold (300) + overlay-out (520).
-      await emit(tester, const SessionControllerState(connection: const conn.ConnectionInfo(state: conn.ConnectionState.ready)));
+      await emit(tester, const SessionControllerState(connection: conn.ConnectionInfo(state: conn.ConnectionState.ready)));
       await tester.pumpAndSettle(const Duration(seconds: 3));
       expect(find.byType(DecodeText), findsNothing);
     });
@@ -81,7 +81,7 @@ void main() {
     testWidgets('does not resurrect after a healthy boot (reconnecting is banner territory)', (tester) async {
       await tester.pumpWidget(host());
       await tester.pump(const Duration(milliseconds: 50));
-      await emit(tester, const SessionControllerState(connection: const conn.ConnectionInfo(state: conn.ConnectionState.ready)));
+      await emit(tester, const SessionControllerState(connection: conn.ConnectionInfo(state: conn.ConnectionState.ready)));
       await tester.pumpAndSettle(const Duration(seconds: 3));
       expect(find.byType(DecodeText), findsNothing);
 

@@ -1,7 +1,7 @@
 // lib/core/protocol/commands.dart
 library;
 /// Typed command builders — mirror desktop-app/src/lib/rpc.ts (doc 03 §4).
-/// Wire shape: {"id": "<uuid>", "type": "<command>", ...payload}
+/// Wire shape: `{"id": "<uuid>", "type": "<command>", ...payload}`
 import 'dart:convert' show jsonEncode;
 import 'package:uuid/uuid.dart';
 const Uuid _uuid = Uuid();

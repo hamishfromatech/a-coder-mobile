@@ -92,8 +92,8 @@ class SessionController extends StateNotifier<SessionControllerState> {
     final host = await HostRegistry().getHost(hostId);
     if (host == null) {
       if (!_disposed) {
-        state = SessionControllerState(
-          connection: const ConnectionInfo(state: ConnectionState.disconnected, errorMessage: 'Host not found — re-pair this machine'),
+        state = const SessionControllerState(
+          connection: ConnectionInfo(state: ConnectionState.disconnected, errorMessage: 'Host not found — re-pair this machine'),
           starting: false,
         );
       }
@@ -294,7 +294,7 @@ class SessionController extends StateNotifier<SessionControllerState> {
     await _respond(request.id, {'value': selectedLabels.join(',')});
   }
 
-  /// question → {answers: Record<header, answer>}. The question header is
+  /// question → `{answers: Record<header, answer>}`. The question header is
   /// carried in the request title (v1: one question per request).
   Future<void> respondQuestion(er.UiRequest request, String answerLabel) async {
     await _respond(request.id, {'answers': {request.title ?? 'question': answerLabel}});

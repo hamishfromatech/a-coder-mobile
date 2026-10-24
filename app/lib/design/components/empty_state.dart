@@ -27,9 +27,9 @@ class EmptyState extends StatelessWidget {
           children: [
             Icon(icon, size: 48, color: PiColors.textFaint),
             const SizedBox(height: 16),
-            Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: PiColors.textSecondary)),
+            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: PiColors.textSecondary)),
             const SizedBox(height: 4),
-            Text(hint, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: PiColors.textMuted)),
+            Text(hint, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: PiColors.textMuted)),
             if (action != null && actionLabel != null) ...[
               const SizedBox(height: 16),
               ElevatedButton(
@@ -54,9 +54,9 @@ class ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, size: 48, color: PiColors.error),
+            const Icon(Icons.error_outline_rounded, size: 48, color: PiColors.error),
             const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: PiColors.text)),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: PiColors.text)),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: onRetry,

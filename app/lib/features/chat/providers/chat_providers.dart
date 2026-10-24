@@ -2,7 +2,7 @@
 library;
 /// Chat state providers (doc 05 §4).
 ///
-/// Single source of truth: `chatStateProvider` — a StateNotifier<ChatState>
+/// Single source of truth: `chatStateProvider` — a `StateNotifier<ChatState>`
 /// fed by the pure event router (`event_router.dart`). Every inbound protocol
 /// event is applied through `applyEvent`, so the UI can never diverge from
 /// the wire. The selectors below expose slices under stable names.

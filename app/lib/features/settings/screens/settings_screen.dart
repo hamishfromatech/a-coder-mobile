@@ -24,7 +24,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   late TabController _tabController;
   final Map<String, bool> _testingHosts = {};
   final Map<String, String?> _testResults = {};
-  int? _pendingRemoval;
 
   @override
   void initState() {
@@ -73,7 +72,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Machines',
                 style: TextStyle(
                   fontSize: 13,
@@ -109,7 +108,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 label: const Text('Add Machine'),
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'Danger',
                 style: TextStyle(
                   fontSize: 13,
@@ -119,7 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ),
               const SizedBox(height: 8),
               ListTile(
-                leading: Icon(Icons.warning_amber_rounded, color: PiColors.error),
+                leading: const Icon(Icons.warning_amber_rounded, color: PiColors.error),
                 title: const Text('Forget this device'),
                 subtitle: const Text('Wipes all pairing tokens and connections'),
                 onTap: _showForgetConfirmation,
@@ -187,7 +186,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Theme', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              const Text('Theme', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
               const SizedBox(height: 8),
               _ThemeOption(
                 label: 'System',
@@ -211,7 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 onSelected: (v) => ref.read(settingsProvider.notifier).setTheme(ThemePref.light),
               ),
               const Divider(height: 32),
-              Text('Chat text size', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              const Text('Chat text size', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -252,26 +251,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Widget _buildAboutTab() {
     return ListView(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
+        const Padding(
+          padding: EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('A-Coder Mobile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
+              Text('A-Coder Mobile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              SizedBox(height: 4),
               Text('Version 1.0.0 (build 1)', style: TextStyle(color: PiColors.textMuted)),
-              const SizedBox(height: 24),
-              const _AboutRow(label: 'Protocol version', value: 'v1'),
-              const _AboutRow(label: 'WebSocket transport', value: 'ws://'),
-              const _AboutRow(label: 'Framework', value: 'Flutter 3.24+'),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
+              _AboutRow(label: 'Protocol version', value: 'v1'),
+              _AboutRow(label: 'WebSocket transport', value: 'ws://'),
+              _AboutRow(label: 'Framework', value: 'Flutter 3.24+'),
+              SizedBox(height: 24),
               Text('Links', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
-              const SizedBox(height: 8),
-              const ListTile(
+              SizedBox(height: 8),
+              ListTile(
                 leading: Icon(Icons.code_rounded),
                 title: Text('GitHub'),
               ),
-              const ListTile(
+              ListTile(
                 leading: Icon(Icons.article_rounded),
                 title: Text('Documentation'),
               ),
@@ -359,7 +358,7 @@ class _HostCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(color: PiColors.accentSoft, borderRadius: BorderRadius.circular(4)),
-                          child: Text('ACTIVE', style: const TextStyle(fontSize: 9, fontFamily: 'JetBrains Mono', color: PiColors.accent)),
+                          child: const Text('ACTIVE', style: TextStyle(fontSize: 9, fontFamily: 'JetBrains Mono', color: PiColors.accent)),
                         ),
                       ],
                     ],
@@ -433,7 +432,7 @@ class _ThemeOption extends StatelessWidget {
       child: ListTile(
         leading: Icon(icon),
         title: Text(label),
-        trailing: isSelected ? Icon(Icons.check_rounded, color: PiColors.accent) : null,
+        trailing: isSelected ? const Icon(Icons.check_rounded, color: PiColors.accent) : null,
         onTap: () => onSelected(value),
       ),
     );
@@ -450,7 +449,7 @@ class _AboutRow extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(color: PiColors.textSecondary)),
+            Text(label, style: const TextStyle(color: PiColors.textSecondary)),
             Text(value, style: const TextStyle(fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
           ],
         ),
@@ -460,5 +459,5 @@ class _AboutRow extends StatelessWidget {
 enum ThemePreference { system, dark, light }
 
 extension _HostAddress on PairedHost {
-  String get address => '${host}:${port}';
+  String get address => '$host:$port';
 }

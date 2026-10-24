@@ -114,19 +114,19 @@ void main() {
 
   group('extension UI response handler', () {
     test('allow produces confirmed:true', () {
-      final req = const er.UiRequest(id: 'u1', method: 'confirm');
+      const req = er.UiRequest(id: 'u1', method: 'confirm');
       final json = er.handleExtensionUiResponse(req, 'allow');
       expect(json['confirmed'], isTrue);
     });
 
     test('deny produces confirmed:false', () {
-      final req = const er.UiRequest(id: 'u1', method: 'confirm');
+      const req = er.UiRequest(id: 'u1', method: 'confirm');
       final json = er.handleExtensionUiResponse(req, 'deny');
       expect(json['confirmed'], isFalse);
     });
 
     test('always_allow produces confirmed:true (after add_session_allow_rules)', () {
-      final req = const er.UiRequest(id: 'u1', method: 'confirm');
+      const req = er.UiRequest(id: 'u1', method: 'confirm');
       final json = er.handleExtensionUiResponse(req, 'always_allow');
       expect(json['confirmed'], isTrue);
     });

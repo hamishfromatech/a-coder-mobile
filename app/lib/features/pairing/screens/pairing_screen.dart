@@ -4,7 +4,7 @@ library;
 /// Segmented control: Scan QR / Manual / On this network.
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
@@ -62,7 +62,6 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
   bool _handledLatest = true; // debounce duplicate detections
   String? _errorMessage;
   String? _lastInvalidQr;
-  bool _cameraDenied = false;
   String _discoveryState = 'scanning'; // scanning | empty | error
   List<Map<String, String>> _discovered = const [];
   bool _manualConnecting = false;
@@ -435,7 +434,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
             style: TextStyle(fontSize: 15, color: c.textSecondary),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Make sure the desktop is running a-coder-cli serve. '
             'Tap a device, then enter its pairing token.',
             textAlign: TextAlign.center,

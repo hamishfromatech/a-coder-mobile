@@ -62,7 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final hostAsync = ref.watch(activeHostProvider);
     final sessions = ref.watch(sessionsListProvider);
     final conn = ref.watch(sessionControllerProvider(widget.activeHostId));
-    final hostName = hostAsync.valueOrNull ?? 'A-Coder';
+    final hostName = hostAsync.valueOrNull?.name ?? 'A-Coder';
     final connected = conn.connection.state == cs.ConnectionState.ready;
 
     final filtered = _searchQuery.isEmpty
@@ -204,7 +204,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             } catch (_) {
               // Not connected yet — still open the chat (it will show the banner).
             }
-            if (mounted) {
+            if (context.mounted) {
               Navigator.of(context).pushNamed(
                 '/chat',
                 arguments: {'hostId': widget.activeHostId},

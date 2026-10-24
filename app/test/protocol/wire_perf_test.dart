@@ -14,7 +14,7 @@ void main() {
     expect(lines.first.length, big.length);
 
     // Thousands of small lines.
-    final many = List.generate(5000, (i) => '{"i":$i}').join('\n') + '\n';
+    final many = '${List.generate(5000, (i) => '{"i":$i}').join('\n')}\n';
     final lines2 = <String>[];
     final acc2 = wire.LineAccumulator(onLine: (line) => lines2.add(line));
     acc2.feed(many);

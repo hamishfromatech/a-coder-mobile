@@ -27,13 +27,13 @@ dependencies:
   web_socket_channel: ^3.0.1        # WebSocket transport
 
 dev_dependencies:
-  integration_test:
-    sdk: flutter
   alchemist: ^0.14.0                # golden tests (dark/light themes)
   flutter_launcher_icons: ^0.14.4   # app icon generation
   flutter_lints: ^5.0.0
   flutter_native_splash: ^2.4.8     # native splash generation
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   mocktail: ^1.0.4                  # test doubles
 

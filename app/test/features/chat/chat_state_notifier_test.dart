@@ -60,7 +60,7 @@ void main() {
   test('updateFromStateResponse fills session fields', () {
     final notifier = container.read(chatStateProvider.notifier);
     notifier.updateFromStateResponse(const responses.SessionStateResponse(
-      model: const responses.StateModelRef(provider: 'anthropic', id: 'claude-3.5-sonnet', name: 'Claude 3.5 Sonnet'),
+      model: responses.StateModelRef(provider: 'anthropic', id: 'claude-3.5-sonnet', name: 'Claude 3.5 Sonnet'),
       thinkingLevel: 'medium',
       permissionMode: 'plan',
       planMode: true,

@@ -84,7 +84,7 @@ abstract class AgentMessage {
   const AgentMessage();
   factory AgentMessage.fromJson(Object? raw) {
     if (raw is! Map<String, dynamic>) {
-      return AssistantMessage(content: const [], timestamp: 0);
+      return const AssistantMessage(content: [], timestamp: 0);
     }
     switch (raw['role'] as String?) {
       case 'user':

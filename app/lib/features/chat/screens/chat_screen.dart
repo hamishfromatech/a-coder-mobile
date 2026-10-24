@@ -6,6 +6,8 @@
 ///
 /// Fully wired: reads chatStateProvider (fed by the event router via
 /// SessionController) and sends commands through the session controller.
+library;
+
 
 import 'dart:async' show Timer;
 import 'dart:convert' show base64Encode;
@@ -333,12 +335,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           ),
         );
       }
-      return Center(
+      return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.smart_toy_outlined, size: 40, color: PiColors.textFaint),
-            const SizedBox(height: 12),
+            Icon(Icons.smart_toy_outlined, size: 40, color: PiColors.textFaint),
+            SizedBox(height: 12),
             Text('Send a task to get started', style: TextStyle(color: PiColors.textMuted)),
           ],
         ),
@@ -650,11 +652,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
 
                 // Streaming indicator — typing dots inside the vessel
                 if (isStreaming)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2, bottom: 4),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2, bottom: 4),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         _TypingDot(delay: Duration(milliseconds: 0)),
                         _TypingDot(delay: Duration(milliseconds: 200)),
                         _TypingDot(delay: Duration(milliseconds: 400)),
@@ -1165,7 +1167,7 @@ class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMi
 /// One card per extension_ui_request method:
 ///   confirm(kind: permission) → swipe-to-allow + deny + always-allow
 ///   confirm (other)           → allow / deny
-///   question                  → tappable options → {answers: Record<header, answer>}
+///   question                  → tappable options → `{answers: Record<header, answer>}`
 ///   select                    → single/multi choice → {value: string}
 ///   input / editor            → text field → {value: string}
 ///   notify                    → toast-style card, acknowledges on dismiss
@@ -1628,8 +1630,8 @@ class _QueuedCard extends StatelessWidget {
           const SizedBox(height: 4),
           InkWell(
             onTap: onRestore,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2),
+            child: const Padding(
+              padding: EdgeInsets.only(top: 2),
               child: Text('Restore to composer',
                   style: TextStyle(
                       fontSize: 12, color: PiColors.accent, decoration: TextDecoration.underline)),

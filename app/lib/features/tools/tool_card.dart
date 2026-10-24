@@ -268,7 +268,7 @@ class _ToolCardState extends State<ToolCard> {
   }
 
   Widget _buildDetail(PiPalette c) {
-    final mono = TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.text);
+    const mono = TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.text);
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -288,7 +288,7 @@ class _ToolCardState extends State<ToolCard> {
   }
 
   List<Widget> _detailChildren(TextStyle mono) {
-    final labelStyle = TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: PiColors.textSecondary);
+    const labelStyle = TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: PiColors.textSecondary);
 
     switch (_type) {
       case ToolCardType.bash:
@@ -297,32 +297,32 @@ class _ToolCardState extends State<ToolCard> {
         final lines = stdout?.split('\n') ?? const <String>[];
         final bounded = lines.length > 40 ? lines.take(40).toList() : lines;
         return [
-          Text('Command', style: labelStyle),
+          const Text('Command', style: labelStyle),
           const SizedBox(height: 2),
           Text(widget.args['command'] as String? ?? '', style: mono),
           if (stdout != null && stdout.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('Output', style: labelStyle),
+            const Text('Output', style: labelStyle),
             const SizedBox(height: 2),
             for (final line in bounded) Text(line, style: mono.copyWith(color: PiColors.textSecondary)),
             if (lines.length > 40)
-              Text('… ${lines.length - 40} more lines', style: TextStyle(fontSize: 11, color: PiColors.textFaint)),
+              Text('… ${lines.length - 40} more lines', style: const TextStyle(fontSize: 11, color: PiColors.textFaint)),
           ],
         ];
       case ToolCardType.edit:
         final diff = _diffText;
         if (widget.isError) {
-          return [Text('Tool execution failed', style: TextStyle(color: PiColors.error, fontSize: 12))];
+          return [const Text('Tool execution failed', style: TextStyle(color: PiColors.error, fontSize: 12))];
         }
         if (diff == null || diff.isEmpty) {
-          return [Text('No changes', style: TextStyle(fontSize: 12, color: PiColors.textMuted))];
+          return [const Text('No changes', style: TextStyle(fontSize: 12, color: PiColors.textMuted))];
         }
         final lines = diff.split('\n');
         final bounded = lines.length > 40 ? lines.take(40).toList() : lines;
         return [
           for (final line in bounded) DiffRow(line: line),
           if (lines.length > 40)
-            Text('… ${lines.length - 40} more lines', style: TextStyle(fontSize: 11, color: PiColors.textFaint)),
+            Text('… ${lines.length - 40} more lines', style: const TextStyle(fontSize: 11, color: PiColors.textFaint)),
         ];
       case ToolCardType.read:
       case ToolCardType.write:
@@ -331,7 +331,7 @@ class _ToolCardState extends State<ToolCard> {
         final r = _resultMap;
         final matches = r?['matches'];
         return [
-          Text('Query', style: labelStyle),
+          const Text('Query', style: labelStyle),
           const SizedBox(height: 2),
           Text(
             (widget.args['pattern'] ?? widget.args['path'] ?? '').toString(),
@@ -339,11 +339,11 @@ class _ToolCardState extends State<ToolCard> {
           ),
           if (matches is List) ...[
             const SizedBox(height: 4),
-            Text('${matches.length} results', style: TextStyle(fontSize: 12, color: PiColors.success)),
+            Text('${matches.length} results', style: const TextStyle(fontSize: 12, color: PiColors.success)),
           ],
         ];
       case ToolCardType.task:
-        return [Text('Task graph — full view in a later milestone', style: TextStyle(fontSize: 12, color: PiColors.textMuted))];
+        return [const Text('Task graph — full view in a later milestone', style: TextStyle(fontSize: 12, color: PiColors.textMuted))];
       case ToolCardType.unknown:
         return [
           SelectableText(

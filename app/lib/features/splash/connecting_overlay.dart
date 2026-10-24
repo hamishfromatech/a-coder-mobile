@@ -141,7 +141,7 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                       active: _phase == _Phase.live && connecting && !reduced,
                       cursor: true,
                       text: 'CONNECTING',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: 'JetBrains Mono',
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

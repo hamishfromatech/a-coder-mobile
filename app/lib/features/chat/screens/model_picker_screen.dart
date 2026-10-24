@@ -72,7 +72,7 @@ class _ModelPickerScreenState extends ConsumerState<ModelPickerScreen> {
                 hintText: 'Search models...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),
           ),
