@@ -1,0 +1,16 @@
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":"I need to run npm test. Let me execute that for you."},{"type":"toolCall","id":"t1","name":"bash","arguments":{"command":"npm test"}}],"api":"anthropic","provider":"claude-3.5-sonnet","model":"claude-3.5-sonnet","timestamp":1700000000001}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"I need to run npm test."},{"type":"toolCall","id":"t1","name":"bash","arguments":{"command":"npm test"}}],"api":"anthropic","provider":"claude-3.5-sonnet","model":"claude-3.5-sonnet","timestamp":1700000000002}}
+{"type":"extension_ui_request","id":"u1","method":"confirm","kind":"permission","toolName":"bash","title":"Allow bash?","message":"npm test","timeout":60}
+→ (client sends: {"type":"extension_ui_response","id":"u1","confirmed":true})
+← {"type":"tool_execution_start","toolCallId":"t1","toolName":"bash","args":{"command":"npm test"}}
+{"type":"tool_execution_update","toolCallId":"t1","toolName":"bash","partialResult":" PASS  src/utils.test.ts\n PASS  src/auth.test.ts"}
+{"type":"tool_execution_end","toolCallId":"t1","toolName":"bash","result":{"stdout":" PASS  src/utils.test.ts\n PASS  src/auth.test.ts\n\n2 tests passed, 0 failed","stderr":"","exitCode":0},"isError":false}
+{"type":"message_start","message":{"role":"toolResult","toolCallId":"t1","toolName":"bash","content":[{"type":"text","text":"✓ 2 passed"}],"details":{"stdout":"...","exitCode":0},"isError":false,"timestamp":1700000000003}}
+{"type":"message_end","message":{"role":"toolResult","toolCallId":"t1","toolName":"bash","content":[{"type":"text","text":"✓ 2 passed"}],"details":{},"isError":false,"timestamp":1700000000003}}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":"All tests pass! ✅"}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"All tests pass! ✅"}],"api":"anthropic","provider":"claude-3.5-sonnet","model":"claude-3.5-sonnet"}}
+{"type":"turn_end","toolResults":[],"usage":{"input":200,"output":16}}
+{"type":"agent_end","messages":[],"willRetry":false}

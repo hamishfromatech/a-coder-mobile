@@ -1,0 +1,32 @@
+<!-- iOS platform configuration (doc 04 §8) -->
+<!-- Add these keys to ios/Runner/Info.plist: -->
+
+<!--
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_a-coder._tcp</string>
+  </array>
+
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>A-Coder connects to your desktop running the A-Coder engine for remote agent control.</string>
+
+  <key>NSCameraUsageDescription</key>
+  <string>A-Coder uses your camera to scan QR codes for pairing with your desktop machine.</string>
+
+  <!-- App Transport Security: allow ws:// to private LAN IPs -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+-->
+
+<!-- Add this to ios/Runner/Info.plist inside the <dict> block: -->
+<key>NSBonjourServices</key>
+<array><string>_a-coder._tcp</string></array>
+<key>NSLocalNetworkUsageDescription</key>
+<string>A-Coder connects to your desktop running the A-Coder engine for remote agent control.</string>
+<key>NSCameraUsageDescription</key>
+<string>A-Coder uses your camera to scan QR codes for pairing with your desktop machine.</string>
+<key>NSAppTransportSecurity</key>
+<dict><key>NSAllowsLocalNetworking</key><true/></dict>

@@ -1,0 +1,9 @@
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"timestamp":1700000000000}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"I need to help the user with this task."}],"timestamp":1700000000001,"assistantMessageEvent":{"type":"thinking_start"}}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"text","text":"Here's what I'll do:"}],"timestamp":1700000000002,"api":"anthropic","provider":"claude-3.5-sonnet","model":"claude-3.5-sonnet","timestamp":1700000000002,"assistantMessageEvent":{"type":"text_start"}}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"I need to help the user with this task."},{"type":"text","text":"Here's what I'll do:\n\n```bash\ncd /home/project && npm test\n```\n"}],"timestamp":1700000000003,"assistantMessageEvent":{"type":"text_delta"}}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"I need to help the user with this task."},{"type":"text","text":"Here's what I'll do:\n\n```bash\ncd /home/project && npm test\n```\n"}],"api":"anthropic","provider":"claude-3.5-sonnet","model":"claude-3.5-sonnet","timestamp":1700000000004}}
+{"type":"turn_end","message":{"role":"assistant"},"toolResults":[],"usage":{"input":248,"output":64,"cacheRead":0,"cacheWrite":0}}
+{"type":"agent_end","messages":[{"role":"user","content":[],"timestamp":1700000000000},{"role":"assistant","content":[],"api":"anthropic","provider":"claude-3.5-sonnet","model":"claude-3.5-sonnet","timestamp":1700000000004}],"willRetry":false}

@@ -1,0 +1,62 @@
+name: acoder_mobile
+description: A-Coder mobile app — pair once, watch and drive your coding agent from anywhere.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  bonsoir: ^7.1.5                   # mDNS discovery
+  collection: ^1.19.0               # utilities
+  connectivity_plus: ^7.3.1         # network-change triggers
+  flutter:
+    sdk: flutter                    # framework (referenced by package:flutter imports)
+  flutter_highlight: ^0.7.0         # code blocks in markdown
+  flutter_markdown_plus: ^1.0.12    # markdown rendering
+  flutter_riverpod: ^2.6.1          # state management
+  flutter_secure_storage: ^11.2.0   # pairing tokens (Keychain/Keystore)
+  image_picker: ^1.2.1              # image attachments (picker/camera)
+  intl: ^0.19.0                     # date formatting
+  markdown: ^7.3.1                  # markdown AST (code-block builder)
+  mobile_scanner: ^7.4.2            # QR scan
+  qr_flutter: ^4.1.0                # share QR (bridge prints in terminal)
+  shared_preferences: ^2.3.2        # non-secret settings
+  uuid: ^4.5.0                      # command IDs
+  web_socket_channel: ^3.0.1        # WebSocket transport
+
+dev_dependencies:
+  alchemist: ^0.14.0                # golden tests (dark/light themes)
+  flutter_launcher_icons: ^0.14.4   # app icon generation
+  flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.8     # native splash generation
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4                  # test doubles
+
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  android: true
+  ios: true
+  adaptive_icon_background: '#0A0A0C'
+  adaptive_icon_foreground: assets/icon/icon-foreground.png
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: '#0A0A0C'
+  image: assets/icon/icon-foreground.png
+  android_12:
+    color: '#0A0A0C'
+    image: assets/icon/icon-foreground.png
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
