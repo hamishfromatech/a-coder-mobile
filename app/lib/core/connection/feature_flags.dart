@@ -7,8 +7,8 @@ library;
 
 class FeatureFlags {
   // M6 extensions
-  static const bool enableCron = false;
-  static const bool enableOffice = false;
+  static const bool enableCron = true;
+  static const bool enableOffice = true;
 
   // Deferred (N2) — file browsing/editing UI
   static const bool enableFiles = false;

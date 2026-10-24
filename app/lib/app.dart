@@ -19,6 +19,8 @@ import 'features/sessions/screens/home_screen.dart';
 import 'features/splash/connecting_overlay.dart';
 import 'features/chat/screens/chat_screen.dart';
 import 'features/chat/screens/model_picker_screen.dart';
+import 'features/cron/screens/cron_screen.dart';
+import 'features/office/screens/office_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
 
 class ACoderApp extends ConsumerStatefulWidget {
@@ -128,6 +130,18 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
             );
           case '/model':
             return MaterialPageRoute<void>(settings: settings, builder: (_) => const ModelPickerScreen());
+          case '/cron':
+            final args = settings.arguments as Map<String, String>? ?? {};
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (_) => CronScreen(hostId: args['hostId'] ?? ''),
+            );
+          case '/office':
+            final args = settings.arguments as Map<String, String>? ?? {};
+            return MaterialPageRoute<void>(
+              settings: settings,
+              builder: (_) => OfficeScreen(hostId: args['hostId'] ?? ''),
+            );
           case '/settings':
             return MaterialPageRoute<void>(settings: settings, builder: (_) => const SettingsScreen());
           default:

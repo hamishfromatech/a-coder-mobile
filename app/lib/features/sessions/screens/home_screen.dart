@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/connection/connection_state.dart' as cs;
+import '../../../core/connection/feature_flags.dart';
 import '../../../core/protocol/responses.dart' show RpcSessionInfo;
 import '../../../design/theme.dart';
 import '../../../design/components/empty_state.dart';
@@ -93,6 +94,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             onPressed: () => _showConnectionSheet(context, conn),
           ),
+          if (FeatureFlags.enableCron || FeatureFlags.enableOffice)
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                final args = {'hostId': widget.activeHostId};
+                if (value == 'cron') {
+                  Navigator.of(context).pushNamed('/cron', arguments: args);
+                } else if (value == 'office') {
+                  Navigator.of(context).pushNamed('/office', arguments: args);
+                }
+              },
+              itemBuilder: (_) => [
+                if (FeatureFlags.enableCron)
+                  const PopupMenuItem(
+                      value: 'cron', child: Text('Scheduled tasks')),
+                if (FeatureFlags.enableOffice)
+                  const PopupMenuItem(value: 'office', child: Text('Your Office')),
+              ],
+            ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
