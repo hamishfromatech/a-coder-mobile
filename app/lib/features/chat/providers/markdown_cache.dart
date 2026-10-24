@@ -2,7 +2,6 @@
 library;
 import 'dart:collection';
 
-import 'package:collection/collection.dart';
 
 /// Bounded LRU cache for parsed markdown blocks.
 ///

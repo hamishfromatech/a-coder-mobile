@@ -5,7 +5,6 @@ import 'dart:async';
 /// Bash, Read, Edit (with diff), Write, Grep/Find/Ls, generic.
 
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
