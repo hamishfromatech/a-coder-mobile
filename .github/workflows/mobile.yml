@@ -1,0 +1,44 @@
+name: mobile
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Pub get
+        run: |
+          cd app
+          flutter pub get
+      - name: Analyze
+        run: |
+          cd app
+          flutter analyze --fatal-infos=false
+      - name: Test
+        run: |
+          cd app
+          flutter test --coverage
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov.info
+          path: app/coverage/lcov.info
+
+# Optional (commented): run the bridge test suite in its own repo/job.
+# - The A-Coder bridge lives in a different repository and is not a required
+#   job for this mobile workflow.
+# bridge:
+#   runs-on: ubuntu-latest
+#   steps:
+#     - uses: actions/checkout@v4
+#       with:
+#         repository: <org>/a-coder-bridge
+#     - run: npm ci && npm test
