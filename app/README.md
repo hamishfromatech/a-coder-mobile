@@ -16,9 +16,10 @@ watch and drive your coding agent from anywhere on your LAN.
   badge, model picker, compact/abort/export, background sessions with abort
 - ✅ M5: desktop "Mobile access" settings card (in `a-coder-cli/desktop-app`),
   haptics, icons/splash, empty/error states, accessibility pass
-- 🚧 M6 extensions (cron, Office, wss:// + pinned cert, push) — behind flags
-- 🚧 Chat polish backlog: long-press copy, tool-detail sheet, rewind,
-  transcript pagination — see `../BUILD.md`
+- ✅ M6: Scheduled tasks, Your Office, and `wss://` + certificate pinning
+  (push relay is a design spike only)
+- ✅ Chat polish + paging: long-press copy, tool detail sheet, rewind,
+  `get_transcript_page` history paging, inline image history
 
 ## Run (dev)
 
@@ -80,7 +81,7 @@ hold protocol state. Connection resilience (backoff, ping, resync) lives in
 ## Tests
 
 ```bash
-flutter test          # 130 tests (unit, widget, goldens, fake-bridge E2E)
+flutter test          # 213 tests (unit, widget, goldens, fake-bridge E2E)
 flutter analyze       # No issues found
 ```
 

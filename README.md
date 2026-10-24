@@ -42,7 +42,7 @@ unless you use a VPN/Tailscale.
 ```bash
 cd app
 flutter analyze     # No issues found
-flutter test        # 130+ tests (unit, widget, goldens, fake-bridge E2E)
+flutter test        # 213 tests (unit, widget, goldens, fake-bridge E2E)
 ```
 
 CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
@@ -54,11 +54,19 @@ CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
 - App architecture — [`plan/05-app-architecture.md`](plan/05-app-architecture.md)
 - Screens — [`plan/06-screens-spec.md`](plan/06-screens-spec.md)
 
+## Feature set
+
+Chat (streaming, tools, approvals, queue, rewind, paged history, images),
+sessions, models, pairing (QR/manual/discovery), settings, **Scheduled tasks**
+and **Your Office** surfaces, and **`wss://` with certificate pinning**.
+
 ## Security model
 
 - The bridge binds to the LAN and requires a 256-bit bearer token; the QR only
   contains host/port/token. mDNS never bypasses authentication.
 - Tokens live in the iOS Keychain / Android Keystore and are excluded from
   Android backups.
-- Transport is plaintext `ws://` on the LAN in v1; `wss://` + certificate pinning
-  is the M6 track. Use a VPN/Tailscale for off-LAN access.
+- Transport defaults to plaintext `ws://` on the LAN. `a-coder-cli serve
+  --tls-cert/--tls-key` switches to `wss://`; the QR then carries the cert's
+  SHA-256 pin and the app rejects a mismatched certificate. Off-LAN access
+  still belongs on a VPN/Tailscale.

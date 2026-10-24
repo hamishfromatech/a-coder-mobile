@@ -46,6 +46,20 @@ The bridge is now `a-coder-cli serve`:
   shutdown drain (~2 s), 16 MiB line cap.
 - 42 vitest tests pass (+4 env-gated real-engine conformance tests).
 
+**M6 — Extensions (shipped behind flags) ✅**
+
+- **Scheduled tasks** (`/cron`, `FeatureFlags.enableCron`): list, enable/disable,
+  run now, delete, job detail (prompt, cwd, variables, last error) and run
+  history. Fed by `cron_list`/`cron_runs` + `cron_update` pushes.
+- **Your Office** (`/office`, `FeatureFlags.enableOffice`): roster with live
+  statuses, huddles with previews, errands, pending supervisor prompts, and a
+  huddle room (messages, working indicators, send/stop).
+- **`wss://` + certificate pinning**: `a-coder-cli serve --tls-cert/--tls-key`
+  serves TLS; the QR carries `tls:true` + the SHA-256 `pin`; the app pins
+  self-signed LAN certs and shows a TLS/pinned badge per machine. mDNS TXT
+  advertises `tls=1`.
+- **Push relay**: design spike only (`plan/11-push-relay-spike.md`).
+
 **M2/M3/M4 — Client core**
 
 - Protocol: typed messages/commands/events/responses; LF-only wire codec with
@@ -68,8 +82,10 @@ The bridge is now `a-coder-cli serve`:
   about, forget-device guard.
 - Platform: iOS ATS/Bonjour/camera/photo-library keys; Android cleartext +
   network state; backups disabled for pairing secrets; release icons/splash.
-- Accessibility pass in progress: semantics on primary controls, reduced-motion
-  handling, 200 % text-scale checks.
+- Accessibility: semantics on primary controls, reduced-motion handling,
+  200 % text-scale checks, no overflow at 320 dp.
+- Transcript paging via `get_transcript_page` (80-entry pages, scroll-up load),
+  inline image history with a full-screen viewer, and file-history rewind.
 
 ## Verification (current)
 
@@ -77,7 +93,7 @@ The bridge is now `a-coder-cli serve`:
 cd app
 flutter pub get
 flutter analyze     # No issues found
-flutter test        # 130 passing
+flutter test        # 213 passing
 ```
 
 Release APKs are built at `app/build/app/outputs/flutter-apk/`
@@ -93,11 +109,11 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 1. **Device/E2E validation** — no emulator or simulator is available in this
    environment; `app/integration_test/happy_path_test.dart` compiles and runs
    against the in-process fake bridge once a device is attached. The manual
-   matrix in `QA.md` is unexecuted.
-2. **Chat polish** — long-press copy, tool-detail sheet, error retry card,
-   remaining semantics, build-count perf test (tracked as the final chat pass).
-3. **Functional parity** — `rewind` (file history), transcript pagination
-   (`get_transcript_page`) for very long sessions, attachment hydration
-   (`get_attachment`).
-4. **M6 extensions (flagged off)** — cron surface, Your Office, `wss://` +
-   pinned cert, push relay spike.
+   matrix in `QA.md` is unexecuted (including a TLS pairing pass).
+2. **Push relay implementation** — design is in `plan/11-push-relay-spike.md`;
+   nothing ships yet.
+3. **Bridge branch** — `wss://` and hardening live on
+   `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
+   when ready.
+4. **Repo hosting** — `mobile-app` is a local git repo; push it so
+   `.github/workflows/mobile.yml` actually runs.
