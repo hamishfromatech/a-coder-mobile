@@ -14,6 +14,11 @@ class MarkdownBlockCache {
   final int capacity;
   final LinkedHashMap<String, Object> _cache = LinkedHashMap<String, Object>();
 
+  int _parseCount = 0;
+  /// Debug counter incremented when a new message is parsed/cached (cache miss).
+  /// Guarded to tests: read-only, never reset except via [clear].
+  int get parseCount => _parseCount;
+
   String keyFor(String messageId, int contentLength) => '$messageId::$contentLength';
 
   T? get<T>(String messageId, int contentLength) {
@@ -27,6 +32,7 @@ class MarkdownBlockCache {
   }
 
   void put(String messageId, int contentLength, Object blocks) {
+    _parseCount++;
     final key = keyFor(messageId, contentLength);
     _cache.remove(key);
     _cache[key] = blocks;
@@ -35,7 +41,10 @@ class MarkdownBlockCache {
     }
   }
 
-  void clear() => _cache.clear();
+  void clear() {
+    _cache.clear();
+    _parseCount = 0;
+  }
 
   int get length => _cache.length;
 }

@@ -1232,12 +1232,14 @@ class _MarkdownContent extends ConsumerWidget {
     // Chat text size is a user setting (doc 06 §5; desktop SettingsPanel).
     final scale =
         ref.watch(settingsProvider.select((s) => s.chatTextSize)) / 14.0;
-    // Keep parsed markdown cached keyed by (messageId, contentLength) so
-    // message_update never renders stale content.
-    markdownBlockCache.get<List<dynamic>>(messageId, data.length) ??
-        markdownBlockCache.put(messageId, data.length, data);
+    // Cache the built markdown render keyed by message id + content hash +
+    // text scale. A message_update or a text-size change produces a new key,
+    // so content is never rendered stale; unchanged messages reuse the widget.
+    final cacheKey = '$messageId:${data.hashCode}@${scale.toStringAsFixed(2)}';
+    final cached = markdownBlockCache.get<Widget>(cacheKey, data.length);
+    if (cached != null) return cached;
     double fs(double v) => v * scale;
-    return MarkdownBody(
+    final rendered = MarkdownBody(
       data: data,
       selectable: true,
       softLineBreak: true,
@@ -1276,6 +1278,8 @@ class _MarkdownContent extends ConsumerWidget {
         listBullet: TextStyle(fontSize: fs(14), color: PiColors.text),
       ),
     );
+    markdownBlockCache.put(cacheKey, data.length, rendered);
+    return rendered;
   }
 }
 
@@ -1429,10 +1433,10 @@ class _TypingDotState extends State<_TypingDot>
 ///   notify                    → toast-style card, acknowledges on dismiss
 class UiRequestCard extends ConsumerStatefulWidget {
   final er.UiRequest request;
-  final SessionController controller;
+  final SessionController? controller;
 
   const UiRequestCard(
-      {super.key, required this.request, required this.controller});
+      {super.key, required this.request, this.controller});
 
   @override
   ConsumerState<UiRequestCard> createState() => UiRequestCardState();
@@ -1476,7 +1480,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
         timer.cancel();
         if (mounted) setState(() => _remaining = 0);
         if (!_responding) {
-          widget.controller.cancelUiRequest(request);
+          widget.controller?.cancelUiRequest(request);
         }
       } else {
         setState(() => _remaining = rem);
@@ -1558,7 +1562,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                 constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                 onPressed: () {
                   HapticFeedback.selectionClick();
-                  widget.controller.cancelUiRequest(request);
+                  widget.controller?.cancelUiRequest(request);
                 },
               ),
             ],
@@ -1599,7 +1603,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
           if (_responding) return;
           _haptic();
           _beginRespond();
-          widget.controller.respondQuestion(request, label);
+          widget.controller?.respondQuestion(request, label);
         });
       case 'select':
         return _buildSelectBody(request);
@@ -1611,7 +1615,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: OutlinedButton(
-              onPressed: () => widget.controller.cancelUiRequest(request),
+              onPressed: () => widget.controller?.cancelUiRequest(request),
               child: const Text('Got it'),
             ),
           ),
@@ -1624,7 +1628,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
             child: Row(children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => widget.controller.cancelUiRequest(request),
+                  onPressed: () => widget.controller?.cancelUiRequest(request),
                   child: const Text('Dismiss'),
                 ),
               ),
@@ -1640,96 +1644,106 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
     return [
       Padding(
         padding: const EdgeInsets.only(top: 8),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (isPermission)
-              Expanded(
-                flex: 2,
-                child: GestureDetector(
-                  onHorizontalDragUpdate: (d) => setState(() {
-                    _dragExtent =
-                        (_dragExtent + d.delta.distance / 200).clamp(0.0, 1.0);
-                  }),
-                  onHorizontalDragEnd: (d) {
-                    if (!_responding && _dragExtent > 0.7) {
-                      _haptic();
-                      _beginRespond();
-                      widget.controller.respondApproval(request, 'allow');
-                    }
-                    setState(() => _dragExtent = 0.0);
-                  },
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: PiColors.warning
-                          .withValues(alpha: 0.15 + 0.2 * _dragExtent),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                          color: PiColors.warning.withValues(alpha: 0.4)),
-                    ),
-                    child: const Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.swipe_right_rounded,
-                              size: 16, color: PiColors.warning),
-                          SizedBox(width: 6),
-                          Text('Swipe to allow',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: PiColors.warning)),
-                        ],
-                      ),
+              GestureDetector(
+                onHorizontalDragUpdate: (d) => setState(() {
+                  _dragExtent =
+                      (_dragExtent + d.delta.distance / 200).clamp(0.0, 1.0);
+                }),
+                onHorizontalDragEnd: (d) {
+                  if (!_responding && _dragExtent > 0.7) {
+                    _haptic();
+                    _beginRespond();
+                    widget.controller?.respondApproval(request, 'allow');
+                  }
+                  setState(() => _dragExtent = 0.0);
+                },
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: PiColors.warning
+                        .withValues(alpha: 0.15 + 0.2 * _dragExtent),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                        color: PiColors.warning.withValues(alpha: 0.4)),
+                  ),
+                  child: const Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.swipe_right_rounded,
+                            size: 16, color: PiColors.warning),
+                        SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Swipe to allow',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: PiColors.warning),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               )
             else
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: _responding
-                      ? null
-                      : () {
-                          _haptic();
-                          _beginRespond();
-                          widget.controller.respondApproval(request, 'allow');
-                        },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: PiColors.warning),
-                  child: const Text('Allow'),
-                ),
-              ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: _responding
-                  ? null
-                  : () {
-                      _haptic();
-                      _beginRespond();
-                      widget.controller.respondApproval(request, 'deny');
-                    },
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: PiColors.error,
-                  side:
-                      BorderSide(color: PiColors.error.withValues(alpha: 0.3))),
-              child: const Text('Deny'),
-            ),
-            if (isPermission) ...[
-              const SizedBox(width: 8),
-              OutlinedButton(
+              ElevatedButton(
                 onPressed: _responding
                     ? null
                     : () {
                         _haptic();
                         _beginRespond();
-                        widget.controller
-                            .respondApproval(request, 'always_allow');
+                        widget.controller?.respondApproval(request, 'allow');
                       },
-                child: const Text('Always'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: PiColors.warning),
+                child: const Text('Allow'),
               ),
-            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _responding
+                        ? null
+                        : () {
+                            _haptic();
+                            _beginRespond();
+                            widget.controller
+                                ?.respondApproval(request, 'deny');
+                          },
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: PiColors.error,
+                        side: BorderSide(
+                            color: PiColors.error.withValues(alpha: 0.3))),
+                    child: const Text('Deny'),
+                  ),
+                ),
+                if (isPermission) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _responding
+                          ? null
+                          : () {
+                              _haptic();
+                              _beginRespond();
+                              widget.controller
+                                  ?.respondApproval(request, 'always_allow');
+                            },
+                      child: const Text('Always'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),
@@ -1783,7 +1797,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
         if (_responding) return;
         _haptic();
         _beginRespond();
-        widget.controller.respondSelect(request, [label]);
+        widget.controller?.respondSelect(request, [label]);
       });
     }
 
@@ -1806,8 +1820,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
               : () {
                   _haptic();
                   _beginRespond();
-                  widget.controller
-                      .respondSelect(request, _checkedValues(request));
+                  widget.controller?.respondSelect(request, _checkedValues(request));
                 },
           child: const Text('Submit'),
         ),
@@ -1850,8 +1863,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                   : () {
                       _haptic();
                       _beginRespond();
-                      widget.controller
-                          .respondInput(request, _inputController.text.trim());
+                      widget.controller?.respondInput(request, _inputController.text.trim());
                     },
               child: const Text('Send'),
             ),
