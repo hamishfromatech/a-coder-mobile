@@ -9,3 +9,4 @@ bridge/dist/
 **/.DS_Store
 .idea/
 *.iml
+.a-coder-cli/
