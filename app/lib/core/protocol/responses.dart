@@ -266,6 +266,254 @@ class AttachmentResponse {
       );
 }
 
+// ─── Cron ────────────────────────────────────────────────────────
+class CronJob {
+  final String id;
+  final String name;
+  final String prompt;
+  final Map<String, dynamic> schedule;
+  final bool enabled;
+  final String cwd;
+  final int? lastRunAt;
+  final int? nextRunAt;
+  final String? lastStatus;
+  final String? lastError;
+  final bool isolated;
+  final int revision;
+  const CronJob({
+    required this.id,
+    required this.name,
+    required this.prompt,
+    required this.schedule,
+    required this.enabled,
+    required this.cwd,
+    this.lastRunAt,
+    this.nextRunAt,
+    this.lastStatus,
+    this.lastError,
+    this.isolated = true,
+    this.revision = 1,
+  });
+  factory CronJob.fromJson(Map<String, dynamic> json) => CronJob(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '(untitled)',
+        prompt: json['prompt'] as String? ?? '',
+        schedule: json['schedule'] is Map<String, dynamic>
+            ? json['schedule'] as Map<String, dynamic>
+            : <String, dynamic>{},
+        enabled: json['enabled'] as bool? ?? false,
+        cwd: json['cwd'] as String? ?? '',
+        lastRunAt: (json['lastRunAt'] as num?)?.toInt(),
+        nextRunAt: (json['nextRunAt'] as num?)?.toInt(),
+        lastStatus: json['lastStatus'] as String?,
+        lastError: json['lastError'] as String?,
+        isolated: json['isolated'] as bool? ?? true,
+        revision: (json['revision'] as num?)?.toInt() ?? 1,
+      );
+  /// Human schedule label ("daily 09:00", "every 30m", …).
+  String get scheduleLabel {
+    final kind = schedule['kind'] as String? ?? '';
+    return switch (kind) {
+      'every' => 'every ${schedule['minutes'] ?? '?'}m',
+      'daily' => 'daily ${schedule['time'] ?? ''}',
+      'weekly' => 'weekly ${(schedule['days'] as List<dynamic>? ?? const []).join(',')} @ ${schedule['time'] ?? ''}',
+      'once' => 'once',
+      'event' => 'on ${schedule['trigger'] ?? 'event'}',
+      _ => kind.isEmpty ? 'manual' : kind,
+    };
+  }
+}
+
+class CronRun {
+  final String id;
+  final String jobId;
+  final String jobName;
+  final String trigger;
+  final String delivery;
+  final int startedAt;
+  final int? finishedAt;
+  final String status;
+  final String? error;
+  final String? summary;
+  const CronRun({
+    required this.id,
+    required this.jobId,
+    required this.jobName,
+    required this.trigger,
+    required this.delivery,
+    required this.startedAt,
+    this.finishedAt,
+    required this.status,
+    this.error,
+    this.summary,
+  });
+  factory CronRun.fromJson(Map<String, dynamic> json) => CronRun(
+        id: json['id'] as String? ?? '',
+        jobId: json['jobId'] as String? ?? '',
+        jobName: json['jobName'] as String? ?? '',
+        trigger: json['trigger'] as String? ?? 'schedule',
+        delivery: json['delivery'] as String? ?? 'session',
+        startedAt: (json['startedAt'] as num?)?.toInt() ?? 0,
+        finishedAt: (json['finishedAt'] as num?)?.toInt(),
+        status: json['status'] as String? ?? 'running',
+        error: json['error'] as String?,
+        summary: json['summary'] as String?,
+      );
+}
+
+// ─── Your Office (read-mostly) ───────────────────────────────────
+class Coworker {
+  final String id;
+  final String name;
+  final String handle;
+  final String? title;
+  final String? description;
+  final String? model;
+  final String? voice;
+  final String autonomy;
+  const Coworker({
+    required this.id,
+    required this.name,
+    required this.handle,
+    this.title,
+    this.description,
+    this.model,
+    this.voice,
+    this.autonomy = 'assist',
+  });
+  factory Coworker.fromJson(Map<String, dynamic> json) => Coworker(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        handle: json['handle'] as String? ?? '',
+        title: json['title'] as String?,
+        description: json['description'] as String?,
+        model: json['model'] as String?,
+        voice: json['voice'] as String?,
+        autonomy: json['autonomy']?.toString() ?? 'assist',
+      );
+}
+
+class HuddleSummary {
+  final String id;
+  final String name;
+  final List<String> members;
+  final String? preview;
+  final int? lastActive;
+  final bool pinned;
+  const HuddleSummary({
+    required this.id,
+    required this.name,
+    required this.members,
+    this.preview,
+    this.lastActive,
+    this.pinned = false,
+  });
+  factory HuddleSummary.fromJson(Map<String, dynamic> json) => HuddleSummary(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        members: (json['members'] as List<dynamic>? ?? const []).whereType<String>().toList(),
+        preview: json['preview'] as String?,
+        lastActive: (json['lastActive'] as num?)?.toInt(),
+        pinned: json['pinned'] as bool? ?? false,
+      );
+}
+
+class OfficeErrand {
+  final String id;
+  final String coworkerId;
+  final String name;
+  final String prompt;
+  final bool continuity;
+  const OfficeErrand({
+    required this.id,
+    required this.coworkerId,
+    required this.name,
+    required this.prompt,
+    this.continuity = true,
+  });
+  factory OfficeErrand.fromJson(Map<String, dynamic> json) => OfficeErrand(
+        id: json['id'] as String? ?? '',
+        coworkerId: json['coworkerId'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        prompt: json['prompt'] as String? ?? '',
+        continuity: json['continuity'] as bool? ?? true,
+      );
+}
+
+class OfficeSnapshot {
+  final List<Coworker> coworkers;
+  final Map<String, String> statuses; // coworkerId → status
+  final List<HuddleSummary> huddles;
+  final List<OfficeErrand> errands;
+  final List<Map<String, dynamic>> pendingPrompts;
+  const OfficeSnapshot({
+    this.coworkers = const [],
+    this.statuses = const {},
+    this.huddles = const [],
+    this.errands = const [],
+    this.pendingPrompts = const [],
+  });
+  factory OfficeSnapshot.fromJson(Map<String, dynamic> json) {
+    final rawStatuses = json['statuses'];
+    final statuses = <String, String>{};
+    if (rawStatuses is Map) {
+      rawStatuses.forEach((key, value) {
+        statuses['$key'] = value is Map
+            ? (value['status'] ?? value['state'] ?? value['kind'] ?? '')
+                    .toString()
+            : '$value';
+      });
+    }
+    return OfficeSnapshot(
+      coworkers: (json['coworkers'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(Coworker.fromJson)
+          .toList(),
+      statuses: statuses,
+      huddles: (json['huddles'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(HuddleSummary.fromJson)
+          .toList(),
+      errands: (json['errands'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(OfficeErrand.fromJson)
+          .toList(),
+      pendingPrompts: (json['pendingPrompts'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList(),
+    );
+  }
+  bool get isEmpty =>
+      coworkers.isEmpty && huddles.isEmpty && errands.isEmpty && pendingPrompts.isEmpty;
+}
+
+class OfficeHuddlePayload {
+  final String huddleId;
+  final Map<String, dynamic> data;
+  final Map<String, bool> working;
+  const OfficeHuddlePayload({
+    required this.huddleId,
+    this.data = const {},
+    this.working = const {},
+  });
+  factory OfficeHuddlePayload.fromJson(Map<String, dynamic> json) =>
+      OfficeHuddlePayload(
+        huddleId: json['huddleId'] as String? ?? '',
+        data: json['data'] is Map<String, dynamic>
+            ? json['data'] as Map<String, dynamic>
+            : const {},
+        working: (json['working'] as Map?)?.map(
+              (key, value) => MapEntry('$key', value == true),
+            ) ??
+            const {},
+      );
+  /// Messages as stored by the engine (`data.messages`), raw shape.
+  List<Map<String, dynamic>> get messages =>
+      (data['messages'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+}
+
 class BashResult {
   final String stdout;
   final String stderr;

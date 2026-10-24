@@ -11,6 +11,7 @@ dependencies:
   bonsoir: ^7.1.5                   # mDNS discovery
   collection: ^1.19.0               # utilities
   connectivity_plus: ^7.3.1         # network-change triggers
+  crypto: ^3.0.3                    # certificate pinning (SHA-256)
   flutter:
     sdk: flutter                    # framework (referenced by package:flutter imports)
   flutter_highlight: ^0.7.0         # code blocks in markdown

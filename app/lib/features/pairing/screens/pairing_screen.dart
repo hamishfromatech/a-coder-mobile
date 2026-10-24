@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show Clipboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
+import '../../../core/connection/cert_pinning.dart';
 import '../../../core/connection/host_registry.dart';
 import '../../../design/theme.dart';
 import '../../../design/components/status_dot.dart';
@@ -22,6 +23,9 @@ class QrPairingPayload {
   final String token;
   final String name;
   final String id;
+
+  /// SHA-256 certificate pin (wss:// only, optional).
+  final String? pin;
   const QrPairingPayload({
     required this.host,
     required this.port,
@@ -29,6 +33,7 @@ class QrPairingPayload {
     required this.token,
     required this.name,
     required this.id,
+    this.pin,
   });
   static QrPairingPayload? parse(String raw) {
     try {
@@ -46,6 +51,7 @@ class QrPairingPayload {
         token: token,
         name: obj['name'] as String? ?? '',
         id: obj['id'] as String? ?? '',
+        pin: obj['pin'] as String?,
       );
     } catch (_) {
       return null;
@@ -113,19 +119,22 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       _handledLatest = true;
       if (confirmed) {
         await _saveAndEnter(payload.host, payload.port, payload.tls, payload.token, payload.name,
+            pin: payload.pin,
             id: payload.id.isNotEmpty ? payload.id : null);
       }
       break;
     }
   }
   /// Persist the paired host (token → secure storage) and re-gate the app.
-  Future<void> _saveAndEnter(String host, int port, bool tls, String token, String name, {String? id}) async {
+  Future<void> _saveAndEnter(String host, int port, bool tls, String token, String name,
+      {String? id, String? pin}) async {
     final paired = PairedHost(
       id: id ?? const Uuid().v4(), // QR carries the machine id; manual entry generates one
       name: name.isEmpty ? '$host:$port' : name,
       host: host,
       port: port,
       tls: tls,
+      certFingerprint: parseFingerprint(pin),
       lastConnected: DateTime.now(),
     );
     try {

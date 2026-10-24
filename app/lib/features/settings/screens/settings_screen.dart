@@ -363,7 +363,30 @@ class _HostCard extends StatelessWidget {
                       ],
                     ],
                   ),
-                  Text(host.address, style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(host.address,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'JetBrains Mono',
+                                color: PiColors.textMuted)),
+                      ),
+                      if (host.tls) ...[
+                        const SizedBox(width: 6),
+                        const Icon(Icons.lock_outline,
+                            size: 12, color: PiColors.success),
+                        const SizedBox(width: 2),
+                        Text(
+                          host.certFingerprint != null ? 'TLS pinned' : 'TLS',
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'JetBrains Mono',
+                              color: PiColors.success),
+                        ),
+                      ],
+                    ],
+                  ),
                   if (testResult != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),

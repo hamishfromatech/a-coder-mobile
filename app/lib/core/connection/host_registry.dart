@@ -11,6 +11,8 @@ class PairedHost {
   final String host; // IP address or hostname
   final int port; // WebSocket port
   final bool tls; // wss:// vs ws://
+  /// SHA-256 certificate pin for wss:// (lowercase hex, optional).
+  final String? certFingerprint;
   final DateTime lastConnected;
   const PairedHost({
     required this.id,
@@ -18,6 +20,7 @@ class PairedHost {
     required this.host,
     required this.port,
     required this.tls,
+    this.certFingerprint,
     required this.lastConnected,
   });
   String get wsUrl => '${tls ? 'wss' : 'ws'}://$host:$port/rpc';
@@ -27,6 +30,7 @@ class PairedHost {
         'host': host,
         'port': port,
         'tls': tls,
+        if (certFingerprint != null) 'certFingerprint': certFingerprint,
         'lastConnected': lastConnected.toIso8601String(),
       };
   factory PairedHost.fromJson(Map<String, dynamic> json) => PairedHost(
@@ -35,17 +39,20 @@ class PairedHost {
         host: json['host'] as String? ?? '',
         port: (json['port'] as num?)?.toInt() ?? 0,
         tls: json['tls'] as bool? ?? false,
+        certFingerprint: json['certFingerprint'] as String?,
         lastConnected: json['lastConnected'] is String
             ? DateTime.tryParse(json['lastConnected'] as String) ?? DateTime.now()
             : DateTime.now(),
       );
-  PairedHost copyWith({String? name, String? host, int? port, bool? tls}) {
+  PairedHost copyWith(
+      {String? name, String? host, int? port, bool? tls, String? certFingerprint}) {
     return PairedHost(
       id: id,
       name: name ?? this.name,
       host: host ?? this.host,
       port: port ?? this.port,
       tls: tls ?? this.tls,
+      certFingerprint: certFingerprint ?? this.certFingerprint,
       lastConnected: lastConnected,
     );
   }

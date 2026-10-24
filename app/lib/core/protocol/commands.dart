@@ -222,6 +222,106 @@ class GetTranscriptPageCommand extends RpcCommand with _GeneratedId {
         if (sessionPath != null) 'sessionPath': sessionPath,
       };
 }
+// ─── Cron (scheduled tasks) ─────────────────────────────────────
+class CronListCommand extends RpcCommand with _GeneratedId {
+  CronListCommand();
+  @override
+  String get type => 'cron_list';
+  @override
+  Map<String, dynamic> toJson() => {'type': type};
+}
+class CronRunsCommand extends RpcCommand with _GeneratedId {
+  final String? jobId;
+  CronRunsCommand({this.jobId});
+  @override
+  String get type => 'cron_runs';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, if (jobId != null) 'jobId': jobId};
+}
+class CronRunNowCommand extends RpcCommand with _GeneratedId {
+  final String jobId;
+  final Map<String, String>? variables;
+  CronRunNowCommand({required this.jobId, this.variables});
+  @override
+  String get type => 'cron_run_now';
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'jobId': jobId,
+        if (variables != null) 'variables': variables,
+      };
+}
+class CronDeleteCommand extends RpcCommand with _GeneratedId {
+  final String jobId;
+  CronDeleteCommand({required this.jobId});
+  @override
+  String get type => 'cron_delete';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, 'jobId': jobId};
+}
+class CronUpdateCommand extends RpcCommand with _GeneratedId {
+  final String jobId;
+  final Map<String, dynamic> patch;
+  CronUpdateCommand({required this.jobId, required this.patch});
+  @override
+  String get type => 'cron_update';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, 'jobId': jobId, 'patch': patch};
+}
+
+// ─── Your Office ────────────────────────────────────────────────
+class OfficeListCommand extends RpcCommand with _GeneratedId {
+  OfficeListCommand();
+  @override
+  String get type => 'office_list';
+  @override
+  Map<String, dynamic> toJson() => {'type': type};
+}
+class OfficeHuddleGetCommand extends RpcCommand with _GeneratedId {
+  final String huddleId;
+  OfficeHuddleGetCommand({required this.huddleId});
+  @override
+  String get type => 'office_huddle_get';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, 'huddleId': huddleId};
+}
+class OfficeSendCommand extends RpcCommand with _GeneratedId {
+  final String huddleId;
+  final String text;
+  final List<Map<String, dynamic>>? images;
+  OfficeSendCommand({required this.huddleId, required this.text, this.images});
+  @override
+  String get type => 'office_send';
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'huddleId': huddleId,
+        'text': text,
+        if (images != null) 'images': images,
+      };
+}
+class OfficeStopCommand extends RpcCommand with _GeneratedId {
+  final String huddleId;
+  OfficeStopCommand({required this.huddleId});
+  @override
+  String get type => 'office_stop';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, 'huddleId': huddleId};
+}
+class OfficeRespondCommand extends RpcCommand with _GeneratedId {
+  final String requestId;
+  final String? choice;
+  OfficeRespondCommand({required this.requestId, this.choice});
+  @override
+  String get type => 'office_respond';
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'requestId': requestId,
+        if (choice != null) 'choice': choice,
+      };
+}
+
 class GetAttachmentCommand extends RpcCommand with _GeneratedId {
   final String attachmentId;
   GetAttachmentCommand({required this.attachmentId});

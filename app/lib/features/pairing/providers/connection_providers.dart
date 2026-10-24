@@ -21,6 +21,8 @@ import '../../../core/protocol/responses.dart' as responses;
 import '../../chat/providers/chat_providers.dart';
 import '../../chat/providers/event_router.dart' as er;
 import '../../sessions/providers/sessions_providers.dart';
+import '../../cron/providers/cron_providers.dart';
+import '../../office/providers/office_providers.dart';
 
 // ─── Active host ──────────────────────────────────────────────────
 
@@ -101,7 +103,11 @@ class SessionController extends StateNotifier<SessionControllerState> {
     }
     _host = host;
     final token = await HostRegistry().getToken(hostId);
-    final client = RpcClient(wsUrl: host.wsUrl, token: token);
+    final client = RpcClient(
+        wsUrl: host.wsUrl,
+        token: token,
+        certFingerprint: host.certFingerprint,
+      );
     final manager = ConnectionManager(client: client, hostUrl: host.wsUrl);
 
     manager.onEvent = _onEvent;
@@ -176,6 +182,48 @@ class SessionController extends StateNotifier<SessionControllerState> {
       _ref.read(backgroundSessionsProvider.notifier).update(list);
       return;
     }
+    // ── M6 surfaces (flag-gated screens; data always kept in sync) ──
+    if (eventType == 'cron_update') {
+      final jobs = (data['jobs'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(responses.CronJob.fromJson)
+          .toList();
+      _ref.read(cronJobsProvider.notifier).update(jobs);
+      return;
+    }
+    if (eventType == 'office_update') {
+      final snapshot = data['snapshot'];
+      if (snapshot is Map<String, dynamic>) {
+        _ref
+            .read(officeSnapshotProvider.notifier)
+            .update(responses.OfficeSnapshot.fromJson(snapshot));
+      }
+      return;
+    }
+    if (eventType == 'office_huddle') {
+      final payload = data['payload'];
+      if (payload is Map<String, dynamic>) {
+        _ref
+            .read(officeHuddleProvider.notifier)
+            .update(responses.OfficeHuddlePayload.fromJson(payload));
+      }
+      return;
+    }
+    if (eventType == 'office_huddle_delta') {
+      final delta = data['delta'];
+      if (delta is Map<String, dynamic>) {
+        _ref.read(officeHuddleProvider.notifier).applyDelta(delta);
+      }
+      return;
+    }
+    if (eventType == 'office_activity') {
+      final activity = data['activity'];
+      if (activity is Map<String, dynamic>) {
+        _ref.read(officeActivityProvider.notifier).add(activity);
+      }
+      return;
+    }
+
     // All other events flow through the pure router into chat state.
     _ref.read(chatStateProvider.notifier).applyEvent(eventType, data);
   }
@@ -215,6 +263,34 @@ class SessionController extends StateNotifier<SessionControllerState> {
     guarded('get_transcript_page', (data) async {
       final resp = responses.TranscriptPageResponse.fromJson(data);
       _ref.read(chatStateProvider.notifier).loadTranscriptPage(resp);
+    });
+
+    guarded('cron_list', (data) async {
+      final jobs = (data['jobs'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(responses.CronJob.fromJson)
+          .toList();
+      _ref.read(cronJobsProvider.notifier).update(jobs);
+    });
+
+    guarded('cron_runs', (data) async {
+      final runs = (data['runs'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(responses.CronRun.fromJson)
+          .toList();
+      _ref.read(cronRunsProvider.notifier).update(runs);
+    });
+
+    guarded('office_list', (data) async {
+      _ref
+          .read(officeSnapshotProvider.notifier)
+          .update(responses.OfficeSnapshot.fromJson(data));
+    });
+
+    guarded('office_huddle_get', (data) async {
+      _ref
+          .read(officeHuddleProvider.notifier)
+          .update(responses.OfficeHuddlePayload.fromJson(data));
     });
 
     guarded('get_sessions_status', (data) async {
@@ -280,6 +356,45 @@ class SessionController extends StateNotifier<SessionControllerState> {
   /// Returns the engine payload: {steps, filesChanged, insertions, deletions}.
   Future<Map<String, dynamic>> rewindFiles({int steps = 1}) =>
       _send('rewind', {'steps': steps});
+
+  // ─── M6: cron ──────────────────────────────────────────────────
+  Future<void> loadCronJobs() => _send('cron_list', {});
+  Future<void> loadCronRuns({String? jobId}) =>
+      _send('cron_runs', {if (jobId != null) 'jobId': jobId});
+  Future<void> runCronNow(String jobId, {Map<String, String>? variables}) =>
+      _send('cron_run_now', {
+        'jobId': jobId,
+        if (variables != null) 'variables': variables,
+      });
+  Future<void> deleteCronJob(String jobId) async {
+    await _send('cron_delete', {'jobId': jobId});
+    _ref.read(cronJobsProvider.notifier).remove(jobId);
+  }
+
+  /// Pause/resume or rename a job by patching its config.
+  Future<void> updateCronJob(String jobId, Map<String, dynamic> patch) async {
+    final data = await _send('cron_update', {'jobId': jobId, 'patch': patch});
+    final job = data['job'];
+    if (job is Map<String, dynamic>) {
+      _ref.read(cronJobsProvider.notifier).upsert(responses.CronJob.fromJson(job));
+    }
+  }
+
+  // ─── M6: Your Office ───────────────────────────────────────────
+  Future<void> loadOffice() => _send('office_list', {});
+  Future<void> openHuddle(String huddleId) =>
+      _send('office_huddle_get', {'huddleId': huddleId});
+  Future<void> sendToHuddle(String huddleId, String text,
+          {List<Map<String, dynamic>>? images}) =>
+      _send('office_send', {
+        'huddleId': huddleId,
+        'text': text,
+        if (images != null) 'images': images,
+      });
+  Future<void> stopHuddle(String huddleId) =>
+      _send('office_stop', {'huddleId': huddleId});
+  Future<void> respondOfficePrompt(String requestId, String? choice) =>
+      _send('office_respond', {'requestId': requestId, 'choice': choice});
 
   // ─── Extension UI responses (doc 03 §4.5) ──────────────────────
   // Shapes per method:

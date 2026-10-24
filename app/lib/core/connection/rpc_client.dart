@@ -6,10 +6,12 @@ library;
 /// - send queue (enqueue while ready; disable composer when disconnected)
 /// - ping policy (get_state ping every 30s of inactivity)
 import 'dart:async';
+import 'dart:io';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:uuid/uuid.dart';
 import '../protocol/wire.dart' as wire;
+import 'cert_pinning.dart';
 import '../protocol/events.dart';
 import 'connection_state.dart';
 const _uuid = Uuid();
@@ -79,7 +81,17 @@ class RpcClient {
   set listener(RpcClientListener value) {
     _listener = value;
   }
-  RpcClient({required this.wsUrl, this.token, this.channelFactory});
+  /// SHA-256 certificate pin (lowercase hex) used for wss:// bridges with a
+  /// self-signed cert. Null = normal system trust (public CA).
+  final String? certFingerprint;
+  HttpClient? _httpClient;
+
+  RpcClient({
+    required this.wsUrl,
+    this.token,
+    this.channelFactory,
+    this.certFingerprint,
+  });
   bool get isConnected => _isConnected;
   ConnectionInfo get connectionState => _connectionState;
   /// Open connection, authenticate, and start receiving events.
@@ -92,8 +104,30 @@ class RpcClient {
       final headers = <String, dynamic>{
         if (token != null) 'Authorization': 'Bearer $token',
       };
-      final factory = channelFactory ?? _defaultConnect;
-      _channel = factory(Uri.parse(wsUrl), headers: headers);
+      final uri = Uri.parse(wsUrl);
+      final factory = channelFactory;
+      if (factory != null) {
+        _channel = factory(uri, headers: headers);
+      } else if (uri.scheme == 'wss' &&
+          certFingerprint != null &&
+          certFingerprint!.isNotEmpty) {
+        final client = HttpClient();
+        _httpClient = client;
+        // Only invoked when the chain is not publicly trusted (self-signed LAN
+        // bridge). A CA-signed cert is already authenticated by the platform.
+        client.badCertificateCallback = (cert, host, port) {
+          try {
+            return matchesPinnedFingerprint(
+                fingerprintOfDer(cert.der), certFingerprint!);
+          } catch (_) {
+            return false;
+          }
+        };
+        _channel = IOWebSocketChannel.connect(uri,
+            headers: headers, customClient: client);
+      } else {
+        _channel = IOWebSocketChannel.connect(uri, headers: headers);
+      }
       final channel = _channel!;
       await channel.ready; // wait for open / auth handshake result
       _changeState(const ConnectionInfo(state: ConnectionState.authenticating));
@@ -125,8 +159,14 @@ class RpcClient {
       _connecting = false;
     }
   }
-  static WebSocketChannel _defaultConnect(Uri uri, {Map<String, dynamic>? headers}) =>
-      IOWebSocketChannel.connect(uri, headers: headers ?? const {});
+  /// Close the pinned HttpClient (keeps isolate sockets from leaking across
+  /// reconnects).
+  void _closeHttpClient() {
+    try {
+      _httpClient?.close(force: true);
+    } catch (_) {}
+    _httpClient = null;
+  }
   /// Close the connection cleanly.
   Future<void> disconnect() async {
     _connecting = false;
@@ -139,6 +179,7 @@ class RpcClient {
       await _channel?.sink.close();
     } catch (_) {}
     _channel = null;
+    _closeHttpClient();
     _isConnected = false;
     _changeState(const ConnectionInfo(state: ConnectionState.disconnected));
   }
