@@ -1,5 +1,6 @@
 // lib/core/connection/rpc_client.dart
 library;
+
 /// RPC client — WebSocket connection manager with:
 /// - id correlation (UUID v4 per command)
 /// - per-command timeouts (15s default, 60s for get_messages/export_*)
@@ -14,7 +15,9 @@ import '../protocol/wire.dart' as wire;
 import 'cert_pinning.dart';
 import '../protocol/events.dart';
 import 'connection_state.dart';
+
 const _uuid = Uuid();
+
 /// Error returned when the engine answers success:false.
 class CommandError implements Exception {
   final String message;
@@ -23,6 +26,7 @@ class CommandError implements Exception {
   @override
   String toString() => 'CommandError($message${id != null ? ', id: $id' : ''})';
 }
+
 /// Pending command waiting for a response.
 class PendingCommand {
   final String id;
@@ -33,7 +37,8 @@ class PendingCommand {
       : completer = Completer<Map<String, dynamic>>() {
     timer = Timer(timeout, () {
       if (!completer.isCompleted) {
-        completer.completeError('Timeout after ${timeout.inSeconds}s for command $id');
+        completer.completeError(
+            'Timeout after ${timeout.inSeconds}s for command $id');
       }
       timer?.cancel();
     });
@@ -45,22 +50,29 @@ class PendingCommand {
     }
   }
 }
+
 /// Typed response handler. Maps command type → response parsing.
 typedef ResponseHandler = Future<void> Function(Map<String, dynamic> data);
+
 abstract class RpcClientListener {
   /// Called when an event arrives from the engine (not a response).
   void onEvent(String eventType, Map<String, dynamic> data);
+
   /// Called when a bridge control frame arrives.
   void onBridgeFrame(BridgeControlFrame frame);
+
   /// Called when connection state changes.
   void onConnectionStateChange(ConnectionInfo info);
+
   /// Called for errors (logged + surfaced to UI).
   void onError(String message);
 }
+
 class RpcClient {
   final String wsUrl;
   final String? token; // Bearer token sent on the WS upgrade handshake
-  final WebSocketChannel Function(Uri uri, {Map<String, dynamic>? headers})? channelFactory;
+  final WebSocketChannel Function(Uri uri, {Map<String, dynamic>? headers})?
+      channelFactory;
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   final Map<String, PendingCommand> _pending = {};
@@ -74,13 +86,16 @@ class RpcClient {
   bool _connecting = false;
   ConnectionInfo _connectionState = const ConnectionInfo();
   RpcClientListener? _listener;
+
   /// Current connection info (streamed via a BroadcastStream).
   Stream<ConnectionInfo> get stateStream => _stateController.stream;
   final _stateController = StreamController<ConnectionInfo>.broadcast();
+
   /// Set the listener before connecting.
   set listener(RpcClientListener value) {
     _listener = value;
   }
+
   /// SHA-256 certificate pin (lowercase hex) used for wss:// bridges with a
   /// self-signed cert. Null = normal system trust (public CA).
   final String? certFingerprint;
@@ -94,6 +109,7 @@ class RpcClient {
   });
   bool get isConnected => _isConnected;
   ConnectionInfo get connectionState => _connectionState;
+
   /// Open connection, authenticate, and start receiving events.
   Future<void> connect() async {
     if (_isConnected || _connecting) return;
@@ -141,7 +157,9 @@ class RpcClient {
             _failAllPending('Connection closed');
             _isConnected = false;
             _listener?.onError('Connection closed');
-            _changeState(const ConnectionInfo(state: ConnectionState.disconnected, errorMessage: 'Connection closed'));
+            _changeState(const ConnectionInfo(
+                state: ConnectionState.disconnected,
+                errorMessage: 'Connection closed'));
           }
         },
       );
@@ -159,6 +177,7 @@ class RpcClient {
       _connecting = false;
     }
   }
+
   /// Close the pinned HttpClient (keeps isolate sockets from leaking across
   /// reconnects).
   void _closeHttpClient() {
@@ -167,6 +186,7 @@ class RpcClient {
     } catch (_) {}
     _httpClient = null;
   }
+
   /// Close the connection cleanly.
   Future<void> disconnect() async {
     _connecting = false;
@@ -183,6 +203,7 @@ class RpcClient {
     _isConnected = false;
     _changeState(const ConnectionInfo(state: ConnectionState.disconnected));
   }
+
   bool _isAuthError(String msg) {
     final lower = msg.toLowerCase();
     return lower.contains('401') ||
@@ -191,8 +212,11 @@ class RpcClient {
         lower.contains('forbidden') ||
         lower.contains('authentication');
   }
+
   /// Send a command and wait for the response. Returns raw JSON data.
-  Future<Map<String, dynamic>> sendCommand(String type, Map<String, dynamic> payload, {Duration timeout = const Duration(seconds: 15)}) async {
+  Future<Map<String, dynamic>> sendCommand(
+      String type, Map<String, dynamic> payload,
+      {Duration timeout = const Duration(seconds: 15)}) async {
     // Per-command timeouts (15s default, 60s for get_messages/export_*).
     if (type == 'get_messages' || type.startsWith('export_')) {
       timeout = const Duration(seconds: 60);
@@ -214,6 +238,7 @@ class RpcClient {
       _pending.remove(id);
     }
   }
+
   /// Send a command without waiting for response (fire-and-forget).
   void sendEvent(String type, Map<String, dynamic> payload) {
     final id = _uuid.v4();
@@ -233,10 +258,12 @@ class RpcClient {
       _listener?.onError('Dropped raw send — not connected');
     }
   }
+
   /// Register a one-shot handler for a specific response type.
   void onResponse(String commandType, ResponseHandler handler) {
     _responseHandlers[commandType] = handler;
   }
+
   // ─── Inbound processing ──────────────────────────────────────
   Future<void> handleInbound(dynamic data) async {
     final str = data is String ? data : data.toString();
@@ -267,12 +294,14 @@ class RpcClient {
       }
     }
   }
+
   Future<void> handleResponse(Map<String, dynamic> json) async {
     final id = json['id'] as String?;
     if (id == null) return;
     final pending = _pending[id];
     final responseType = json['command'] as String?;
-    final isLatest = responseType == null || _latestIdByCommandType[responseType] == id;
+    final isLatest =
+        responseType == null || _latestIdByCommandType[responseType] == id;
     // Response handlers (UI side-effects) only fire for the latest request
     // of that command type — stale responses from old sessions are discarded.
     if (isLatest && responseType != null) {
@@ -299,13 +328,27 @@ class RpcClient {
           final data = json['data'];
           final map = data is Map<String, dynamic>
               ? data
-              : (data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{});
+              : (data is Map
+                  ? Map<String, dynamic>.from(data)
+                  : <String, dynamic>{});
           pending.completer.complete(map);
         }
       }
     }
     // Unknown/late response — drop (same as desktop client).
   }
+
+  /// Fail exactly one outstanding command immediately (e.g. the bridge
+  /// reported `engine_unavailable` for it). The awaiting [sendCommand]
+  /// completes with a [CommandError] instead of waiting out its timeout.
+  void failPending(String id, String reason) {
+    final pending = _pending.remove(id);
+    pending?.timer?.cancel();
+    if (pending != null && !pending.completer.isCompleted) {
+      pending.completer.completeError(CommandError(reason, id: id));
+    }
+  }
+
   void _failAllPending(String reason) {
     final ids = List<String>.from(_pending.keys);
     for (final id in ids) {
@@ -316,6 +359,7 @@ class RpcClient {
       }
     }
   }
+
   // ─── Ping / inactivity ───────────────────────────────────────
   int _missedPings = 0;
 
@@ -325,7 +369,9 @@ class RpcClient {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       final lastInbound = _lastInboundTime;
-      if (lastInbound != null && DateTime.now().difference(lastInbound) > const Duration(seconds: 30)) {
+      if (lastInbound != null &&
+          DateTime.now().difference(lastInbound) >
+              const Duration(seconds: 30)) {
         _sendPing();
       }
     });
@@ -339,16 +385,19 @@ class RpcClient {
       _missedPings++;
       if (_missedPings >= 2) {
         _missedPings = 0;
-        _listener?.onError('2 missed pings — connection appears dead, reconnecting');
+        _listener
+            ?.onError('2 missed pings — connection appears dead, reconnecting');
         await disconnect();
       }
     }
   }
+
   // ─── Error handling ──────────────────────────────────────────
   void _handleError(Object error, StackTrace stack) {
     _failAllPending('Connection error: $error');
     _listener?.onError('Connection error: $error');
   }
+
   /// Change connection state and notify listeners.
   void _changeState(ConnectionInfo info) {
     final prev = _connectionState;
@@ -363,6 +412,7 @@ class RpcClient {
       _listener?.onConnectionStateChange(info);
     }
   }
+
   /// Clean up resources.
   void dispose() {
     _connecting = false;

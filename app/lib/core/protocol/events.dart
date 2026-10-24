@@ -246,6 +246,10 @@ class BridgeControlFrame {
   /// Why a command was refused on `engine_unavailable`: `starting` (no running
   /// engine yet) or `backlog` (engine alive, stdin queue full — retry).
   final String? reason;
+
+  /// Correlation id of the refused command on `engine_unavailable`, so the
+  /// waiting caller can be failed immediately instead of timing out.
+  final String? id;
   const BridgeControlFrame({
     required this.event,
     this.clients,
@@ -254,6 +258,7 @@ class BridgeControlFrame {
     this.version,
     this.ip,
     this.reason,
+    this.id,
   });
   factory BridgeControlFrame.fromJson(Map<String, dynamic> json) =>
       BridgeControlFrame(
@@ -264,6 +269,7 @@ class BridgeControlFrame {
         version: json['version'] is String ? json['version'] as String : null,
         ip: json['ip'] as String?,
         reason: json['reason'] as String?,
+        id: json['id'] as String?,
       );
   Map<String, dynamic> toJson() => {
         'type': 'bridge',
@@ -274,5 +280,6 @@ class BridgeControlFrame {
         if (version != null) 'version': version,
         if (ip != null) 'ip': ip,
         if (reason != null) 'reason': reason,
+        if (id != null) 'id': id,
       };
 }

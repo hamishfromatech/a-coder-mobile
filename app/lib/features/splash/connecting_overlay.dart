@@ -39,10 +39,23 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
   // phase kicks in doesn't unmount us and cause a flash.
   bool _shown = false;
   Timer? _phaseTimer;
+  Timer? _tick;
+  int _seconds = 0;
+  bool _connectingNow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || !_connectingNow || _phase != _Phase.live) return;
+      setState(() => _seconds++);
+    });
+  }
 
   @override
   void dispose() {
     _phaseTimer?.cancel();
+    _tick?.cancel();
     super.dispose();
   }
 
@@ -81,6 +94,9 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
         info.state == conn.ConnectionState.disconnected && (info.errorMessage?.isNotEmpty ?? false);
     final connecting =
         !_coldBootDone && !ready && !hasFatalError && info.state != conn.ConnectionState.shuttingDown;
+
+    _connectingNow = connecting;
+    if (!connecting) _seconds = 0;
 
     if (connecting) {
       _shown = true;
@@ -149,23 +165,83 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                         color: PiColors.accent,
                       ),
                     ),
-                    // While the bridge retries (before first connect), give the
-                    // user a hint that something is happening behind the word.
-                    if (!leaving && info.state == conn.ConnectionState.reconnecting)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 18),
-                        child: Text(
-                          info.nextRetryIn > Duration.zero
-                              ? 'retrying in ${info.nextRetryIn.inSeconds}s'
-                              : 'retrying…',
-                          style: TextStyle(
-                            fontFamily: 'JetBrains Mono',
-                            fontSize: 10,
-                            letterSpacing: 1.6,
-                            color: palette.textMuted,
+                    // Never leave the user staring at a silent screen: show
+                    // what the stack is doing, surface errors, and offer a
+                    // manual retry once the handshake looks stuck.
+                    if (!leaving) ...[
+                      if (info.state == conn.ConnectionState.reconnecting)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 18),
+                          child: Text(
+                            info.nextRetryIn > Duration.zero
+                                ? 'retrying in ${info.nextRetryIn.inSeconds}s'
+                                : 'retrying…',
+                            style: TextStyle(
+                              fontFamily: 'JetBrains Mono',
+                              fontSize: 10,
+                              letterSpacing: 1.6,
+                              color: palette.textMuted,
+                            ),
+                          ),
+                        )
+                      else if (info.isResyncing)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 18),
+                          child: Text(
+                            'loading your session…',
+                            style: TextStyle(
+                              fontFamily: 'JetBrains Mono',
+                              fontSize: 10,
+                              letterSpacing: 1.6,
+                              color: palette.textMuted,
+                            ),
+                          ),
+                        )
+                      else if (_seconds >= 5)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 18),
+                          child: Text(
+                            'waiting for the desktop engine…',
+                            style: TextStyle(
+                              fontFamily: 'JetBrains Mono',
+                              fontSize: 10,
+                              letterSpacing: 1.6,
+                              color: palette.textMuted,
+                            ),
                           ),
                         ),
-                      ),
+                      if (info.errorMessage != null &&
+                          info.errorMessage!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            child: Text(
+                              info.errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 11, color: PiColors.error),
+                            ),
+                          ),
+                        ),
+                      if (_seconds >= 8)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: TextButton(
+                            onPressed: () {
+                              ref
+                                  .read(sessionControllerProvider(widget.hostId)
+                                      .notifier)
+                                  .forceReconnectNow();
+                              setState(() => _seconds = 0);
+                            },
+                            child: Text('Retry',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: palette.textSecondary)),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),

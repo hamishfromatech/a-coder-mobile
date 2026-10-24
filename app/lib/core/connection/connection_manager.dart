@@ -4,6 +4,8 @@ library;
 /// Connection manager — orchestrates RpcClient with exponential backoff,
 /// ping policy, and post-reconnect resync (doc 02 §7.1).
 import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'dart:math';
 import '../protocol/events.dart';
 import 'connection_state.dart';
@@ -33,6 +35,7 @@ class ConnectionManager {
   final RpcClient client;
   final String hostUrl; // ws:// or wss:// URL for this host
   Timer? _reconnectTimer;
+  Timer? _handshakeTimer;
   int _attempt = 0;
   bool _isConnected = false;
   bool _shuttingDown = false;
@@ -101,6 +104,8 @@ class ConnectionManager {
   Future<void> disconnect() async {
     _shuttingDown = true;
     _cancelReconnectTimer();
+    _handshakeTimer?.cancel();
+    _handshakeTimer = null;
     await client.disconnect();
   }
 
@@ -142,6 +147,9 @@ class ConnectionManager {
         final message = frame.reason == 'backlog'
             ? engineBusyMessage
             : engineStartingMessage;
+        // Fast-fail the refused command's caller; its response can never come.
+        final refusedId = frame.id;
+        if (refusedId != null) client.failPending(refusedId, message);
         _changeState(_currentState.copyWith(errorMessage: message));
         onError(message);
         break;
@@ -155,12 +163,28 @@ class ConnectionManager {
         break;
       case 'server_version':
         _attempt = 0;
-        _isConnected = true;
-        unawaited(_resync());
+        _handshakeTimer?.cancel();
+        _handshakeTimer = null;
+        if (!_isConnected) {
+          _isConnected = true;
+          unawaited(_resync());
+        }
         break;
       default:
         onError('Unknown bridge frame: ${frame.event}');
     }
+  }
+
+  /// If the handshake frame never arrives, resync anyway. The RPC socket is
+  /// already open here (the client emits `authenticating` after `ready`).
+  void _armHandshakeTimer() {
+    _handshakeTimer?.cancel();
+    _handshakeTimer = Timer(const Duration(milliseconds: 250), () {
+      if (_shuttingDown || _isConnected || _terminalAuthFailure) return;
+      _isConnected = true;
+      _attempt = 0;
+      unawaited(_resync());
+    });
   }
 
   /// Handle protocol events from the engine.
@@ -176,6 +200,11 @@ class ConnectionManager {
         break;
       case ConnectionState.authenticating:
         _changeState(info);
+        // The socket is open, but never make progress depend on a single
+        // control frame arriving: a lost `server_version` used to park the
+        // app on the splash forever. Start resync ourselves after a short
+        // grace period (the bridge queues commands until the engine spawns).
+        _armHandshakeTimer();
         break;
       case ConnectionState.ready:
         if (!_isConnected) {
@@ -267,6 +296,8 @@ class ConnectionManager {
       await future;
     } finally {
       _resyncFuture = null;
+      _handshakeTimer?.cancel();
+      _handshakeTimer = null;
     }
   }
 
@@ -301,6 +332,15 @@ class ConnectionManager {
   }
 
   void _changeState(ConnectionInfo info) {
+    // Breadcrumb for device diagnostics (no secrets). Visible in logcat.
+    final changed = info.state != _currentState.state ||
+        info.errorMessage != _currentState.errorMessage ||
+        info.isResyncing != _currentState.isResyncing;
+    if (changed) {
+      debugPrint('[conn] ${info.state.name}'
+          '${info.isResyncing ? " (resync)" : ""}'
+          '${info.errorMessage != null ? " err=${info.errorMessage}" : ""}');
+    }
     _currentState = info;
     if (!_stateController.isClosed) _stateController.add(info);
   }
@@ -308,6 +348,7 @@ class ConnectionManager {
   /// Clean up resources.
   void dispose() {
     _cancelReconnectTimer();
+    _handshakeTimer?.cancel();
     _stateSub.cancel();
     if (!_stateController.isClosed) _stateController.close();
   }
