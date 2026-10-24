@@ -1,9 +1,11 @@
 // lib/core/protocol/events.dart
 library;
+
 /// Event model for every engine→client event (doc 03 §5).
 /// Group A = agent lifecycle & streaming, Group B = session/runtime state,
 /// Group C = extension_ui_request. Plain Dart — no codegen.
 import 'messages.dart';
+
 /// Event type name constants (the `type` field on the wire).
 abstract class EventTypes {
   // Group A — agent lifecycle & streaming
@@ -35,6 +37,7 @@ abstract class EventTypes {
   // Group C — extension UI
   static const extensionUiRequest = 'extension_ui_request';
 }
+
 /// A parsed engine event: `type` plus the raw JSON payload.
 /// The event router switches on [type] and reads fields from [json].
 class EngineEvent {
@@ -44,6 +47,7 @@ class EngineEvent {
   factory EngineEvent.fromJson(Map<String, dynamic> json) {
     return EngineEvent(json['type'] as String? ?? '', json);
   }
+
   /// The `message` payload as a typed AgentMessage (when present).
   AgentMessage? get message {
     final raw = json['message'];
@@ -51,6 +55,7 @@ class EngineEvent {
     return null;
   }
 }
+
 // ─── Shared payload types ────────────────────────────────────────
 class UsageData {
   final int input;
@@ -58,7 +63,12 @@ class UsageData {
   final int cacheRead;
   final int cacheWrite;
   final double? costTotal;
-  const UsageData({required this.input, required this.output, required this.cacheRead, required this.cacheWrite, this.costTotal});
+  const UsageData(
+      {required this.input,
+      required this.output,
+      required this.cacheRead,
+      required this.cacheWrite,
+      this.costTotal});
   factory UsageData.fromJson(Map<String, dynamic> json) => UsageData(
         input: (json['input'] as num?)?.toInt() ?? 0,
         output: (json['output'] as num?)?.toInt() ?? 0,
@@ -74,24 +84,33 @@ class UsageData {
         if (costTotal != null) 'costTotal': costTotal,
       };
 }
+
 /// AssistantMessageEvent subtype carried on message_update
 /// ("text_start" | "text_delta" | …). Free-form — the UI only keys on a few.
 String? assistantMessageEventType(Map<String, dynamic> eventJson) =>
     eventJson['assistantMessageEvent'] is Map<String, dynamic>
-        ? (eventJson['assistantMessageEvent'] as Map<String, dynamic>)['type'] as String?
+        ? (eventJson['assistantMessageEvent'] as Map<String, dynamic>)['type']
+            as String?
         : eventJson['assistantMessageEvent'] as String?;
+
 // ─── Group B payload types ───────────────────────────────────────
 class RuntimeSessionStatus {
   final String path;
   final String cwd;
   final String status; // running | needsInput
   final int pendingMessageCount;
-  const RuntimeSessionStatus({required this.path, required this.cwd, required this.status, required this.pendingMessageCount});
-  factory RuntimeSessionStatus.fromJson(Map<String, dynamic> json) => RuntimeSessionStatus(
+  const RuntimeSessionStatus(
+      {required this.path,
+      required this.cwd,
+      required this.status,
+      required this.pendingMessageCount});
+  factory RuntimeSessionStatus.fromJson(Map<String, dynamic> json) =>
+      RuntimeSessionStatus(
         path: json['path'] as String? ?? '',
         cwd: json['cwd'] as String? ?? '',
         status: json['status'] as String? ?? 'running',
-        pendingMessageCount: (json['pendingMessageCount'] as num?)?.toInt() ?? 0,
+        pendingMessageCount:
+            (json['pendingMessageCount'] as num?)?.toInt() ?? 0,
       );
   Map<String, dynamic> toJson() => {
         'path': path,
@@ -100,18 +119,22 @@ class RuntimeSessionStatus {
         'pendingMessageCount': pendingMessageCount,
       };
 }
+
 class SubAgentRecord {
   final String id;
   final String subject;
   final String status; // running | completed | failed
-  const SubAgentRecord({required this.id, required this.subject, required this.status});
+  const SubAgentRecord(
+      {required this.id, required this.subject, required this.status});
   factory SubAgentRecord.fromJson(Map<String, dynamic> json) => SubAgentRecord(
         id: json['id'] as String? ?? '',
         subject: json['subject'] as String? ?? '',
         status: json['status'] as String? ?? 'running',
       );
-  Map<String, dynamic> toJson() => {'id': id, 'subject': subject, 'status': status};
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'subject': subject, 'status': status};
 }
+
 // ─── Group C — extension_ui_request ─────────────────────────────
 /// UI request kinds on the wire:
 /// confirm | select | question | input | editor | notify | setStatus | setWidget | setTitle
@@ -140,7 +163,8 @@ class ExtensionUiRequest {
     this.workflow,
     this.timeout,
   });
-  factory ExtensionUiRequest.fromJson(Map<String, dynamic> json) => ExtensionUiRequest(
+  factory ExtensionUiRequest.fromJson(Map<String, dynamic> json) =>
+      ExtensionUiRequest(
         id: json['id'] as String? ?? '',
         method: json['method'] as String? ?? '',
         kind: json['kind'] as String?,
@@ -165,13 +189,15 @@ class ExtensionUiRequest {
         if (toolName != null) 'toolName': toolName,
         if (title != null) 'title': title,
         if (message != null) 'message': message,
-        if (options != null) 'options': options!.map((o) => o.toJson()).toList(),
+        if (options != null)
+          'options': options!.map((o) => o.toJson()).toList(),
         if (multiSelect != null) 'multiSelect': multiSelect,
         if (notifyType != null) 'notifyType': notifyType,
         if (workflow != null) 'workflow': workflow!.toJson(),
         if (timeout != null) 'timeout': timeout,
       };
 }
+
 class QuestionOption {
   final String label;
   final String? description;
@@ -180,8 +206,10 @@ class QuestionOption {
         label: json['label'] as String? ?? '',
         description: json['description'] as String?,
       );
-  Map<String, dynamic> toJson() => {'label': label, if (description != null) 'description': description};
+  Map<String, dynamic> toJson() =>
+      {'label': label, if (description != null) 'description': description};
 }
+
 class WorkflowInfo {
   final String name;
   final List<dynamic>? phases;
@@ -190,32 +218,52 @@ class WorkflowInfo {
         name: json['name'] as String? ?? '',
         phases: (json['phases'] as List<dynamic>?)?.toList(),
       );
-  Map<String, dynamic> toJson() => {'name': name, if (phases != null) 'phases': phases};
+  Map<String, dynamic> toJson() =>
+      {'name': name, if (phases != null) 'phases': phases};
 }
+
 /// The command the app sends back in answer to an extension_ui_request.
 class ExtensionUiResponse {
   final String id;
   final Map<String, dynamic> payload;
   const ExtensionUiResponse({required this.id, this.payload = const {}});
-  Map<String, dynamic> toJson() => {'type': 'extension_ui_response', 'id': id, ...payload};
+  Map<String, dynamic> toJson() =>
+      {'type': 'extension_ui_response', 'id': id, ...payload};
 }
+
 // ─── Bridge control frames (bridge-owned envelope) ──────────────
 class BridgeControlFrame {
-  final String event; // connected | engine_exited | engine_failed | shutting_down | server_version | slow_client
+  final String
+      event; // connected | engine_exited | engine_failed | shutting_down | server_version | slow_client | engine_unavailable
   final int? clients;
   final int? code;
   final int? attempts;
+
   /// Server version string on `server_version` frames.
   final String? version;
   final String? ip;
-  const BridgeControlFrame({required this.event, this.clients, this.code, this.attempts, this.version, this.ip});
-  factory BridgeControlFrame.fromJson(Map<String, dynamic> json) => BridgeControlFrame(
+
+  /// Why a command was refused on `engine_unavailable`: `starting` (no running
+  /// engine yet) or `backlog` (engine alive, stdin queue full — retry).
+  final String? reason;
+  const BridgeControlFrame({
+    required this.event,
+    this.clients,
+    this.code,
+    this.attempts,
+    this.version,
+    this.ip,
+    this.reason,
+  });
+  factory BridgeControlFrame.fromJson(Map<String, dynamic> json) =>
+      BridgeControlFrame(
         event: json['event'] as String? ?? '',
         clients: (json['clients'] as num?)?.toInt(),
         code: (json['code'] as num?)?.toInt(),
         attempts: (json['attempts'] as num?)?.toInt(),
         version: json['version'] is String ? json['version'] as String : null,
         ip: json['ip'] as String?,
+        reason: json['reason'] as String?,
       );
   Map<String, dynamic> toJson() => {
         'type': 'bridge',
@@ -225,5 +273,6 @@ class BridgeControlFrame {
         if (attempts != null) 'attempts': attempts,
         if (version != null) 'version': version,
         if (ip != null) 'ip': ip,
+        if (reason != null) 'reason': reason,
       };
 }

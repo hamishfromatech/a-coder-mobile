@@ -27,6 +27,7 @@ import '../../../core/connection/rpc_client.dart' show CommandError;
 import '../../../core/protocol/events.dart' as proto;
 import '../../../design/components/banner.dart';
 import '../../../design/components/chip.dart';
+import '../../../design/primitives.dart';
 import '../../../design/theme.dart';
 import '../../../features/tools/tool_card.dart';
 import '../../pairing/providers/connection_providers.dart';
@@ -424,6 +425,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     return Stack(
       children: [
+        // Desktop ChatBackdrop intent: a static, very low-opacity texture
+        // behind the thread (radial accent wash, no per-frame blend).
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.65),
+                  radius: 1.1,
+                  colors: [
+                    PiColors.accent.withValues(alpha: 0.045),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
         CustomScrollView(
           reverse: true,
           controller: _scrollController,
@@ -527,8 +546,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             const SizedBox(width: 6),
             StatusChip(
-              label: session.permissionMode,
-              variant: ChipVariant.tool,
+              label: _permissionLabel(session.permissionMode),
+              variant: session.permissionMode == 'auto'
+                  ? ChipVariant.success
+                  : ChipVariant.tool,
               onTap: _showPermissionModeSheet,
             ),
             if (agents.isNotEmpty) ...[
@@ -671,10 +692,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
           // ── The composer vessel ────────────────────────────────
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: PiColors.of(context).surfaceRaised,
-              borderRadius: BorderRadius.circular(20),
+              color: PiColors.of(context).surfaceRaised.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(PiRadius.xxl),
               border: Border.all(color: PiColors.border),
             ),
             child: Column(
@@ -729,13 +750,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   minLines: 1,
                   textCapitalization: TextCapitalization.sentences,
                   style: const TextStyle(
-                      fontSize: 14.5, height: 1.4, color: PiColors.text),
+                      fontSize: 13, height: 1.45, color: PiColors.text),
                   decoration: InputDecoration(
                     hintText: isStreaming
                         ? 'Steer the agent…'
                         : 'Ask A-Coder anything — type / for commands',
                     hintStyle: const TextStyle(
-                        fontSize: 14.5, color: PiColors.textFaint),
+                        fontSize: 13, color: PiColors.textFaint),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
@@ -998,6 +1019,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
+  /// Desktop intent labels (desktop: Ask first / Act freely / Read only).
+  String _permissionLabel(String mode) => switch (mode) {
+        'auto' => 'act freely',
+        'plan' => 'plan',
+        _ => 'ask first',
+      };
+
   void _showPermissionModeSheet() {
     final controller =
         ref.read(sessionControllerProvider(widget.hostId).notifier);
@@ -1015,15 +1043,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             for (final mode in const [
-              ('default', 'Engine default behavior'),
-              ('plan', 'Ask before running tools'),
-              ('auto', 'Run tools automatically'),
+              ('default', 'Ask first', 'Confirm every tool call before it runs'),
+              ('plan', 'Plan', 'Explore and read; no edits or commands'),
+              ('auto', 'Act freely', 'Run tools without asking'),
             ])
               ListTile(
-                title: Text(mode.$1),
-                subtitle: Text(mode.$2,
+                title: Text(mode.$2),
+                subtitle: Text(mode.$3,
                     style: const TextStyle(
-                        fontSize: 12, color: PiColors.textMuted)),
+                        fontSize: 11, color: PiColors.textMuted)),
                 trailing: mode.$1 == current
                     ? const Icon(Icons.check_rounded, color: PiColors.accent)
                     : null,
@@ -1109,13 +1137,13 @@ class UserMessageBubble extends StatelessWidget {
         alignment: Alignment.centerRight,
         child: Semantics(
           label: images.isEmpty ? text : '$text. ${images.length} image attachment(s)',
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: PiColors.userBubble.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(16),
+          child: GlassSurface(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            radius: PiRadius.xl,
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width * 0.88,
+              minHeight: 40,
             ),
-            constraints: const BoxConstraints(maxWidth: 300, minHeight: 48),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
@@ -1130,8 +1158,8 @@ class UserMessageBubble extends StatelessWidget {
                   Padding(
                     padding: EdgeInsets.only(top: images.isNotEmpty ? 8 : 0),
                     child: SelectableText(text,
-                        style: const TextStyle(
-                            fontSize: 14, color: PiColors.text)),
+                        style: PiType.bodyStyle.copyWith(
+                            color: PiColors.text)),
                   ),
               ],
             ),
@@ -1207,10 +1235,16 @@ class AssistantMessageView extends ConsumerWidget {
     final errorMessage = msgMap['errorMessage'] as String?;
     final isRetrying = ref.watch(chatStateProvider).isRetrying;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const AssistantAvatar(),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           if (errorMessage != null && errorMessage.isNotEmpty) ...[
             Container(
               width: double.infinity,
@@ -1264,6 +1298,9 @@ class AssistantMessageView extends ConsumerWidget {
               child:
                   Row(children: [_TypingDot(delay: Duration(milliseconds: 0))]),
             ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1391,26 +1428,26 @@ class _MarkdownContent extends ConsumerWidget {
       softLineBreak: true,
       builders: {
         // Horizontal-scroll code blocks — desktop doesn't clip long lines.
-        'pre': _CodeBlockBuilder(fontSize: fs(13)),
+        'pre': _CodeBlockBuilder(fontSize: fs(12.5)),
       },
       styleSheet: MarkdownStyleSheet(
-        p: TextStyle(fontSize: fs(14), height: 1.5, color: PiColors.text),
+        p: TextStyle(fontSize: fs(13), height: 1.55, color: PiColors.text),
         h1: TextStyle(
-            fontSize: fs(18),
-            fontWeight: FontWeight.w600,
-            color: PiColors.text),
-        h2: TextStyle(
             fontSize: fs(16),
             fontWeight: FontWeight.w600,
             color: PiColors.text),
+        h2: TextStyle(
+            fontSize: fs(14.5),
+            fontWeight: FontWeight.w600,
+            color: PiColors.text),
         h3: TextStyle(
-            fontSize: fs(15),
+            fontSize: fs(13.5),
             fontWeight: FontWeight.w600,
             color: PiColors.text),
         strong: const TextStyle(fontWeight: FontWeight.w600),
         em: const TextStyle(fontStyle: FontStyle.italic),
         code: TextStyle(
-            fontSize: fs(13),
+            fontSize: fs(12.5),
             fontFamily: 'JetBrains Mono',
             color: PiColors.accent,
             backgroundColor: PiColors.surfaceRaised),
@@ -1420,8 +1457,8 @@ class _MarkdownContent extends ConsumerWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: PiColors.border),
         ),
-        blockquote: TextStyle(fontSize: fs(14), color: PiColors.textSecondary),
-        listBullet: TextStyle(fontSize: fs(14), color: PiColors.text),
+        blockquote: TextStyle(fontSize: fs(13), color: PiColors.textSecondary),
+        listBullet: TextStyle(fontSize: fs(13), color: PiColors.text),
       ),
     );
     markdownBlockCache.put(cacheKey, data.length, rendered);
@@ -1481,10 +1518,11 @@ class ThinkingBlockState extends State<ThinkingBlock> {
       onTap: () => setState(() => _expanded = !_expanded),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: PiColors.textFaint.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          color: PiColors.of(context).surface.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(PiRadius.lg),
+          border: Border.all(color: PiColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1494,11 +1532,11 @@ class ThinkingBlockState extends State<ThinkingBlock> {
               children: [
                 Text(_expanded ? '▾' : '▸',
                     style: const TextStyle(
-                        fontSize: 12, color: PiColors.textMuted)),
+                        fontSize: 11, color: PiColors.textMuted)),
                 const SizedBox(width: 4),
                 const Text('Thinking',
                     style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontStyle: FontStyle.italic,
                         color: PiColors.textMuted)),
               ],
@@ -1507,7 +1545,7 @@ class ThinkingBlockState extends State<ThinkingBlock> {
               const SizedBox(height: 4),
               Text(widget.thinking,
                   style: const TextStyle(
-                      fontSize: 12, color: PiColors.textSecondary)),
+                      fontSize: 12, height: 1.5, color: PiColors.textSecondary)),
             ],
           ],
         ),

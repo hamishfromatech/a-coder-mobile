@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/load_fonts.dart';
+
 import 'package:acoder_mobile/design/theme.dart';
 import 'package:acoder_mobile/design/components/status_dot.dart';
 import 'package:acoder_mobile/design/components/chip.dart';
@@ -30,10 +32,13 @@ Future<void> _pump(
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   });
+  final base = dark ? PiTheme.dark : PiTheme.light;
   await tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
-        theme: dark ? PiTheme.dark : PiTheme.light,
+        theme: base.copyWith(
+          textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
+        ),
         home: MediaQuery(
           data: MediaQueryData(size: size, disableAnimations: true),
           child: Scaffold(body: Center(child: child)),
@@ -51,6 +56,7 @@ String _suffix(Size size, bool dark) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues(<String, Object>{});
+  setUpAll(loadUiFonts);
 
   for (final size in _sizes) {
     for (final dark in [true, false]) {

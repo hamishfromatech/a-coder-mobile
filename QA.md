@@ -13,8 +13,9 @@
 - Wire codec, event router fixtures, connection state (existing `test/`).
 
 ### Golden
-- Deterministic component goldens under `app/test/golden/` with bundled
-  JetBrains Mono + Material Icons fonts; `disableAnimations` set in harness.
+- Deterministic component goldens under `app/test/golden/` with real fonts
+  loaded by `test/support/load_fonts.dart` (SDK Roboto + Material Icons +
+  bundled JetBrains Mono); `disableAnimations` set in the harness.
 - Sizes: 320x640, 390x844, 430x932; dark + light.
 
 ### Integration

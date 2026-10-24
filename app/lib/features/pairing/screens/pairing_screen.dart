@@ -163,16 +163,16 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Pair with this machine?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+              const Text('Pair with this machine?', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Text(
                 payload.name.isEmpty ? '${payload.host}:${payload.port}' : '${payload.name} — ${payload.host}:${payload.port}',
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Scanning = trust: the QR contains the pairing token. Only pair with machines you control.',
-                style: TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 11),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
@@ -440,7 +440,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
           const SizedBox(height: 16),
           Text(
             'Devices on this network',
-            style: TextStyle(fontSize: 15, color: c.textSecondary),
+            style: TextStyle(fontSize: 13, color: c.textSecondary),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -461,13 +461,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
                 if (_discoveryState == 'scanning') ...[
                   const StatusDot(type: StatusDotType.live),
                   const SizedBox(height: 8),
-                  const Text('Scanning…', style: TextStyle(fontSize: 14)),
+                  const Text('Scanning…', style: TextStyle(fontSize: 13)),
                   const SizedBox(height: 8),
                   TextButton(onPressed: _cancelDiscovery, child: const Text('Cancel')),
                 ] else if (_discovered.isEmpty) ...[
                   Icon(Icons.search_off_rounded, size: 24, color: c.textMuted),
                   const SizedBox(height: 8),
-                  const Text('No devices found', style: TextStyle(fontSize: 14)),
+                  const Text('No devices found', style: TextStyle(fontSize: 13)),
                   const SizedBox(height: 8),
                   TextButton(onPressed: _retryDiscovery, child: const Text('Retry')),
                 ] else

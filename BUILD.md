@@ -87,13 +87,30 @@ The bridge is now `a-coder-cli serve`:
 - Transcript paging via `get_transcript_page` (80-entry pages, scroll-up load),
   inline image history with a full-screen viewer, and file-history rewind.
 
+## Desktop visual parity
+
+The mobile UI now follows `desktop-app/DESIGN.md` rather than merely sharing
+its color tokens:
+
+- **Type scale**: 13 px conversation body, 11 px captions, 15 px titles, 10 px
+  mono micro-labels; dense 13/11 list rows.
+- **Chat**: translucent `pi-glass` user bubble (12 px radius, 88 % width,
+  hairline), flat assistant rows with the 28 px accent avatar, bordered
+  thinking block, hairline tool cards, a 16 px glass composer, and a static
+  radial backdrop wash (no per-frame blend).
+- **Chrome**: flat list tiles, uppercase panel labels, 8 px mono status chips,
+  overlay shadow tokens (`PiRadius`, `PiType`, `GlassSurface`, `AssistantAvatar`
+  in `lib/design/primitives.dart`).
+- **Goldens** now load Roboto, JetBrains Mono and Material Icons from the SDK /
+  bundled assets, so they verify real glyphs instead of Ahem boxes.
+
 ## Verification (current)
 
 ```bash
 cd app
 flutter pub get
 flutter analyze     # No issues found
-flutter test        # 213 passing
+flutter test        # 215 passing
 ```
 
 Release APKs are built at `app/build/app/outputs/flutter-apk/`

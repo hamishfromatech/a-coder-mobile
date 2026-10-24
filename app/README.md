@@ -81,7 +81,7 @@ hold protocol state. Connection resilience (backoff, ping, resync) lives in
 ## Tests
 
 ```bash
-flutter test          # 213 tests (unit, widget, goldens, fake-bridge E2E)
+flutter test          # 215 tests (unit, widget, goldens, fake-bridge E2E)
 flutter analyze       # No issues found
 ```
 

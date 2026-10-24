@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/load_fonts.dart';
+
 import 'package:acoder_mobile/design/theme.dart';
 import 'package:acoder_mobile/features/pairing/screens/pairing_screen.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadUiFonts);
   for (final size in const [Size(390, 844)]) {
     for (final dark in [true, false]) {
       testWidgets('pairing_manual_${size.width.toInt()}x${size.height.toInt()}_${dark ? "dark" : "light"}', (tester) async {

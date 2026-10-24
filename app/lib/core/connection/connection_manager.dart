@@ -1,5 +1,6 @@
 // lib/core/connection/connection_manager.dart
 library;
+
 /// Connection manager — orchestrates RpcClient with exponential backoff,
 /// ping policy, and post-reconnect resync (doc 02 §7.1).
 import 'dart:async';
@@ -7,13 +8,27 @@ import 'dart:math';
 import '../protocol/events.dart';
 import 'connection_state.dart';
 import 'rpc_client.dart';
+
 /// Backoff sequence: 1s → 2s → 4s → 8s → 15s (cap), with ±20% jitter.
 const _backoffBaseMs = [1000, 2000, 4000, 8000, 15000];
-/// Shown when the bridge reports `engine_unavailable`; cleared on the next
-/// successful command so a stale banner never sticks.
+
+/// Shown when the bridge reports `engine_unavailable` with reason `starting`
+/// (or no reason); cleared on the next successful command so it never sticks.
 const engineStartingMessage =
     'Engine is starting — commands will be accepted shortly';
+
+/// Shown when the engine is alive but its stdin queue is full, so the command
+/// was dropped. Unlike `starting`, retrying once it drains is the remedy.
+const engineBusyMessage =
+    'Engine is busy — the last command was not sent; try again';
+
+/// Transient engine-unavailable banners, cleared once a command is accepted.
+const engineUnavailableMessages = {
+  engineStartingMessage,
+  engineBusyMessage,
+};
 final _random = Random();
+
 class ConnectionManager {
   final RpcClient client;
   final String hostUrl; // ws:// or wss:// URL for this host
@@ -25,22 +40,28 @@ class ConnectionManager {
   Future<void>? _connectFuture;
   Future<void>? _resyncFuture;
   late StreamSubscription<ConnectionInfo> _stateSub;
+
   /// Connection info stream (for UI).
   Stream<ConnectionInfo> get stateStream => _stateController.stream;
   final _stateController = StreamController<ConnectionInfo>.broadcast();
+
   /// Current connection info.
   ConnectionInfo get currentState => _currentState;
   ConnectionInfo _currentState = const ConnectionInfo();
+
   /// Event listener for protocol events (set by the app).
   late void Function(String eventType, Map<String, dynamic> data) onEvent;
+
   /// Bridge frame handler.
   late void Function(BridgeControlFrame frame) onBridgeFrame;
+
   /// Error logger.
   late void Function(String message) onError;
   ConnectionManager({required this.client, required this.hostUrl}) {
     client.listener = _RpcClientBridge(this);
     _stateSub = client.stateStream.listen(_handleClientStateChange);
   }
+
   /// Start connecting (called from UI after pairing).
   Future<void> connect() async {
     _shuttingDown = false;
@@ -51,7 +72,8 @@ class ConnectionManager {
 
   Future<void> connectClient() => _connectClient();
   void scheduleReconnect(int ms) => _scheduleReconnect(ms);
-  Future<void> handleClientStateChange(ConnectionInfo info) => _handleClientStateChange(info);
+  Future<void> handleClientStateChange(ConnectionInfo info) =>
+      _handleClientStateChange(info);
 
   Future<void> _connectClient() async {
     if (_connectFuture != null) {
@@ -66,6 +88,7 @@ class ConnectionManager {
       _connectFuture = null;
     }
   }
+
   Future<void> _doConnect() async {
     try {
       await client.connect();
@@ -73,12 +96,14 @@ class ConnectionManager {
       onError('Connect failed: $e');
     }
   }
+
   /// Stop and disconnect.
   Future<void> disconnect() async {
     _shuttingDown = true;
     _cancelReconnectTimer();
     await client.disconnect();
   }
+
   /// Force reconnect immediately (called on app resume, network change).
   /// No-op while the connection is healthy — tearing down a working
   /// connection just to rebuild it drops in-flight turn state.
@@ -89,9 +114,11 @@ class ConnectionManager {
     _attempt = 0; // reset backoff
     _scheduleReconnect(0);
   }
+
   /// Dedup entry points for app-lifecycle / connectivity events.
   void onAppResumed() => forceReconnectNow();
   void onConnectivityChanged() => forceReconnectNow();
+
   /// Handle a bridge control frame from the engine.
   void handleBridgeFrame(BridgeControlFrame frame) {
     switch (frame.event) {
@@ -109,15 +136,20 @@ class ConnectionManager {
         onError('Network too slow — server may drop this connection');
         break;
       case 'engine_unavailable':
-        // The bridge is healthy but the engine is not accepting commands yet
-        // (starting or restarting). Surface it without tearing down the socket.
-        _changeState(_currentState.copyWith(errorMessage: engineStartingMessage));
-        onError(engineStartingMessage);
+        // The bridge is healthy but the engine is not accepting this command.
+        // `starting` = spawning/restarting; `backlog` = alive but its stdin
+        // queue is full. Surface it without tearing down the socket.
+        final message = frame.reason == 'backlog'
+            ? engineBusyMessage
+            : engineStartingMessage;
+        _changeState(_currentState.copyWith(errorMessage: message));
+        onError(message);
         break;
       case 'engine_failed':
         _changeState(ConnectionInfo(
           state: ConnectionState.disconnected,
-          errorMessage: 'Engine failed after ${frame.attempts} restart attempts',
+          errorMessage:
+              'Engine failed after ${frame.attempts} restart attempts',
         ));
         onError('Engine failed — check desktop app');
         break;
@@ -130,10 +162,12 @@ class ConnectionManager {
         onError('Unknown bridge frame: ${frame.event}');
     }
   }
+
   /// Handle protocol events from the engine.
   void handleEvent(String eventType, Map<String, dynamic> data) {
     onEvent(eventType, data);
   }
+
   // ─── Reconnection logic ──────────────────────────────────────
   Future<void> _handleClientStateChange(ConnectionInfo info) async {
     switch (info.state) {
@@ -184,6 +218,7 @@ class ConnectionManager {
         break;
     }
   }
+
   bool _isAuthError(String msg) {
     final lower = msg.toLowerCase();
     return lower.contains('401') ||
@@ -193,6 +228,7 @@ class ConnectionManager {
         lower.contains('authentication') ||
         lower.contains('auth failed');
   }
+
   void _scheduleReconnect(int ms) {
     if (_shuttingDown || _terminalAuthFailure) return;
     if (_reconnectTimer != null) {
@@ -205,6 +241,7 @@ class ConnectionManager {
       unawaited(_connectClient());
     });
   }
+
   /// Public backoff calculation (base index clamped; ±20% jitter).
   int backoffMs(int attempt) => _backoffMs(attempt);
   int _backoffMs(int attempt) {
@@ -213,10 +250,12 @@ class ConnectionManager {
     final roll = _random.nextDouble();
     return (base * (0.8 + 0.4 * roll)).round();
   }
+
   void _cancelReconnectTimer() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
   }
+
   // ─── Resync after reconnect ──────────────────────────────────
   /// Public resync entry point (connection + tests).
   Future<void> resync() => _resync();
@@ -230,9 +269,11 @@ class ConnectionManager {
       _resyncFuture = null;
     }
   }
+
   Future<void> _doResync() async {
     try {
-      _changeState(_currentState.copyWith(isResyncing: true, errorMessage: 'Reconnected — resyncing'));
+      _changeState(_currentState.copyWith(
+          isResyncing: true, errorMessage: 'Reconnected — resyncing'));
       // Step 1: get_state for current session state
       await client.sendCommand('get_state', {});
       // Step 2: get_messages to refresh transcript. Server may return
@@ -249,7 +290,8 @@ class ConnectionManager {
       }
     } catch (e) {
       onError('Resync failed: $e');
-      _changeState(_currentState.copyWith(isResyncing: false, errorMessage: 'Resync failed: $e'));
+      _changeState(_currentState.copyWith(
+          isResyncing: false, errorMessage: 'Resync failed: $e'));
       // The socket may still be alive but our state is stale — force a
       // clean reconnect cycle instead of waiting for a ping timeout.
       if (!_shuttingDown && !_terminalAuthFailure) {
@@ -257,10 +299,12 @@ class ConnectionManager {
       }
     }
   }
+
   void _changeState(ConnectionInfo info) {
     _currentState = info;
     if (!_stateController.isClosed) _stateController.add(info);
   }
+
   /// Clean up resources.
   void dispose() {
     _cancelReconnectTimer();
@@ -268,12 +312,20 @@ class ConnectionManager {
     if (!_stateController.isClosed) _stateController.close();
   }
 }
+
 /// Bridge that wires RpcClient events to ConnectionManager.
 class _RpcClientBridge implements RpcClientListener {
   final ConnectionManager manager;
   const _RpcClientBridge(this.manager);
-  @override void onEvent(String eventType, Map<String, dynamic> data) => manager.handleEvent(eventType, data);
-  @override void onBridgeFrame(BridgeControlFrame frame) => manager.handleBridgeFrame(frame);
-  @override void onConnectionStateChange(ConnectionInfo info) {} // handled by ConnectionManager itself
-  @override void onError(String message) => manager.onError(message);
+  @override
+  void onEvent(String eventType, Map<String, dynamic> data) =>
+      manager.handleEvent(eventType, data);
+  @override
+  void onBridgeFrame(BridgeControlFrame frame) =>
+      manager.handleBridgeFrame(frame);
+  @override
+  void onConnectionStateChange(
+      ConnectionInfo info) {} // handled by ConnectionManager itself
+  @override
+  void onError(String message) => manager.onError(message);
 }

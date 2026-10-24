@@ -356,7 +356,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 8),
               Text(
                 connected ? 'Connected' : conn.connection.state.name,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(url, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
@@ -451,13 +451,13 @@ class _SessionRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(path, style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(path, style: const TextStyle(fontSize: 11, fontFamily: 'JetBrains Mono', color: PiColors.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
           Row(
             children: [
-              Text(_relativeTime(modified), style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
+              Text(_relativeTime(modified), style: const TextStyle(fontSize: 11, color: PiColors.textMuted)),
               const SizedBox(width: 12),
-              Text('$msgCount messages', style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
+              Text('$msgCount messages', style: const TextStyle(fontSize: 11, color: PiColors.textMuted)),
               if (session.parentSessionPath != null) ...[
                 const SizedBox(width: 8),
                 const StatusChip(label: 'child', variant: ChipVariant.tool),

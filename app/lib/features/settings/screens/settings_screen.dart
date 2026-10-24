@@ -186,7 +186,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Theme', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              const Text('THEME', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: PiColors.textSecondary)),
               const SizedBox(height: 8),
               _ThemeOption(
                 label: 'System',
@@ -210,7 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 onSelected: (v) => ref.read(settingsProvider.notifier).setTheme(ThemePref.light),
               ),
               const Divider(height: 32),
-              const Text('Chat text size', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              const Text('CHAT TEXT SIZE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: PiColors.textSecondary)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -256,7 +256,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('A-Coder Mobile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text('A-Coder Mobile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               SizedBox(height: 4),
               Text('Version 1.0.0 (build 1)', style: TextStyle(color: PiColors.textMuted)),
               SizedBox(height: 24),
@@ -264,7 +264,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               _AboutRow(label: 'WebSocket transport', value: 'ws://'),
               _AboutRow(label: 'Framework', value: 'Flutter 3.24+'),
               SizedBox(height: 24),
-              Text('Links', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              Text('LINKS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8, color: PiColors.textSecondary)),
               SizedBox(height: 8),
               ListTile(
                 leading: Icon(Icons.code_rounded),

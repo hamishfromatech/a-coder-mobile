@@ -103,13 +103,22 @@ class PiTheme {
         secondary: c.toolIdentity,
       ),
       // ─── Typography — system sans + JetBrains Mono for code ──
+      // Desktop type scale: 13 px conversation body, 11 px captions,
+      // 15 px panel titles, 10 px mono micro-labels.
       textTheme: baseText.copyWith(
-        bodyMedium: const TextStyle(fontSize: 14, height: 1.5),
-        bodySmall: const TextStyle(fontSize: 13, height: 1.4),
+        bodyLarge: const TextStyle(fontSize: 13, height: 1.5),
+        bodyMedium: const TextStyle(fontSize: 13, height: 1.5),
+        bodySmall: const TextStyle(fontSize: 11, height: 1.4),
+        titleLarge: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        titleMedium: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        titleSmall: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        labelLarge: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        labelMedium: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
         labelSmall: const TextStyle(
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.8,
+          fontFamily: 'JetBrains Mono',
         ),
       ),
       // ─── Scaffold ─────────────────────────────────────────
@@ -146,7 +155,7 @@ class PiTheme {
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           color: c.text,
         ),
@@ -172,6 +181,23 @@ class PiTheme {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           minimumSize: const Size(44, 44), // min touch target
         ),
+      ),
+      // ─── Lists (desktop flat rows: dense, no card chrome) ──
+      listTileTheme: ListTileThemeData(
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        titleTextStyle: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: c.text,
+        ),
+        subtitleTextStyle: const TextStyle(
+          fontSize: 11,
+          height: 1.4,
+          color: PiColors.textMuted,
+        ),
+        iconColor: c.textMuted,
       ),
       // ─── Divider ──────────────────────────────────────────
       dividerTheme: DividerThemeData(

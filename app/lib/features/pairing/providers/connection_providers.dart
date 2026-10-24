@@ -1,5 +1,6 @@
 // lib/features/pairing/providers/connection_providers.dart
 library;
+
 /// Active-host + session-connection providers (doc 05 §4, M3 wiring).
 ///
 /// `sessionControllerProvider` owns the full stack for the active paired
@@ -51,6 +52,7 @@ final connectionStateProvider =
 /// Connection + load status for the active host.
 class SessionControllerState {
   final ConnectionInfo connection;
+
   /// True during the initial connect → resync sequence.
   final bool starting;
   const SessionControllerState({
@@ -60,8 +62,11 @@ class SessionControllerState {
 
   bool get isReady => connection.state == ConnectionState.ready && !starting;
 
-  SessionControllerState copyWith({ConnectionInfo? connection, bool? starting}) =>
-      SessionControllerState(connection: connection ?? this.connection, starting: starting ?? this.starting);
+  SessionControllerState copyWith(
+          {ConnectionInfo? connection, bool? starting}) =>
+      SessionControllerState(
+          connection: connection ?? this.connection,
+          starting: starting ?? this.starting);
 }
 
 final sessionControllerProvider = StateNotifierProvider.autoDispose
@@ -80,11 +85,14 @@ class SessionController extends StateNotifier<SessionControllerState> {
   ConnectionManager? _manager;
   StreamSubscription<ConnectionInfo>? _connSub;
   bool _disposed = false;
+
   /// Prompts composed while disconnected — flushed in order on ready (doc 05 §5:
   /// "buffered-unsent while offline").
-  final List<({String mode, String text, List<Map<String, dynamic>> images})> _outbox = [];
+  final List<({String mode, String text, List<Map<String, dynamic>> images})>
+      _outbox = [];
 
-  SessionController(this._ref, this.hostId) : super(const SessionControllerState(starting: true));
+  SessionController(this._ref, this.hostId)
+      : super(const SessionControllerState(starting: true));
 
   /// Load host metadata + token, build the stack, and connect.
   /// The ConnectionManager drives the full sequence: connect → auth →
@@ -95,7 +103,9 @@ class SessionController extends StateNotifier<SessionControllerState> {
     if (host == null) {
       if (!_disposed) {
         state = const SessionControllerState(
-          connection: ConnectionInfo(state: ConnectionState.disconnected, errorMessage: 'Host not found — re-pair this machine'),
+          connection: ConnectionInfo(
+              state: ConnectionState.disconnected,
+              errorMessage: 'Host not found — re-pair this machine'),
           starting: false,
         );
       }
@@ -104,10 +114,10 @@ class SessionController extends StateNotifier<SessionControllerState> {
     _host = host;
     final token = await HostRegistry().getToken(hostId);
     final client = RpcClient(
-        wsUrl: host.wsUrl,
-        token: token,
-        certFingerprint: host.certFingerprint,
-      );
+      wsUrl: host.wsUrl,
+      token: token,
+      certFingerprint: host.certFingerprint,
+    );
     final manager = ConnectionManager(client: client, hostUrl: host.wsUrl);
 
     manager.onEvent = _onEvent;
@@ -124,7 +134,9 @@ class SessionController extends StateNotifier<SessionControllerState> {
     if (_disposed) return;
     state = state.copyWith(connection: info);
     // Connected + resynced → deliver anything buffered while offline.
-    if (info.state == ConnectionState.ready && !info.isResyncing && _outbox.isNotEmpty) {
+    if (info.state == ConnectionState.ready &&
+        !info.isResyncing &&
+        _outbox.isNotEmpty) {
       _flushOutbox();
     }
   }
@@ -229,7 +241,8 @@ class SessionController extends StateNotifier<SessionControllerState> {
   }
 
   void _registerResponseHandlers(RpcClient client) {
-    void guarded(String type, Future<void> Function(Map<String, dynamic> data) handler) {
+    void guarded(
+        String type, Future<void> Function(Map<String, dynamic> data) handler) {
       client.onResponse(type, (json) async {
         try {
           await handler(json['data'] as Map<String, dynamic>? ?? {});
@@ -309,21 +322,25 @@ class SessionController extends StateNotifier<SessionControllerState> {
 
   // ─── Commands ──────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> _send(String type, Map<String, dynamic> payload, {Duration? timeout}) async {
+  Future<Map<String, dynamic>> _send(String type, Map<String, dynamic> payload,
+      {Duration? timeout}) async {
     final client = _client;
     if (client == null) throw Exception('Not connected');
     final result = await client.sendCommand(type, payload,
         timeout: timeout ?? const Duration(seconds: 15));
-    // The engine accepted a command — drop a transient "engine starting" banner.
-    if (state.connection.errorMessage == engineStartingMessage) {
-      state = state.copyWith(connection: state.connection.copyWith(errorMessage: null));
+    // The engine accepted a command — drop a transient engine-unavailable banner.
+    if (engineUnavailableMessages.contains(state.connection.errorMessage)) {
+      state = state.copyWith(
+          connection: state.connection.copyWith(errorMessage: null));
     }
     return result;
   }
 
   /// Send the composer text. mode: prompt | steer | followUp.
   /// While disconnected the message is buffered and flushed on reconnect.
-  Future<void> sendPrompt(String text, {String mode = 'prompt', List<Map<String, dynamic>> images = const []}) async {
+  Future<void> sendPrompt(String text,
+      {String mode = 'prompt',
+      List<Map<String, dynamic>> images = const []}) async {
     if (text.trim().isEmpty) return;
     if (!_isReady) {
       _outbox.add((mode: mode, text: text, images: images));
@@ -333,14 +350,19 @@ class SessionController extends StateNotifier<SessionControllerState> {
     await _sendPromptNow(text, mode: mode, images: images);
   }
 
-  Future<void> _sendPromptNow(String text, {String mode = 'prompt', List<Map<String, dynamic>> images = const []}) async {
+  Future<void> _sendPromptNow(String text,
+      {String mode = 'prompt',
+      List<Map<String, dynamic>> images = const []}) async {
     switch (mode) {
       case 'steer':
-        await _send('steer', {'message': text, if (images.isNotEmpty) 'images': images});
+        await _send('steer',
+            {'message': text, if (images.isNotEmpty) 'images': images});
       case 'followUp':
-        await _send('follow_up', {'message': text, if (images.isNotEmpty) 'images': images});
+        await _send('follow_up',
+            {'message': text, if (images.isNotEmpty) 'images': images});
       default:
-        await _send('prompt', {'message': text, if (images.isNotEmpty) 'images': images});
+        await _send('prompt',
+            {'message': text, if (images.isNotEmpty) 'images': images});
     }
     // Optimistic echo — the engine may not replay the user message.
     _ref.read(chatStateProvider.notifier).addLocalUserMessage(text);
@@ -376,7 +398,9 @@ class SessionController extends StateNotifier<SessionControllerState> {
     final data = await _send('cron_update', {'jobId': jobId, 'patch': patch});
     final job = data['job'];
     if (job is Map<String, dynamic>) {
-      _ref.read(cronJobsProvider.notifier).upsert(responses.CronJob.fromJson(job));
+      _ref
+          .read(cronJobsProvider.notifier)
+          .upsert(responses.CronJob.fromJson(job));
     }
   }
 
@@ -412,27 +436,33 @@ class SessionController extends StateNotifier<SessionControllerState> {
     if (action == 'always_allow') {
       // Desktop ToolApprovalBar: run_workflow grants `run_workflow(<name>)`;
       // other tools derive `Tool(subject)` from what the request carries.
-      final rule = request.toolName == 'run_workflow' && request.workflowName != null
-          ? 'run_workflow(${request.workflowName})'
-          : (request.toolName == 'run_workflow'
-              ? ''
-              : _toolRule(request.toolName, request.message));
+      final rule =
+          request.toolName == 'run_workflow' && request.workflowName != null
+              ? 'run_workflow(${request.workflowName})'
+              : (request.toolName == 'run_workflow'
+                  ? ''
+                  : _toolRule(request.toolName, request.message));
       if (rule.isNotEmpty) {
-        await _send('add_session_allow_rules', {'rules': [rule]});
+        await _send('add_session_allow_rules', {
+          'rules': [rule]
+        });
       }
     }
     await _respond(request.id, {'confirmed': action != 'deny'});
   }
 
   /// select (single or multi) → {value: string}.
-  Future<void> respondSelect(er.UiRequest request, List<String> selectedLabels) async {
+  Future<void> respondSelect(
+      er.UiRequest request, List<String> selectedLabels) async {
     await _respond(request.id, {'value': selectedLabels.join(',')});
   }
 
   /// question → `{answers: Record<header, answer>}`. The question header is
   /// carried in the request title (v1: one question per request).
   Future<void> respondQuestion(er.UiRequest request, String answerLabel) async {
-    await _respond(request.id, {'answers': {request.title ?? 'question': answerLabel}});
+    await _respond(request.id, {
+      'answers': {request.title ?? 'question': answerLabel}
+    });
   }
 
   /// input / editor → {value: string}.
@@ -441,7 +471,8 @@ class SessionController extends StateNotifier<SessionControllerState> {
   }
 
   /// Dismiss without answering — the engine resolves by its default/timeout.
-  Future<void> cancelUiRequest(er.UiRequest request) => _respond(request.id, {'cancelled': true});
+  Future<void> cancelUiRequest(er.UiRequest request) =>
+      _respond(request.id, {'cancelled': true});
 
   Future<void> _respond(String requestId, Map<String, dynamic> payload) async {
     _client?.sendRaw(wireExtensionUiResponse(requestId, payload));
@@ -451,8 +482,10 @@ class SessionController extends StateNotifier<SessionControllerState> {
   /// Desktop parity: set_model takes provider + modelId separately.
   Future<void> setModel(String provider, String modelId) =>
       _send('set_model', {'provider': provider, 'modelId': modelId});
-  Future<void> setThinkingLevel(String level) => _send('set_thinking_level', {'level': level});
-  Future<void> setPermissionMode(String mode) => _send('set_permission_mode', {'mode': mode});
+  Future<void> setThinkingLevel(String level) =>
+      _send('set_thinking_level', {'level': level});
+  Future<void> setPermissionMode(String mode) =>
+      _send('set_permission_mode', {'mode': mode});
 
   Future<void> newSession() async {
     await _send('new_session', {});
@@ -471,8 +504,12 @@ class SessionController extends StateNotifier<SessionControllerState> {
   Future<({List<String> steering, List<String> followUp})> clearQueue() async {
     final data = await _send('clear_queue', {});
     return (
-      steering: (data['steering'] as List<dynamic>? ?? []).whereType<String>().toList(),
-      followUp: (data['followUp'] as List<dynamic>? ?? []).whereType<String>().toList(),
+      steering: (data['steering'] as List<dynamic>? ?? [])
+          .whereType<String>()
+          .toList(),
+      followUp: (data['followUp'] as List<dynamic>? ?? [])
+          .whereType<String>()
+          .toList(),
     );
   }
 
@@ -482,17 +519,21 @@ class SessionController extends StateNotifier<SessionControllerState> {
   Future<void> renameSession(String sessionPath, String name) =>
       _send('set_session_name', {'sessionPath': sessionPath, 'name': name});
 
-  Future<void> compact() => _send('compact', {}, timeout: const Duration(seconds: 60));
+  Future<void> compact() =>
+      _send('compact', {}, timeout: const Duration(seconds: 60));
 
   /// Returns the export URL/path from the engine, or throws.
   Future<String?> exportHtml(String sessionPath) async {
-    final data = await _send('export_html', {'sessionPath': sessionPath}, timeout: const Duration(seconds: 60));
+    final data = await _send('export_html', {'sessionPath': sessionPath},
+        timeout: const Duration(seconds: 60));
     return data['path'] as String? ?? data['url'] as String?;
   }
 
   Future<List<Map<String, dynamic>>> getAvailableModels() async {
     final data = await _send('get_available_models', {});
-    return (data['models'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
+    return (data['models'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
   }
 
   /// Desktop parity: the picker's refresh re-reads models.json + dynamic models.
@@ -582,5 +623,7 @@ String wireExtensionUiResponse(String requestId, Map<String, dynamic> payload) {
 }
 
 String _jsonBody(Map<String, dynamic> payload) {
-  return payload.entries.map((e) => '"${e.key}":${jsonEncode(e.value)}').join(',');
+  return payload.entries
+      .map((e) => '"${e.key}":${jsonEncode(e.value)}')
+      .join(',');
 }

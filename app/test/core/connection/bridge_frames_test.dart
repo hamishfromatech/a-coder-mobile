@@ -35,6 +35,32 @@ void main() {
     expect(manager.currentState.isDisconnected, isTrue); // never connected yet
   });
 
+  test('engine_unavailable with backlog says the command was dropped', () {
+    final manager = _manager();
+    final logged = <String>[];
+    manager.onError = logged.add;
+
+    manager.handleBridgeFrame(
+      const BridgeControlFrame(event: 'engine_unavailable', reason: 'backlog'),
+    );
+
+    expect(manager.currentState.errorMessage, engineBusyMessage);
+    expect(logged.single, engineBusyMessage);
+    expect(manager.currentState.state, isNot(ConnectionState.shuttingDown));
+  });
+
+  test('engine_unavailable reason survives the frame round trip', () {
+    final frame = BridgeControlFrame.fromJson(
+      const {
+        'type': 'bridge',
+        'event': 'engine_unavailable',
+        'reason': 'backlog'
+      },
+    );
+    expect(frame.reason, 'backlog');
+    expect(frame.toJson()['reason'], 'backlog');
+  });
+
   test('engine_failed is terminal and explains restart attempts', () {
     final manager = _manager();
     manager.handleBridgeFrame(
@@ -51,5 +77,4 @@ void main() {
     );
     expect(manager.currentState.state, ConnectionState.shuttingDown);
   });
-
 }

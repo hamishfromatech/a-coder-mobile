@@ -42,7 +42,7 @@ unless you use a VPN/Tailscale.
 ```bash
 cd app
 flutter analyze     # No issues found
-flutter test        # 213 tests (unit, widget, goldens, fake-bridge E2E)
+flutter test        # 215 tests (unit, widget, goldens, fake-bridge E2E)
 ```
 
 CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
@@ -59,6 +59,10 @@ CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
 Chat (streaming, tools, approvals, queue, rewind, paged history, images),
 sessions, models, pairing (QR/manual/discovery), settings, **Scheduled tasks**
 and **Your Office** surfaces, and **`wss://` with certificate pinning**.
+
+The visual language mirrors the desktop app (`desktop-app/DESIGN.md`): the same
+13/11 px type scale, glass composer and user bubble, flat assistant rows with
+the accent avatar, hairline tool cards, and flat dense lists.
 
 ## Security model
 

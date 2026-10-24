@@ -121,9 +121,11 @@ class _ToolCardState extends State<ToolCard> {
       child: InkWell(
         onTap: widget.onTap ?? () => setState(() => _expanded = !_expanded),
         child: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: widget.isError ? PiColors.error.withValues(alpha: 0.10) : c.surfaceRaised,
+            color: widget.isError
+                ? PiColors.error.withValues(alpha: 0.10)
+                : c.surfaceRaised.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: widget.isError ? PiColors.error.withValues(alpha: 0.3) : c.border),
           ),
@@ -138,7 +140,7 @@ class _ToolCardState extends State<ToolCard> {
                   Expanded(
                     child: Text(
                       widget.toolName,
-                      style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono', fontWeight: FontWeight.w500),
+                      style: const TextStyle(fontSize: 11.5, fontFamily: 'JetBrains Mono', fontWeight: FontWeight.w500),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -151,7 +153,7 @@ class _ToolCardState extends State<ToolCard> {
                     ),
                     child: Text(
                       statusLabel,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor),
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: statusColor),
                     ),
                   ),
                   const SizedBox(width: 6),
