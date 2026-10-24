@@ -261,6 +261,10 @@ class SessionController extends StateNotifier<SessionControllerState> {
 
   Future<void> abort() => _send('abort', {});
 
+  /// Abort a session by path (works for background sessions too).
+  Future<void> abortSession(String sessionPath) =>
+      _send('abort_session', {'sessionPath': sessionPath});
+
   // ─── Extension UI responses (doc 03 §4.5) ──────────────────────
   // Shapes per method:
   //   confirm  → {confirmed: bool}

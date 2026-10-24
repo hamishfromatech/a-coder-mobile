@@ -187,6 +187,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           },
                           onRename: () => _renameSession(session),
                           onDelete: () => _confirmDelete(session),
+                          onStop: () => ref
+                              .read(sessionControllerProvider(widget.activeHostId).notifier)
+                              .abortSession(session.path),
                         );
                       },
                     ),
@@ -379,7 +382,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       );
                     },
                     onAbort: () {
-                      // Best-effort; the engine owns abort.
+                      ref
+                          .read(sessionControllerProvider(widget.activeHostId).notifier)
+                          .abortSession(s.path);
+                      ref.read(backgroundSessionsProvider.notifier).remove(s.path);
+                      Navigator.pop(ctx);
                     },
                   ),
             ],
@@ -391,11 +398,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _SessionRow extends StatelessWidget {
-  final dynamic session;
+  final RpcSessionInfo session;
   final bool connected;
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+  final VoidCallback onStop;
 
   const _SessionRow({
     super.key,
@@ -404,16 +412,17 @@ class _SessionRow extends StatelessWidget {
     required this.onTap,
     required this.onRename,
     required this.onDelete,
+    required this.onStop,
   });
 
   @override
   Widget build(BuildContext context) {
-    final name = (session.name is String && (session.name as String).isNotEmpty)
-        ? session.name as String
-        : (session.firstMessage as String? ?? session.id as String);
-    final path = session.cwd as String? ?? '';
-    final msgCount = session.messageCount as int? ?? 0;
-    final modified = DateTime.tryParse(session.modified as String? ?? '') ?? DateTime.now();
+    final name = (session.name != null && session.name!.isNotEmpty)
+        ? session.name!
+        : (session.firstMessage ?? session.id);
+    final path = session.cwd;
+    final msgCount = session.messageCount;
+    final modified = DateTime.tryParse(session.modified) ?? DateTime.now();
     return ListTile(
       key: ValueKey(session.path),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -428,6 +437,10 @@ class _SessionRow extends StatelessWidget {
               Text(_relativeTime(modified), style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
               const SizedBox(width: 12),
               Text('$msgCount messages', style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
+              if (session.parentSessionPath != null) ...[
+                const SizedBox(width: 8),
+                const StatusChip(label: 'child', variant: ChipVariant.tool),
+              ],
             ],
           ),
         ],
@@ -452,6 +465,8 @@ class _SessionRow extends StatelessWidget {
         switch (action) {
           case 'rename':
             onRename();
+          case 'stop':
+            onStop();
           case 'delete':
             onDelete();
           default:
