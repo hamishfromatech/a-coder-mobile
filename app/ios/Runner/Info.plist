@@ -7,7 +7,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Acoder Mobile</string>
+		<string>A-Coder</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -37,6 +37,8 @@
 		</array>
 		<key>NSCameraUsageDescription</key>
 		<string>Camera is used to scan the A-Coder pairing QR code.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Photo library access is used to attach images to your coding task.</string>
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>A-Coder connects to your desktop running the A-Coder engine for remote agent control over your local network.</string>
 		<key>UIApplicationSceneManifest</key>
