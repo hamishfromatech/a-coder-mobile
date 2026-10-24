@@ -12,6 +12,7 @@ import 'dart:async' show Timer;
 import 'dart:convert' show base64Encode, JsonEncoder;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -207,7 +208,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
           // ─── UI request card (approvals, questions, selects, inputs, notify) ──
           if (chat.approvals.isNotEmpty) ...[
-            _UiRequestCard(
+            UiRequestCard(
               key: ValueKey(chat.approvals.values.first.id),
               request: chat.approvals.values.first,
               controller:
@@ -220,7 +221,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           if (chat.queue.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: _QueuedCard(
+              child: QueuedCard(
                 queue: chat.queue,
                 onRemove: (kind, index) => ref
                     .read(sessionControllerProvider(widget.hostId).notifier)
@@ -404,7 +405,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             left: 0,
             right: 0,
             child: Center(
-              child: _JumpToLatestPill(
+              child: JumpToLatestPill(
                 unreadCount: _unreadCount,
                 onTap: () {
                   setState(() => _atBottom = true);
@@ -700,7 +701,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             _ModeSegment(
                               label: 'Send',
                               selected: _sendMode == 'prompt',
-                              onTap: () => setState(() => _sendMode = 'prompt'),
+                              onTap: () {
+                                setState(() => _sendMode = 'prompt');
+                                SemanticsService.sendAnnouncement(View.of(context), 'Send mode selected', TextDirection.ltr);
+                              },
                             ),
                             _ModeSegment(
                               label: 'Queue',
@@ -994,11 +998,11 @@ class _MessageView extends StatelessWidget {
 
     switch (message.role) {
       case 'user':
-        return _UserMessageBubble(text: _textOf(parts));
+        return UserMessageBubble(text: _textOf(parts));
       case 'toolResult':
         return _ToolResultView(message: message, parts: parts);
       case 'assistant':
-        return _AssistantView(
+        return AssistantMessageView(
             message: message, parts: parts, toolCards: toolCards);
       default:
         return const SizedBox.shrink();
@@ -1013,9 +1017,9 @@ class _MessageView extends StatelessWidget {
   }
 }
 
-class _UserMessageBubble extends StatelessWidget {
+class UserMessageBubble extends StatelessWidget {
   final String text;
-  const _UserMessageBubble({required this.text});
+  const UserMessageBubble({super.key, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1041,13 +1045,13 @@ class _UserMessageBubble extends StatelessWidget {
   }
 }
 
-class _AssistantView extends ConsumerWidget {
+class AssistantMessageView extends ConsumerWidget {
   final er.UiMessage message;
   final List<Map<String, dynamic>> parts;
   final Map<String, er.ToolCardState> toolCards;
 
-  const _AssistantView(
-      {required this.message, required this.parts, required this.toolCards});
+  const AssistantMessageView({super.key,
+      required this.message, required this.parts, required this.toolCards});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1092,7 +1096,7 @@ class _AssistantView extends ConsumerWidget {
           // Interleave content parts in order: thinking / text / toolCall.
           for (final part in parts) ...[
             if (part['type'] == 'thinking' && part['thinking'] is String)
-              _ThinkingBlock(thinking: part['thinking'] as String),
+              ThinkingBlock(thinking: part['thinking'] as String),
             if (part['type'] == 'text' && part['text'] is String)
               _MarkdownContent(
                   messageId: message.id, data: part['text'] as String),
@@ -1310,15 +1314,15 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
   }
 }
 
-class _ThinkingBlock extends StatefulWidget {
+class ThinkingBlock extends StatefulWidget {
   final String thinking;
-  const _ThinkingBlock({required this.thinking});
+  const ThinkingBlock({super.key, required this.thinking});
 
   @override
-  State<_ThinkingBlock> createState() => _ThinkingBlockState();
+  State<ThinkingBlock> createState() => ThinkingBlockState();
 }
 
-class _ThinkingBlockState extends State<_ThinkingBlock> {
+class ThinkingBlockState extends State<ThinkingBlock> {
   bool _expanded = false;
 
   @override
@@ -1423,18 +1427,18 @@ class _TypingDotState extends State<_TypingDot>
 ///   select                    → single/multi choice → {value: string}
 ///   input / editor            → text field → {value: string}
 ///   notify                    → toast-style card, acknowledges on dismiss
-class _UiRequestCard extends ConsumerStatefulWidget {
+class UiRequestCard extends ConsumerStatefulWidget {
   final er.UiRequest request;
   final SessionController controller;
 
-  const _UiRequestCard(
+  const UiRequestCard(
       {super.key, required this.request, required this.controller});
 
   @override
-  ConsumerState<_UiRequestCard> createState() => _UiRequestCardState();
+  ConsumerState<UiRequestCard> createState() => UiRequestCardState();
 }
 
-class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
+class UiRequestCardState extends ConsumerState<UiRequestCard> {
   double _dragExtent = 0.0; // swipe-to-approve progress
   final _inputController = TextEditingController();
   final Map<String, bool> _checked = {}; // multi-select state
@@ -1450,7 +1454,7 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
   }
 
   @override
-  void didUpdateWidget(covariant _UiRequestCard oldWidget) {
+  void didUpdateWidget(covariant UiRequestCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.request.id != widget.request.id ||
         oldWidget.request.timeout != widget.request.timeout) {
@@ -1858,7 +1862,7 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
   }
 }
 
-/// Checkbox row for multi-select (state lifted into _UiRequestCardState._checked).
+/// Checkbox row for multi-select (state lifted into UiRequestCardState._checked).
 class _MultiSelectRow extends StatelessWidget {
   final String label;
   final bool value;
@@ -1886,13 +1890,13 @@ class _MultiSelectRow extends StatelessWidget {
 
 // ─── Queue card (doc 06 §3) ──────────────────────────────────
 
-class _QueuedCard extends StatelessWidget {
+class QueuedCard extends StatelessWidget {
   final er.QueueState queue;
   final void Function(String kind, int index) onRemove;
   final VoidCallback onRestore;
 
-  const _QueuedCard(
-      {required this.queue, required this.onRemove, required this.onRestore});
+  const QueuedCard({super.key,
+      required this.queue, required this.onRemove, required this.onRestore});
 
   @override
   Widget build(BuildContext context) {
@@ -1920,12 +1924,12 @@ class _QueuedCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           for (var i = 0; i < queue.steering.length; i++)
-            _QueueItem(
+            QueueItem(
                 label: queue.steering[i],
                 type: QueueItemType.steering,
                 onRemove: () => onRemove('steering', i)),
           for (var i = 0; i < queue.followUp.length; i++)
-            _QueueItem(
+            QueueItem(
                 label: queue.followUp[i],
                 type: QueueItemType.followUp,
                 onRemove: () => onRemove('followUp', i)),
@@ -1949,13 +1953,13 @@ class _QueuedCard extends StatelessWidget {
 
 enum QueueItemType { steering, followUp }
 
-class _QueueItem extends StatelessWidget {
+class QueueItem extends StatelessWidget {
   final String label;
   final QueueItemType type;
   final VoidCallback onRemove;
 
-  const _QueueItem(
-      {required this.label, required this.type, required this.onRemove});
+  const QueueItem({super.key,
+      required this.label, required this.type, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -2001,11 +2005,19 @@ class _ModeSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+    return Semantics(
+      button: true,
+      selected: selected,
+      toggled: selected,
+      label: label,
+      hint: selected ? 'Selected' : 'Activate $label mode',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+        duration: MediaQuery.of(context).disableAnimations
+            ? Duration.zero
+            : const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
           color: selected
@@ -2021,8 +2033,9 @@ class _ModeSegment extends StatelessWidget {
             color: selected ? PiColors.accent : PiColors.textMuted,
           ),
         ),
-      ),
-    );
+      ), // AnimatedContainer
+    ), // GestureDetector
+  ); // Semantics
   }
 }
 
@@ -2045,13 +2058,18 @@ class _ComposerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: 38,
-          height: 38,
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: tooltip,
+      hint: enabled ? 'Activates $tooltip' : 'Disabled',
+      child: Tooltip(
+        message: tooltip,
+        child: GestureDetector(
+          onTap: enabled ? onTap : null,
+          child: Container(
+            width: 48,
+            height: 48,
           decoration: BoxDecoration(
             color: enabled
                 ? color.withValues(alpha: 0.16)
@@ -2060,9 +2078,10 @@ class _ComposerButton extends StatelessWidget {
           ),
           child: Icon(icon,
               size: 22, color: enabled ? color : color.withValues(alpha: 0.6)),
-        ),
-      ),
-    );
+        ), // Container
+      ), // GestureDetector
+    ), // Tooltip
+  ); // Semantics
   }
 }
 
@@ -2089,10 +2108,10 @@ String _plainText(er.UiMessage m) {
       .join('\n');
 }
 
-class _JumpToLatestPill extends StatelessWidget {
+class JumpToLatestPill extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onTap;
-  const _JumpToLatestPill({required this.unreadCount, required this.onTap});
+  const JumpToLatestPill({super.key, required this.unreadCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2252,3 +2271,10 @@ Future<void> _showToolDetailSheet(
     },
   );
 }
+
+
+typedef AssistantMessageBubble = AssistantMessageView;
+typedef AssistantBubble = AssistantMessageView;
+typedef ApprovalCard = UiRequestCard;
+typedef QueueCard = QueuedCard;
+typedef JumpToLatest = JumpToLatestPill;

@@ -115,7 +115,9 @@ class _ToolCardState extends State<ToolCard> {
 
     return Semantics(
       button: true,
+      toggled: _expanded,
       label: 'Tool ${widget.toolName}, $statusLabel',
+      hint: _expanded ? 'Collapse details' : 'Expand details',
       child: InkWell(
         onTap: widget.onTap ?? () => setState(() => _expanded = !_expanded),
         child: Container(
