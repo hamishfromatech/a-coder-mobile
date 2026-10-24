@@ -206,6 +206,30 @@ class GetMessagesCommand extends RpcCommand with _GeneratedId {
   @override
   Map<String, dynamic> toJson() => {'type': type};
 }
+/// Paged transcript fetch (preferred over get_messages for long sessions).
+class GetTranscriptPageCommand extends RpcCommand with _GeneratedId {
+  final int? limit;
+  final int? before; // entry index to page backwards from (exclusive)
+  final String? sessionPath;
+  GetTranscriptPageCommand({this.limit, this.before, this.sessionPath});
+  @override
+  String get type => 'get_transcript_page';
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        if (limit != null) 'limit': limit,
+        if (before != null) 'before': before,
+        if (sessionPath != null) 'sessionPath': sessionPath,
+      };
+}
+class GetAttachmentCommand extends RpcCommand with _GeneratedId {
+  final String attachmentId;
+  GetAttachmentCommand({required this.attachmentId});
+  @override
+  String get type => 'get_attachment';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, 'attachmentId': attachmentId};
+}
 class GetEntriesCommand extends RpcCommand with _GeneratedId {
   GetEntriesCommand();
   @override

@@ -212,6 +212,60 @@ class GetMessagesResponse {
         messages: (json['messages'] as List<dynamic>? ?? []).cast<Object>().toList(),
       );
 }
+/// One stored session entry (`get_transcript_page`). Only `type == "message"`
+/// entries carry an AgentMessage; other types (compaction, custom) are
+/// bookkeeping the mobile transcript does not render.
+class TranscriptEntry {
+  final String id;
+  final String? parentId;
+  final String type;
+  final String timestamp;
+  final Object? message;
+  final String? summary;
+  const TranscriptEntry({required this.id, this.parentId, required this.type, required this.timestamp, this.message, this.summary});
+  factory TranscriptEntry.fromJson(Map<String, dynamic> json) => TranscriptEntry(
+        id: json['id'] as String? ?? '',
+        parentId: json['parentId'] as String?,
+        type: json['type'] as String? ?? '',
+        timestamp: json['timestamp'] as String? ?? '',
+        message: json['message'],
+        summary: json['summary'] as String?,
+      );
+}
+
+class TranscriptPageResponse {
+  final List<TranscriptEntry> entries;
+  final int total;
+  final int start;
+  final int end;
+  final bool hasMore;
+  const TranscriptPageResponse({required this.entries, required this.total, required this.start, required this.end, required this.hasMore});
+  factory TranscriptPageResponse.fromJson(Map<String, dynamic> json) => TranscriptPageResponse(
+        entries: (json['entries'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(TranscriptEntry.fromJson)
+            .toList(),
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        start: (json['start'] as num?)?.toInt() ?? 0,
+        end: (json['end'] as num?)?.toInt() ?? 0,
+        hasMore: json['hasMore'] as bool? ?? false,
+      );
+}
+
+class AttachmentResponse {
+  final String id;
+  final String mimeType;
+  final int bytes;
+  final String data; // base64
+  const AttachmentResponse({required this.id, required this.mimeType, required this.bytes, required this.data});
+  factory AttachmentResponse.fromJson(Map<String, dynamic> json) => AttachmentResponse(
+        id: json['id'] as String? ?? '',
+        mimeType: json['mimeType'] as String? ?? 'application/octet-stream',
+        bytes: (json['bytes'] as num?)?.toInt() ?? 0,
+        data: json['data'] as String? ?? '',
+      );
+}
+
 class BashResult {
   final String stdout;
   final String stderr;

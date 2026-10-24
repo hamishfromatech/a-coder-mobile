@@ -9,7 +9,8 @@
 library;
 
 import 'dart:async' show Timer;
-import 'dart:convert' show base64Encode, JsonEncoder;
+import 'dart:convert' show base64Decode, base64Encode, JsonEncoder;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -118,6 +119,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     if (atBottom && _unreadCount != 0) {
       setState(() => _unreadCount = 0);
+    }
+    // Reverse list: the visual top is maxScrollExtent. Page in older history
+    // as the user approaches it (the provider guards re-entry).
+    final position = _scrollController.position;
+    if (position.maxScrollExtent > 0 &&
+        position.pixels >= position.maxScrollExtent - 320) {
+      ref
+          .read(sessionControllerProvider(widget.hostId).notifier)
+          .loadOlderMessages();
     }
   }
 
@@ -432,6 +442,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 childCount: chat.messages.length,
               ),
             ),
+            // Reverse layout: this lands above the oldest message.
+            if (chat.hasMoreBefore || chat.isLoadingOlder)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: chat.isLoadingOlder
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : TextButton(
+                            onPressed: () => ref
+                                .read(sessionControllerProvider(widget.hostId)
+                                    .notifier)
+                                .loadOlderMessages(),
+                            child: Text(
+                              'Load earlier messages (${chat.totalEntries} total)',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                  ),
+                ),
+              ),
           ],
         ),
         if (!_atBottom)
@@ -1033,7 +1068,10 @@ class _MessageView extends StatelessWidget {
 
     switch (message.role) {
       case 'user':
-        return UserMessageBubble(text: _textOf(parts));
+        final images = parts
+            .where((p) => p['type'] == 'image' && p['data'] is String)
+            .toList();
+        return UserMessageBubble(text: _textOf(parts), images: images);
       case 'toolResult':
         return _ToolResultView(message: message, parts: parts);
       case 'assistant':
@@ -1054,7 +1092,14 @@ class _MessageView extends StatelessWidget {
 
 class UserMessageBubble extends StatelessWidget {
   final String text;
-  const UserMessageBubble({super.key, required this.text});
+  /// Inline image parts (`{type: image, data: base64, mimeType}`) that were
+  /// sent with the message — history must show them, not just the text.
+  final List<Map<String, dynamic>> images;
+  const UserMessageBubble({
+    super.key,
+    required this.text,
+    this.images = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1063,7 +1108,7 @@ class UserMessageBubble extends StatelessWidget {
       child: Align(
         alignment: Alignment.centerRight,
         child: Semantics(
-          label: text,
+          label: images.isEmpty ? text : '$text. ${images.length} image attachment(s)',
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1071,9 +1116,75 @@ class UserMessageBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
             ),
             constraints: const BoxConstraints(maxWidth: 300, minHeight: 48),
-            child: SelectableText(text,
-                style: const TextStyle(fontSize: 14, color: PiColors.text)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (images.isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [for (final image in images) _ImageThumb(image: image)],
+                  ),
+                if (text.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(top: images.isNotEmpty ? 8 : 0),
+                    child: SelectableText(text,
+                        style: const TextStyle(
+                            fontSize: 14, color: PiColors.text)),
+                  ),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Decoded base64 thumbnail with a full-screen viewer on tap. Decoding is
+/// cached by the Flutter image cache keyed on the byte list identity, so a
+/// rebuild does not re-decode (and messages are immutable once loaded).
+class _ImageThumb extends StatelessWidget {
+  final Map<String, dynamic> image;
+  const _ImageThumb({required this.image});
+
+  @override
+  Widget build(BuildContext context) {
+    final raw = image['data'];
+    if (raw is! String || raw.isEmpty) return const SizedBox.shrink();
+    final Uint8List bytes;
+    try {
+      bytes = base64Decode(raw);
+    } catch (_) {
+      return const Icon(Icons.broken_image_outlined,
+          size: 20, color: PiColors.textMuted);
+    }
+    return GestureDetector(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(8),
+          child: InteractiveViewer(
+            maxScale: 4,
+            child: Image.memory(bytes, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(
+          bytes,
+          width: 88,
+          height: 88,
+          fit: BoxFit.cover,
+          cacheWidth: 176,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => const Icon(
+              Icons.broken_image_outlined,
+              size: 24,
+              color: PiColors.textMuted),
         ),
       ),
     );

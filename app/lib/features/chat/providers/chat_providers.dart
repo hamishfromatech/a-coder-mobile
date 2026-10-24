@@ -66,6 +66,47 @@ class ChatStateNotifier extends StateNotifier<er.ChatState> {
     super.dispose();
   }
 
+  /// Apply a `get_transcript_page` response. Pages fetched backwards from
+  /// `before` are prepended (deduped by entry id); a fresh page replaces.
+  void loadTranscriptPage(responses.TranscriptPageResponse page) {
+    if (!mounted) return;
+    final mapped = page.entries
+        .where((e) => e.type == 'message' && e.message != null)
+        .map<er.UiMessage>((e) => er.UiMessage(
+              id: e.id,
+              role: (e.message is Map<String, dynamic>
+                      ? (e.message as Map<String, dynamic>)['role']
+                      : null) as String? ??
+                  'assistant',
+              content: e.message!,
+            ))
+        .toList();
+    final prepend = state.messages.isNotEmpty &&
+        (state.olderCursor == null || page.start < state.olderCursor!);
+    List<er.UiMessage> merged;
+    if (prepend) {
+      final known = state.messages.map((m) => m.id).toSet();
+      merged = [
+        ...mapped.where((m) => !known.contains(m.id)),
+        ...state.messages,
+      ];
+    } else {
+      merged = mapped;
+    }
+    state = state.copyWith(
+      messages: merged,
+      olderCursor: page.start,
+      hasMoreBefore: page.hasMore,
+      isLoadingOlder: false,
+      totalEntries: page.total,
+    );
+  }
+
+  void setLoadingOlder(bool value) {
+    if (!mounted) return;
+    state = state.copyWith(isLoadingOlder: value);
+  }
+
   /// Replace the transcript from a get_messages response.
   void loadMessages(List<Object> messages) {
     if (!mounted) return;

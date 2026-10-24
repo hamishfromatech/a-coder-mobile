@@ -212,6 +212,11 @@ class SessionController extends StateNotifier<SessionControllerState> {
       _ref.read(chatStateProvider.notifier).loadMessages(resp.messages);
     });
 
+    guarded('get_transcript_page', (data) async {
+      final resp = responses.TranscriptPageResponse.fromJson(data);
+      _ref.read(chatStateProvider.notifier).loadTranscriptPage(resp);
+    });
+
     guarded('get_sessions_status', (data) async {
       final list = (data['sessions'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
@@ -381,6 +386,27 @@ class SessionController extends StateNotifier<SessionControllerState> {
   /// Refresh the session list (home screen pull-to-refresh).
   Future<void> refreshSessions() => _send('list_sessions', {});
 
+  /// Page size for the initial transcript load and each "older" request.
+  static const int transcriptPageSize = 80;
+
+  /// Scroll-up paging: fetch the page immediately before the oldest loaded
+  /// entry and prepend it. No-op while a page is loading or history is done.
+  Future<void> loadOlderMessages() async {
+    final chat = _ref.read(chatStateProvider);
+    final cursor = chat.olderCursor;
+    if (!chat.hasMoreBefore || chat.isLoadingOlder || cursor == null) return;
+    _ref.read(chatStateProvider.notifier).setLoadingOlder(true);
+    try {
+      await _send('get_transcript_page', {
+        'limit': transcriptPageSize,
+        'before': cursor,
+      });
+    } catch (e) {
+      _ref.read(chatStateProvider.notifier).setLoadingOlder(false);
+      debugPrint('[session:$hostId] loadOlder failed: $e');
+    }
+  }
+
   /// Re-fetch the current session snapshot (chat pull-to-refresh / post-switch).
   /// Desktop parity: state → stats → messages, plus slash commands (App.tsx
   /// connectEngine sequence).
@@ -390,7 +416,11 @@ class SessionController extends StateNotifier<SessionControllerState> {
     try {
       await _send('get_session_stats', {});
     } catch (_) {}
-    await _send('get_messages', {}, timeout: const Duration(seconds: 60));
+    await _send(
+      'get_transcript_page',
+      {'limit': transcriptPageSize},
+      timeout: const Duration(seconds: 60),
+    );
     // Slash commands for composer autocomplete (best-effort).
     try {
       await _send('get_commands', {});

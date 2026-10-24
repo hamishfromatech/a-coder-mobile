@@ -15,6 +15,12 @@ class ChatState {
   final bool isStreaming;
   final int retryAttempt; // 0 = not retrying (auto_retry_start/end)
   final int retryMax;
+  // ── Transcript paging (get_transcript_page) ──
+  /// Entry index of the oldest loaded item; pass as `before` to page older.
+  final int? olderCursor;
+  final bool hasMoreBefore;
+  final bool isLoadingOlder;
+  final int totalEntries;
   const ChatState({
     this.messages = const [],
     this.toolCards = const {},
@@ -25,8 +31,15 @@ class ChatState {
     this.isStreaming = false,
     this.retryAttempt = 0,
     this.retryMax = 0,
+    this.olderCursor,
+    this.hasMoreBefore = false,
+    this.isLoadingOlder = false,
+    this.totalEntries = 0,
   });
   bool get isRetrying => retryAttempt > 0;
+
+  static const Object _unset = Object();
+
   ChatState copyWith({
     List<UiMessage>? messages,
     Map<String, ToolCardState>? toolCards,
@@ -37,6 +50,10 @@ class ChatState {
     bool? isStreaming,
     int? retryAttempt,
     int? retryMax,
+    Object? olderCursor = _unset,
+    bool? hasMoreBefore,
+    bool? isLoadingOlder,
+    int? totalEntries,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -48,6 +65,11 @@ class ChatState {
       isStreaming: isStreaming ?? this.isStreaming,
       retryAttempt: retryAttempt ?? this.retryAttempt,
       retryMax: retryMax ?? this.retryMax,
+      olderCursor:
+          identical(olderCursor, _unset) ? this.olderCursor : olderCursor as int?,
+      hasMoreBefore: hasMoreBefore ?? this.hasMoreBefore,
+      isLoadingOlder: isLoadingOlder ?? this.isLoadingOlder,
+      totalEntries: totalEntries ?? this.totalEntries,
     );
   }
   ChatState applyEvent(String eventType, Map<String, dynamic> data) {

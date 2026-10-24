@@ -13,9 +13,14 @@ import 'dart:convert';
 import 'dart:io';
 
 class FakeBridgeServer {
-  FakeBridgeServer({this.token});
+  FakeBridgeServer({this.token, List<Map<String, dynamic>> transcript = const []})
+      : _transcript = List<Map<String, dynamic>>.of(transcript);
 
   final String? token;
+
+  /// Stored session entries served by `get_transcript_page` (oldest → newest).
+  /// Entries are `{id, type: 'message', message: {...}}` shapes.
+  final List<Map<String, dynamic>> _transcript;
 
   HttpServer? _server;
   final Set<WebSocket> _clients = <WebSocket>{};
@@ -202,7 +207,26 @@ class FakeBridgeServer {
         };
         break;
       case 'get_messages':
-        data = {'messages': <Map<String, dynamic>>[]};
+        data = {
+          'messages': [
+            for (final entry in _transcript)
+              if (entry['message'] is Map<String, dynamic>) entry['message'],
+          ],
+        };
+        break;
+      case 'get_transcript_page':
+        final limit = (obj['limit'] as num?)?.toInt() ?? 80;
+        final before =
+            (obj['before'] as num?)?.toInt() ?? _transcript.length;
+        final end = before.clamp(0, _transcript.length);
+        final start = (end - limit).clamp(0, end);
+        data = {
+          'entries': _transcript.sublist(start, end),
+          'total': _transcript.length,
+          'start': start,
+          'end': end,
+          'hasMore': start > 0,
+        };
         break;
       case 'get_sessions_status':
         data = {'sessions': <Map<String, dynamic>>[]};
