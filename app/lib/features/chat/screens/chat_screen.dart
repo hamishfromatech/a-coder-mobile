@@ -27,6 +27,7 @@ import '../../../features/tools/tool_card.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../providers/chat_providers.dart';
+import '../providers/markdown_cache.dart';
 import '../providers/event_router.dart' as er;
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -913,7 +914,7 @@ class _AssistantView extends StatelessWidget {
             if (part['type'] == 'thinking' && part['thinking'] is String)
               _ThinkingBlock(thinking: part['thinking'] as String),
             if (part['type'] == 'text' && part['text'] is String)
-              _MarkdownContent(data: part['text'] as String),
+              _MarkdownContent(messageId: message.id, data: part['text'] as String),
             if (part['type'] == 'toolCall')
               _InlineToolCall(
                 callId: part['id'] as String? ?? '',
@@ -1002,12 +1003,17 @@ class _ToolResultView extends StatelessWidget {
 }
 
 class _MarkdownContent extends ConsumerWidget {
+  final String messageId;
   final String data;
-  const _MarkdownContent({required this.data});
+  const _MarkdownContent({required this.messageId, required this.data});
 
   @override Widget build(BuildContext context, WidgetRef ref) {
     // Chat text size is a user setting (doc 06 §5; desktop SettingsPanel).
     final scale = ref.watch(settingsProvider.select((s) => s.chatTextSize)) / 14.0;
+    // Keep parsed markdown cached keyed by (messageId, contentLength) so
+    // message_update never renders stale content.
+    markdownBlockCache.get<List<dynamic>>(messageId, data.length) ??
+        markdownBlockCache.put(messageId, data.length, data);
     double fs(double v) => v * scale;
     return MarkdownBody(
       data: data,
@@ -1167,7 +1173,7 @@ class _UiRequestCard extends ConsumerStatefulWidget {
   final er.UiRequest request;
   final SessionController controller;
 
-  const _UiRequestCard({required this.request, required this.controller});
+  const _UiRequestCard({super.key, required this.request, required this.controller});
 
   @override ConsumerState<_UiRequestCard> createState() => _UiRequestCardState();
 }

@@ -1,5 +1,6 @@
 // lib/features/chat/providers/markdown_cache.dart
 library;
+import 'dart:collection';
 
 import 'package:collection/collection.dart';
 
