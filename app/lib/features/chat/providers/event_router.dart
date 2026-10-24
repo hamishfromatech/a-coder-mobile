@@ -210,6 +210,7 @@ class UiRequest {
   final List<Map<String, dynamic>>? options;
   final bool? multiSelect;
   final String? workflowName; // run_workflow approvals — rule: run_workflow(<name>)
+  final int? timeout; // seconds
   const UiRequest({
     required this.id,
     required this.method,
@@ -220,6 +221,7 @@ class UiRequest {
     this.options,
     this.multiSelect,
     this.workflowName,
+    this.timeout,
   });
 }
 // ─── Event handlers (pure functions) ─────────────────────────────
@@ -349,7 +351,15 @@ ChatState _onSubagentsUpdate(ChatState state, Map<String, dynamic> data) {
   return state;
 }
 ChatState _onToolPermissionUpdate(ChatState state, Map<String, dynamic> data) {
-  // Emphasizes approval UI when waiting — handled by the approvals provider
+  final waiting = data['waiting'] as bool? ?? true;
+  final id = (data['requestId'] ?? data['id'] ?? data['approvalId'])?.toString();
+  if (waiting == false) {
+    if (id != null && state.approvals.containsKey(id)) {
+      final updated = Map<String, UiRequest>.from(state.approvals)..remove(id);
+      return state.copyWith(approvals: updated);
+    }
+    return state.copyWith(approvals: {});
+  }
   return state;
 }
 ChatState _onCompactionStart(ChatState state, Map<String, dynamic> data) {
@@ -395,6 +405,7 @@ ChatState _onExtensionUiRequest(ChatState state, Map<String, dynamic> data) {
         message: request.message,
         options: request.options?.map((o) => o.toJson()).toList(),
         multiSelect: request.multiSelect,
+        timeout: request.timeout,
       ),
     },
   );

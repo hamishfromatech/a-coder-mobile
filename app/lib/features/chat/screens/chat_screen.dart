@@ -41,6 +41,9 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAliveClientMixin {
   final _composerController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _atBottom = true;
+  int _unreadCount = 0;
+  int _lastMessageCount = 0;
   String _sendMode = 'prompt'; // prompt | followUp (steer is implicit while streaming)
   final List<XFile> _attachedImages = [];
   String? _draftSession; // sessionFile this draft belongs to
@@ -52,6 +55,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScroll);
     _composerController.addListener(_onDraftChanged);
     // Desktop parity (open-session.ts): opening a specific session first
     // SWITCHES the engine to it, then reloads. Without the switch we would
@@ -75,6 +79,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   @override
   void dispose() {
     _draftSaveTimer?.cancel();
+    _scrollController.removeListener(_handleScroll);
     _composerController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -92,6 +97,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     final restored = sessionFile != null ? prefs.getString('draft_$sessionFile') ?? '' : '';
     if (mounted && _composerController.text != restored) {
       _composerController.text = restored;
+    }
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final atBottom = _scrollController.offset <= 8;
+    if (atBottom != _atBottom) {
+      setState(() => _atBottom = atBottom);
+    }
+    if (atBottom && _unreadCount != 0) {
+      setState(() => _unreadCount = 0);
     }
   }
 
@@ -119,13 +135,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     // Draft migration runs per session (after get_state names the file).
     _migrateDraft(chat.session.sessionFile.isEmpty ? null : chat.session.sessionFile);
 
-    // Track message count to keep the (reversed) list pinned to the latest.
+    // Auto-scroll only when the user is already at the bottom; otherwise keep
+    // a stack of unread messages and offer a JumpToLatestPill.
     final messageCount = chat.messages.length;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && messageCount > 0) {
-        _scrollController.jumpTo(0); // reversed list → 0 is the newest message
+    if (messageCount != _lastMessageCount) {
+      final delta = messageCount - _lastMessageCount;
+      if (_atBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(0);
+          }
+        });
+      } else if (delta > 0) {
+        _unreadCount += delta;
       }
-    });
+      _lastMessageCount = messageCount;
+    }
 
     return Scaffold(
       appBar: _buildAppBar(sessionName, cwd, chat),
@@ -166,6 +191,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           // ─── UI request card (approvals, questions, selects, inputs, notify) ──
           if (chat.approvals.isNotEmpty) ...[
             _UiRequestCard(
+              key: ValueKey(chat.approvals.values.first.id),
               request: chat.approvals.values.first,
               controller: ref.read(sessionControllerProvider(widget.hostId).notifier),
             ),
@@ -288,8 +314,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     final loading = conn.connection.isResyncing || conn.starting;
     if (chat.messages.isEmpty) {
       if (loading) {
-        // History is loading (desktop swaps EmptyState for a loading screen).
-        return const Center(child: CircularProgressIndicator());
+        // Skeleton rows while history loads (session.messageCount gives density).
+        final n = chat.session.messageCount.clamp(3, 8);
+        return ListView.builder(
+          reverse: true,
+          itemCount: n,
+          itemBuilder: (context, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: PiColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: PiColors.border),
+              ),
+            ),
+          ),
+        );
       }
       return Center(
         child: Column(
@@ -303,20 +344,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
       );
     }
 
-    return CustomScrollView(
-      reverse: true,
-      controller: _scrollController,
-      slivers: [
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              // Reversed list: index 0 is the newest message.
-              final message = chat.messages[chat.messages.length - 1 - index];
-              return RepaintBoundary(child: _MessageView(message: message, toolCards: chat.toolCards));
-            },
-            childCount: chat.messages.length,
-          ),
+    return Stack(
+      children: [
+        CustomScrollView(
+          reverse: true,
+          controller: _scrollController,
+          slivers: [
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  // Reversed list: index 0 is the newest message.
+                  final message = chat.messages[chat.messages.length - 1 - index];
+                  return RepaintBoundary(
+                    child: _MessageView(message: message, toolCards: chat.toolCards),
+                  );
+                },
+                childCount: chat.messages.length,
+              ),
+            ),
+          ],
         ),
+        if (!_atBottom)
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _JumpToLatestPill(
+                unreadCount: _unreadCount,
+                onTap: () {
+                  setState(() => _atBottom = true);
+                  if (_scrollController.hasClients) _scrollController.jumpTo(0);
+                },
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -813,14 +875,20 @@ class _UserMessageBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Align(
         alignment: Alignment.centerRight,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: PiColors.userBubble.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(16),
+        child: GestureDetector(
+          onLongPress: () => Clipboard.setData(ClipboardData(text: text)),
+          child: Semantics(
+            label: text,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: PiColors.userBubble.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              constraints: const BoxConstraints(maxWidth: 300, minHeight: 48),
+              child: Text(text, style: const TextStyle(fontSize: 14, color: PiColors.text)),
+            ),
           ),
-          constraints: const BoxConstraints(maxWidth: 300),
-          child: Text(text, style: const TextStyle(fontSize: 14, color: PiColors.text)),
         ),
       ),
     );
@@ -886,6 +954,8 @@ class _InlineToolCall extends StatelessWidget {
         toolName: toolName,
         args: args,
         result: card?.result,
+        partialResult: card?.partialResult,
+        isComplete: card?.isComplete ?? false,
         isError: card?.isError ?? false,
       ),
     );
@@ -1064,6 +1134,13 @@ class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMi
   }
 
   @override Widget build(BuildContext context) {
+    if (MediaQuery.of(context).disableAnimations) {
+      return Container(
+          width: 6,
+          height: 6,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: const BoxDecoration(color: PiColors.accent, shape: BoxShape.circle));
+    }
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, _) => Opacity(
@@ -1099,14 +1176,58 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
   double _dragExtent = 0.0; // swipe-to-approve progress
   final _inputController = TextEditingController();
   final Map<String, bool> _checked = {}; // multi-select state
+  bool _responding = false;
+  int? _remaining;
+  DateTime? _expiry;
+  Timer? _expiryTimer;
+
+  @override void initState() {
+    super.initState();
+    _startCountdown(widget.request);
+  }
+
+  @override void didUpdateWidget(covariant _UiRequestCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.request.id != widget.request.id || oldWidget.request.timeout != widget.request.timeout) {
+      _expiryTimer?.cancel();
+      _responding = false;
+      _startCountdown(widget.request);
+    }
+  }
+
+  void _startCountdown(er.UiRequest request) {
+    final timeout = request.timeout;
+    if (timeout == null || timeout <= 0) return;
+    _expiry = DateTime.now().add(Duration(seconds: timeout));
+    _remaining = timeout;
+    _expiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      final rem = _expiry!.difference(DateTime.now()).inSeconds;
+      if (rem <= 0) {
+        timer.cancel();
+        if (mounted) setState(() => _remaining = 0);
+        if (!_responding) {
+          widget.controller.cancelUiRequest(request);
+        }
+      } else {
+        setState(() => _remaining = rem);
+      }
+    });
+  }
 
   @override void dispose() {
+    _expiryTimer?.cancel();
     _inputController.dispose();
     super.dispose();
   }
 
   void _haptic() {
     if (ref.read(settingsProvider).haptics) HapticFeedback.mediumImpact();
+  }
+
+  void _beginRespond() {
+    if (_responding) return;
+    setState(() => _responding = true);
   }
 
   @override Widget build(BuildContext context) {
@@ -1142,6 +1263,14 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
               ),
+              if (widget.request.timeout != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    '${_remaining ?? widget.request.timeout}s',
+                    style: const TextStyle(fontSize: 11, fontFamily: 'JetBrains Mono', color: PiColors.textMuted),
+                  ),
+                ),
               // Dismiss = engine default/timeout resolution.
               IconButton(
                 icon: const Icon(Icons.close, size: 16, color: PiColors.textMuted),
@@ -1183,7 +1312,9 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
         return _buildConfirmBody(request);
       case 'question':
         return _buildOptionList(request, onPick: (label) {
+          if (_responding) return;
           _haptic();
+          _beginRespond();
           widget.controller.respondQuestion(request, label);
         });
       case 'select':
@@ -1235,8 +1366,9 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                     _dragExtent = (_dragExtent + d.delta.distance / 200).clamp(0.0, 1.0);
                   }),
                   onHorizontalDragEnd: (d) {
-                    if (_dragExtent > 0.7) {
+                    if (!_responding && _dragExtent > 0.7) {
                       _haptic();
+                      _beginRespond();
                       widget.controller.respondApproval(request, 'allow');
                     }
                     setState(() => _dragExtent = 0.0);
@@ -1267,20 +1399,26 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: () {
-                    _haptic();
-                    widget.controller.respondApproval(request, 'allow');
-                  },
+                  onPressed: _responding
+                      ? null
+                      : () {
+                          _haptic();
+                          _beginRespond();
+                          widget.controller.respondApproval(request, 'allow');
+                        },
                   style: ElevatedButton.styleFrom(backgroundColor: PiColors.warning),
                   child: const Text('Allow'),
                 ),
               ),
             const SizedBox(width: 8),
             OutlinedButton(
-              onPressed: () {
-                _haptic();
-                widget.controller.respondApproval(request, 'deny');
-              },
+              onPressed: _responding
+                  ? null
+                  : () {
+                      _haptic();
+                      _beginRespond();
+                      widget.controller.respondApproval(request, 'deny');
+                    },
               style: OutlinedButton.styleFrom(
                   foregroundColor: PiColors.error,
                   side: BorderSide(color: PiColors.error.withValues(alpha: 0.3))),
@@ -1289,10 +1427,13 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
             if (isPermission) ...[
               const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: () {
-                  _haptic();
-                  widget.controller.respondApproval(request, 'always_allow');
-                },
+                onPressed: _responding
+                    ? null
+                    : () {
+                        _haptic();
+                        _beginRespond();
+                        widget.controller.respondApproval(request, 'always_allow');
+                      },
                 child: const Text('Always'),
               ),
             ],
@@ -1343,7 +1484,9 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
 
     if (!multi) {
       return _buildOptionList(request, onPick: (label) {
+        if (_responding) return;
         _haptic();
+        _beginRespond();
         widget.controller.respondSelect(request, [label]);
       });
     }
@@ -1361,10 +1504,13 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
       Padding(
         padding: const EdgeInsets.only(top: 8),
         child: ElevatedButton(
-          onPressed: () {
-            _haptic();
-            widget.controller.respondSelect(request, _checkedValues(request));
-          },
+          onPressed: _responding
+              ? null
+              : () {
+                  _haptic();
+                  _beginRespond();
+                  widget.controller.respondSelect(request, _checkedValues(request));
+                },
           child: const Text('Submit'),
         ),
       ),
@@ -1399,10 +1545,13 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              onPressed: () {
-                _haptic();
-                widget.controller.respondInput(request, _inputController.text.trim());
-              },
+              onPressed: _responding
+                  ? null
+                  : () {
+                      _haptic();
+                      _beginRespond();
+                      widget.controller.respondInput(request, _inputController.text.trim());
+                    },
               child: const Text('Send'),
             ),
           ],
@@ -1604,4 +1753,40 @@ String _plainText(er.UiMessage m) {
       .where((p) => p['type'] == 'text' && p['text'] is String)
       .map((p) => p['text'] as String)
       .join('\n');
+}
+
+class _JumpToLatestPill extends StatelessWidget {
+  final int unreadCount;
+  final VoidCallback onTap;
+  const _JumpToLatestPill({required this.unreadCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Jump to latest messages${unreadCount > 0 ? ', $unreadCount new' : ''}',
+      child: Material(
+        color: PiColors.accent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  unreadCount > 0 ? 'Jump to latest ($unreadCount)' : 'Jump to latest',
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
