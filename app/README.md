@@ -6,14 +6,19 @@ watch and drive your coding agent from anywhere on your LAN.
 
 ## Feature status (vs `plan/07-milestones.md`)
 
-- ✅ M0–M2: bridge, discovery/pairing (QR + manual), connection layer
-- ✅ M3 + M4 core: live transcript (markdown/code/thinking/tool cards),
-  streaming (~16fps throttled), prompt/steer/follow-up, offline outbox,
-  image attachments, approvals (swipe-to-allow / deny / always-allow),
-  question/select/input/notify request UIs, session list + rename, model
-  picker, compact/abort/export, background sessions
-- 🚧 M5 polish (desktop settings card) and M6 extensions (cron, Office,
-  wss://, push) — not started
+- ✅ M0–M2: bridge (`a-coder-cli serve`), discovery/pairing (QR + manual +
+  LAN discovery), connection layer with resync/backoff/auth handling
+- ✅ M3 + M4: live transcript (markdown/code/thinking/tool cards, bounded
+  markdown cache, jump-to-latest), streaming (~16 fps coalesced),
+  prompt/steer/follow-up, offline outbox, image attachments, approvals
+  (swipe-to-allow / deny / always-allow, countdown, expiry), question/select/
+  input/editor/notify UIs, session list + rename/stop/delete, child-session
+  badge, model picker, compact/abort/export, background sessions with abort
+- ✅ M5: desktop "Mobile access" settings card (in `a-coder-cli/desktop-app`),
+  haptics, icons/splash, empty/error states, accessibility pass
+- 🚧 M6 extensions (cron, Office, wss:// + pinned cert, push) — behind flags
+- 🚧 Chat polish backlog: long-press copy, tool-detail sheet, rewind,
+  transcript pagination — see `../BUILD.md`
 
 ## Run (dev)
 
@@ -75,6 +80,10 @@ hold protocol state. Connection resilience (backoff, ping, resync) lives in
 ## Tests
 
 ```bash
-flutter test          # 62 unit/widget tests (wire, connection, router, state)
-flutter analyze       # 0 errors / 0 warnings
+flutter test          # 130 tests (unit, widget, goldens, fake-bridge E2E)
+flutter analyze       # No issues found
 ```
+
+Golden tests: `flutter test test/golden`.
+Integration harness (needs a device/emulator): `flutter test integration_test`.
+See [`../QA.md`](../QA.md) for the device matrix and known coverage gaps.
