@@ -8,12 +8,12 @@
 /// SessionController) and sends commands through the session controller.
 library;
 
-
 import 'dart:async' show Timer;
-import 'dart:convert' show base64Encode;
+import 'dart:convert' show base64Encode, JsonEncoder;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback;
+import 'package:flutter/services.dart'
+    show Clipboard, ClipboardData, HapticFeedback;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -38,16 +38,19 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   const ChatScreen({super.key, required this.hostId, this.sessionPath});
 
-  @override ConsumerState<ChatScreen> createState() => _ChatScreenState();
+  @override
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAliveClientMixin {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with AutomaticKeepAliveClientMixin {
   final _composerController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _atBottom = true;
   int _unreadCount = 0;
   int _lastMessageCount = 0;
-  String _sendMode = 'prompt'; // prompt | followUp (steer is implicit while streaming)
+  String _sendMode =
+      'prompt'; // prompt | followUp (steer is implicit while streaming)
   final List<XFile> _attachedImages = [];
   String? _draftSession; // sessionFile this draft belongs to
   Timer? _draftSaveTimer;
@@ -64,7 +67,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     // SWITCHES the engine to it, then reloads. Without the switch we would
     // fetch history for whatever session the engine currently has active.
     Future.microtask(() async {
-      final controller = ref.read(sessionControllerProvider(widget.hostId).notifier);
+      final controller =
+          ref.read(sessionControllerProvider(widget.hostId).notifier);
       try {
         final target = widget.sessionPath;
         final current = ref.read(chatStateProvider).session.sessionFile;
@@ -97,7 +101,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
       await prefs.setString('draft_$_draftSession', _composerController.text);
     }
     _draftSession = sessionFile;
-    final restored = sessionFile != null ? prefs.getString('draft_$sessionFile') ?? '' : '';
+    final restored =
+        sessionFile != null ? prefs.getString('draft_$sessionFile') ?? '' : '';
     if (mounted && _composerController.text != restored) {
       _composerController.text = restored;
     }
@@ -136,7 +141,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     final cwd = chat.session.cwd;
 
     // Draft migration runs per session (after get_state names the file).
-    _migrateDraft(chat.session.sessionFile.isEmpty ? null : chat.session.sessionFile);
+    _migrateDraft(
+        chat.session.sessionFile.isEmpty ? null : chat.session.sessionFile);
 
     // Auto-scroll only when the user is already at the bottom; otherwise keep
     // a stack of unread messages and offer a JumpToLatestPill.
@@ -168,23 +174,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                   : 'Retrying…',
             )
           else if (chat.session.isCompacting)
-            const ConnectionBanner(type: BannerType.compaction, message: 'Compacting context…')
+            const ConnectionBanner(
+                type: BannerType.compaction, message: 'Compacting context…')
           else if (conn.connection.isResyncing)
-            const ConnectionBanner(type: BannerType.reconnecting, message: 'Reconnected — syncing…')
+            const ConnectionBanner(
+                type: BannerType.reconnecting,
+                message: 'Reconnected — syncing…')
           else if (conn.connection.state == cs.ConnectionState.reconnecting)
             ConnectionBanner(
               type: BannerType.reconnecting,
-              message: 'Reconnecting… (attempt ${conn.connection.reconnectAttempt})',
+              message:
+                  'Reconnecting… (attempt ${conn.connection.reconnectAttempt})',
             )
           else if (conn.connection.state == cs.ConnectionState.shuttingDown)
-            const ConnectionBanner(type: BannerType.reconnecting, message: 'Bridge shutting down…'),
+            const ConnectionBanner(
+                type: BannerType.reconnecting,
+                message: 'Bridge shutting down…'),
 
           // ─── Transcript ───────────────────────────────────────
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
                 try {
-                  await ref.read(sessionControllerProvider(widget.hostId).notifier).reload();
+                  await ref
+                      .read(sessionControllerProvider(widget.hostId).notifier)
+                      .reload();
                 } catch (_) {}
               },
               child: _buildTranscript(chat, conn),
@@ -196,7 +210,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
             _UiRequestCard(
               key: ValueKey(chat.approvals.values.first.id),
               request: chat.approvals.values.first,
-              controller: ref.read(sessionControllerProvider(widget.hostId).notifier),
+              controller:
+                  ref.read(sessionControllerProvider(widget.hostId).notifier),
             ),
             const SizedBox(height: 4),
           ],
@@ -217,11 +232,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                     final removed = await ref
                         .read(sessionControllerProvider(widget.hostId).notifier)
                         .clearQueue();
-                    final text = [...removed.steering, ...removed.followUp].join('\n\n');
+                    final text =
+                        [...removed.steering, ...removed.followUp].join('\n\n');
                     if (text.isNotEmpty && mounted) {
-                      _composerController.text = _composerController.text.isEmpty
-                          ? text
-                          : '${_composerController.text}\n\n$text';
+                      _composerController.text =
+                          _composerController.text.isEmpty
+                              ? text
+                              : '${_composerController.text}\n\n$text';
                     }
                   } catch (_) {}
                 },
@@ -241,7 +258,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   }
 
   // ─── App bar (slim — desktop IA: chrome lives in the status strip) ──
-  PreferredSizeWidget _buildAppBar(String sessionName, String cwd, er.ChatState chat) {
+  PreferredSizeWidget _buildAppBar(
+      String sessionName, String cwd, er.ChatState chat) {
     return AppBar(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +267,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
         children: [
           Text(sessionName, maxLines: 1, overflow: TextOverflow.ellipsis),
           if (cwd.isNotEmpty)
-            Text(cwd, style: const TextStyle(fontSize: 11, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+            Text(cwd,
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono',
+                    color: PiColors.textMuted)),
         ],
       ),
       actions: [
@@ -257,7 +279,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           icon: const Icon(Icons.add_comment_outlined, size: 20),
           tooltip: 'New session',
           onPressed: () async {
-            final controller = ref.read(sessionControllerProvider(widget.hostId).notifier);
+            final controller =
+                ref.read(sessionControllerProvider(widget.hostId).notifier);
             try {
               await controller.newSession();
               if (mounted) Navigator.of(context).pop();
@@ -280,15 +303,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   }
 
   void _onMenuAction(String val, er.ChatState chat) async {
-    final controller = ref.read(sessionControllerProvider(widget.hostId).notifier);
+    final controller =
+        ref.read(sessionControllerProvider(widget.hostId).notifier);
     switch (val) {
       case 'compact':
         await controller.compact();
       case 'export':
         try {
-          final path = await controller.exportHtml(chat.session.sessionFile.isNotEmpty
-              ? chat.session.sessionFile
-              : (widget.sessionPath ?? ''));
+          final path = await controller.exportHtml(
+              chat.session.sessionFile.isNotEmpty
+                  ? chat.session.sessionFile
+                  : (widget.sessionPath ?? ''));
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Exported: ${path ?? 'done'}')),
@@ -302,7 +327,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           }
         }
       case 'copy':
-        final text = chat.messages.map((m) => _plainText(m)).where((t) => t.isNotEmpty).join('\n\n');
+        final text = chat.messages
+            .map((m) => _plainText(m))
+            .where((t) => t.isNotEmpty)
+            .join('\n\n');
         await Clipboard.setData(ClipboardData(text: text));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -341,7 +369,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           children: [
             Icon(Icons.smart_toy_outlined, size: 40, color: PiColors.textFaint),
             SizedBox(height: 12),
-            Text('Send a task to get started', style: TextStyle(color: PiColors.textMuted)),
+            Text('Send a task to get started',
+                style: TextStyle(color: PiColors.textMuted)),
           ],
         ),
       );
@@ -357,9 +386,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   // Reversed list: index 0 is the newest message.
-                  final message = chat.messages[chat.messages.length - 1 - index];
+                  final message =
+                      chat.messages[chat.messages.length - 1 - index];
                   return RepaintBoundary(
-                    child: _MessageView(message: message, toolCards: chat.toolCards),
+                    child: _MessageView(
+                        message: message, toolCards: chat.toolCards),
                   );
                 },
                 childCount: chat.messages.length,
@@ -390,7 +421,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   /// model · thinking · permission · subagents · context % · turn usage —
   /// one slim, horizontally scrollable strip directly above the composer
   /// (desktop renders its StatusBar at window bottom).
-  Widget _buildStatusStrip(er.ChatState chat, List<proto.SubAgentRecord> agents, SessionStats stats) {
+  Widget _buildStatusStrip(er.ChatState chat, List<proto.SubAgentRecord> agents,
+      SessionStats stats) {
     final session = chat.session;
     final runningAgents = agents.where((a) => a.status == 'running').length;
 
@@ -407,14 +439,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           children: [
             if (session.model.isNotEmpty) ...[
               StatusChip(
-                label: session.modelName.isNotEmpty ? session.modelName : session.model,
+                label: session.modelName.isNotEmpty
+                    ? session.modelName
+                    : session.model,
                 variant: ChipVariant.accent,
                 onTap: _showModelPicker,
               ),
               const SizedBox(width: 6),
             ],
             StatusChip(
-              label: session.thinkingLevel == 'off' ? 'thinking off' : session.thinkingLevel,
+              label: session.thinkingLevel == 'off'
+                  ? 'thinking off'
+                  : session.thinkingLevel,
               variant: ChipVariant.muted,
               onTap: _showThinkingSheet,
             ),
@@ -436,14 +472,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
               const SizedBox(width: 6),
               Text(
                 '${stats.percent!.round()}% ctx',
-                style: const TextStyle(fontSize: 10, fontFamily: 'JetBrains Mono', color: PiColors.textMuted),
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'JetBrains Mono',
+                    color: PiColors.textMuted),
               ),
             ],
             if (chat.lastUsage != null) ...[
               const SizedBox(width: 6),
               Text(
                 _formatUsage(chat.lastUsage!),
-                style: const TextStyle(fontSize: 10, fontFamily: 'JetBrains Mono', color: PiColors.textMuted),
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'JetBrains Mono',
+                    color: PiColors.textMuted),
               ),
             ],
           ],
@@ -458,6 +500,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   /// above as an overlay card.
   Widget _buildComposer(er.ChatState chat) {
     final isStreaming = chat.isStreaming || chat.session.isStreaming;
+    final conn = ref.watch(sessionControllerProvider(widget.hostId));
+    final offline = !conn.connection.isConnected;
     final commands = ref.watch(slashCommandsProvider);
     final slashSuggestions = _slashMatches(commands);
     final canSend = _composerController.text.trim().isNotEmpty;
@@ -479,8 +523,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: PiColors.border),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.28), blurRadius: 24, offset: const Offset(0, 8)),
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.16), blurRadius: 12, offset: const Offset(0, 4)),
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8)),
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.16),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4)),
                 ],
               ),
               child: ListView(
@@ -491,26 +541,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                     InkWell(
                       onTap: () {
                         _composerController.text = '/${cmd['name']} ';
-                        _composerController.selection = TextSelection.fromPosition(
-                            TextPosition(offset: _composerController.text.length));
+                        _composerController.selection =
+                            TextSelection.fromPosition(TextPosition(
+                                offset: _composerController.text.length));
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('/${cmd['name']}',
                                 style: const TextStyle(
-                                    fontSize: 13, fontFamily: 'JetBrains Mono', color: PiColors.accent)),
+                                    fontSize: 13,
+                                    fontFamily: 'JetBrains Mono',
+                                    color: PiColors.accent)),
                             if (cmd['description'] is String)
                               Text(cmd['description'] as String,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11, color: PiColors.textMuted)),
+                                  style: const TextStyle(
+                                      fontSize: 11, color: PiColors.textMuted)),
                           ],
                         ),
                       ),
                     ),
+                ],
+              ),
+            ),
+
+          if (offline)
+            Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: PiColors.error.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: PiColors.error.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.cloud_off_rounded,
+                      size: 16, color: PiColors.error),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Offline — will send when reconnected',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: PiColors.error,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -537,7 +620,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                       children: [
                         for (var i = 0; i < _attachedImages.length; i++)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: PiColors.textFaint.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(8),
@@ -546,14 +630,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.image_outlined, size: 13, color: PiColors.textMuted),
+                                const Icon(Icons.image_outlined,
+                                    size: 13, color: PiColors.textMuted),
                                 const SizedBox(width: 6),
                                 Text('Image ${i + 1}',
-                                    style: const TextStyle(fontSize: 11, color: PiColors.textSecondary)),
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: PiColors.textSecondary)),
                                 const SizedBox(width: 4),
                                 GestureDetector(
-                                  onTap: () => setState(() => _attachedImages.removeAt(i)),
-                                  child: const Icon(Icons.close, size: 12, color: PiColors.textMuted),
+                                  onTap: () => setState(
+                                      () => _attachedImages.removeAt(i)),
+                                  child: const Icon(Icons.close,
+                                      size: 12, color: PiColors.textMuted),
                                 ),
                               ],
                             ),
@@ -568,15 +657,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                   maxLines: null,
                   minLines: 1,
                   textCapitalization: TextCapitalization.sentences,
-                  style: const TextStyle(fontSize: 14.5, height: 1.4, color: PiColors.text),
+                  style: const TextStyle(
+                      fontSize: 14.5, height: 1.4, color: PiColors.text),
                   decoration: InputDecoration(
                     hintText: isStreaming
                         ? 'Steer the agent…'
                         : 'Ask A-Coder anything — type / for commands',
-                    hintStyle: const TextStyle(fontSize: 14.5, color: PiColors.textFaint),
+                    hintStyle: const TextStyle(
+                        fontSize: 14.5, color: PiColors.textFaint),
                     border: InputBorder.none,
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                   ),
                 ),
 
@@ -584,11 +676,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+                      icon: const Icon(Icons.add_photo_alternate_outlined,
+                          size: 20),
                       onPressed: _pickImages,
                       color: PiColors.textMuted,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      constraints:
+                          const BoxConstraints(minWidth: 36, minHeight: 36),
                       tooltip: 'Attach images',
                     ),
 
@@ -611,7 +705,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                             _ModeSegment(
                               label: 'Queue',
                               selected: _sendMode == 'followUp',
-                              onTap: () => setState(() => _sendMode = 'followUp'),
+                              onTap: () =>
+                                  setState(() => _sendMode = 'followUp'),
                             ),
                           ],
                         ),
@@ -634,7 +729,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                         icon: Icons.stop_rounded,
                         color: PiColors.error,
                         tooltip: 'Abort turn',
-                        onTap: () => ref.read(sessionControllerProvider(widget.hostId).notifier).abort(),
+                        onTap: () => ref
+                            .read(sessionControllerProvider(widget.hostId)
+                                .notifier)
+                            .abort(),
                       )
                     else
                       _ComposerButton(
@@ -678,7 +776,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     final text = _composerController.text;
     if (!text.startsWith('/') || text.contains(' ')) return const [];
     final q = text.substring(1).toLowerCase();
-    return all.where((c) => (c['name'] as String? ?? '').toLowerCase().startsWith(q)).take(5).toList();
+    return all
+        .where((c) => (c['name'] as String? ?? '').toLowerCase().startsWith(q))
+        .take(5)
+        .toList();
   }
 
   void _submit(bool isStreaming) async {
@@ -689,18 +790,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
     _attachedImages.clear();
     if (mounted) setState(() {});
     try {
-      await ref.read(sessionControllerProvider(widget.hostId).notifier).sendPrompt(
-            text,
-            mode: isStreaming ? 'steer' : _sendMode,
-            images: [
-              for (final img in images)
-                {
-                  'type': 'image',
-                  'data': base64Encode(await img.readAsBytes()),
-                  'mimeType': img.mimeType ?? _mimeTypeFromPath(img.path),
-                },
-            ],
-          );
+      await ref
+          .read(sessionControllerProvider(widget.hostId).notifier)
+          .sendPrompt(
+        text,
+        mode: isStreaming ? 'steer' : _sendMode,
+        images: [
+          for (final img in images)
+            {
+              'type': 'image',
+              'data': base64Encode(await img.readAsBytes()),
+              'mimeType': img.mimeType ?? _mimeTypeFromPath(img.path),
+            },
+        ],
+      );
       if (_hapticsOn) HapticFeedback.mediumImpact();
     } catch (e) {
       if (mounted) {
@@ -737,12 +840,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Subagents', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text('Subagents',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             if (agents.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('No subagents', style: TextStyle(fontSize: 13, color: PiColors.textMuted)),
+                child: Text('No subagents',
+                    style: TextStyle(fontSize: 13, color: PiColors.textMuted)),
               ),
             for (final a in agents)
               ListTile(
@@ -750,15 +855,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
                 leading: Icon(
                   a.status == 'running'
                       ? Icons.pending_rounded
-                      : (a.status == 'failed' ? Icons.error_outline : Icons.check_circle_outline),
+                      : (a.status == 'failed'
+                          ? Icons.error_outline
+                          : Icons.check_circle_outline),
                   size: 16,
                   color: a.status == 'running'
                       ? PiColors.accent
-                      : (a.status == 'failed' ? PiColors.error : PiColors.success),
+                      : (a.status == 'failed'
+                          ? PiColors.error
+                          : PiColors.success),
                 ),
-                title: Text(a.subject, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                title: Text(a.subject,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13)),
                 trailing: Text(a.status,
-                    style: const TextStyle(fontSize: 11, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'JetBrains Mono',
+                        color: PiColors.textMuted)),
               ),
           ],
         ),
@@ -771,7 +886,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   }
 
   void _showThinkingSheet() {
-    final controller = ref.read(sessionControllerProvider(widget.hostId).notifier);
+    final controller =
+        ref.read(sessionControllerProvider(widget.hostId).notifier);
     final current = ref.read(chatStateProvider).session.thinkingLevel;
     showModalBottomSheet(
       context: context,
@@ -782,12 +898,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Thinking Level', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text('Thinking Level',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
-            for (final level in const ['off', 'minimal', 'low', 'medium', 'high'])
+            for (final level in const [
+              'off',
+              'minimal',
+              'low',
+              'medium',
+              'high'
+            ])
               ListTile(
                 title: Text(level),
-                trailing: level == current ? const Icon(Icons.check_rounded, color: PiColors.accent) : null,
+                trailing: level == current
+                    ? const Icon(Icons.check_rounded, color: PiColors.accent)
+                    : null,
                 onTap: () {
                   controller.setThinkingLevel(level);
                   Navigator.pop(ctx);
@@ -800,7 +925,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
   }
 
   void _showPermissionModeSheet() {
-    final controller = ref.read(sessionControllerProvider(widget.hostId).notifier);
+    final controller =
+        ref.read(sessionControllerProvider(widget.hostId).notifier);
     final current = ref.read(chatStateProvider).session.permissionMode;
     showModalBottomSheet(
       context: context,
@@ -811,7 +937,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Permission Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text('Permission Mode',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             for (final mode in const [
               ('default', 'Engine default behavior'),
@@ -820,8 +947,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with AutomaticKeepAlive
             ])
               ListTile(
                 title: Text(mode.$1),
-                subtitle: Text(mode.$2, style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
-                trailing: mode.$1 == current ? const Icon(Icons.check_rounded, color: PiColors.accent) : null,
+                subtitle: Text(mode.$2,
+                    style: const TextStyle(
+                        fontSize: 12, color: PiColors.textMuted)),
+                trailing: mode.$1 == current
+                    ? const Icon(Icons.check_rounded, color: PiColors.accent)
+                    : null,
                 onTap: () {
                   controller.setPermissionMode(mode.$1);
                   Navigator.pop(ctx);
@@ -844,10 +975,22 @@ class _MessageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = _plainText(message);
+    return GestureDetector(
+      onLongPress: () => _showMessageSheet(context, text),
+      behavior: HitTestBehavior.translucent,
+      child: _buildMessage(context, text),
+    );
+  }
+
+  Widget _buildMessage(BuildContext context, String text) {
     final content = message.content;
-    final parts = content is Map<String, dynamic> && content['content'] is List<dynamic>
-        ? (content['content'] as List<dynamic>).whereType<Map<String, dynamic>>().toList()
-        : <Map<String, dynamic>>[];
+    final parts =
+        content is Map<String, dynamic> && content['content'] is List<dynamic>
+            ? (content['content'] as List<dynamic>)
+                .whereType<Map<String, dynamic>>()
+                .toList()
+            : <Map<String, dynamic>>[];
 
     switch (message.role) {
       case 'user':
@@ -855,7 +998,8 @@ class _MessageView extends StatelessWidget {
       case 'toolResult':
         return _ToolResultView(message: message, parts: parts);
       case 'assistant':
-        return _AssistantView(message: message, parts: parts, toolCards: toolCards);
+        return _AssistantView(
+            message: message, parts: parts, toolCards: toolCards);
       default:
         return const SizedBox.shrink();
     }
@@ -873,24 +1017,23 @@ class _UserMessageBubble extends StatelessWidget {
   final String text;
   const _UserMessageBubble({required this.text});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Align(
         alignment: Alignment.centerRight,
-        child: GestureDetector(
-          onLongPress: () => Clipboard.setData(ClipboardData(text: text)),
-          child: Semantics(
-            label: text,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: PiColors.userBubble.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              constraints: const BoxConstraints(maxWidth: 300, minHeight: 48),
-              child: Text(text, style: const TextStyle(fontSize: 14, color: PiColors.text)),
+        child: Semantics(
+          label: text,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: PiColors.userBubble.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(16),
             ),
+            constraints: const BoxConstraints(maxWidth: 300, minHeight: 48),
+            child: SelectableText(text,
+                style: const TextStyle(fontSize: 14, color: PiColors.text)),
           ),
         ),
       ),
@@ -898,30 +1041,68 @@ class _UserMessageBubble extends StatelessWidget {
   }
 }
 
-class _AssistantView extends StatelessWidget {
+class _AssistantView extends ConsumerWidget {
   final er.UiMessage message;
   final List<Map<String, dynamic>> parts;
   final Map<String, er.ToolCardState> toolCards;
 
-  const _AssistantView({required this.message, required this.parts, required this.toolCards});
+  const _AssistantView(
+      {required this.message, required this.parts, required this.toolCards});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final msgMap = message.content is Map<String, dynamic>
+        ? message.content as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final errorMessage = msgMap['errorMessage'] as String?;
+    final isRetrying = ref.watch(chatStateProvider).isRetrying;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (errorMessage != null && errorMessage.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: PiColors.error.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: PiColors.error.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(errorMessage,
+                      style:
+                          const TextStyle(fontSize: 13, color: PiColors.error)),
+                  if (isRetrying)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text('Retrying… (auto-retry active)',
+                          style: TextStyle(
+                              fontSize: 11, color: PiColors.textMuted)),
+                    ),
+                ],
+              ),
+            ),
+          ],
           // Interleave content parts in order: thinking / text / toolCall.
           for (final part in parts) ...[
             if (part['type'] == 'thinking' && part['thinking'] is String)
               _ThinkingBlock(thinking: part['thinking'] as String),
             if (part['type'] == 'text' && part['text'] is String)
-              _MarkdownContent(messageId: message.id, data: part['text'] as String),
+              _MarkdownContent(
+                  messageId: message.id, data: part['text'] as String),
             if (part['type'] == 'toolCall')
               _InlineToolCall(
                 callId: part['id'] as String? ?? '',
                 toolName: part['name'] as String? ?? 'tool',
-                args: part['arguments'] is Map<String, dynamic> ? part['arguments'] as Map<String, dynamic> : const {},
+                args: part['arguments'] is Map<String, dynamic>
+                    ? part['arguments'] as Map<String, dynamic>
+                    : const {},
                 card: toolCards[part['id']],
               ),
           ],
@@ -930,7 +1111,8 @@ class _AssistantView extends StatelessWidget {
           if (message.isStreaming)
             const Padding(
               padding: EdgeInsets.only(top: 4),
-              child: Row(children: [_TypingDot(delay: Duration(milliseconds: 0))]),
+              child:
+                  Row(children: [_TypingDot(delay: Duration(milliseconds: 0))]),
             ),
         ],
       ),
@@ -946,9 +1128,14 @@ class _InlineToolCall extends StatelessWidget {
   final Map<String, dynamic> args;
   final er.ToolCardState? card;
 
-  const _InlineToolCall({required this.callId, required this.toolName, required this.args, this.card});
+  const _InlineToolCall(
+      {required this.callId,
+      required this.toolName,
+      required this.args,
+      this.card});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     if (callId.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -960,8 +1147,27 @@ class _InlineToolCall extends StatelessWidget {
         partialResult: card?.partialResult,
         isComplete: card?.isComplete ?? false,
         isError: card?.isError ?? false,
+        onTap: () => _showToolDetailSheet(
+          context,
+          toolName,
+          args,
+          card?.result,
+          isError: card?.isError ?? false,
+          diff: _diffFrom(card?.result),
+        ),
       ),
     );
+  }
+
+  static String? _diffFrom(Object? result) {
+    if (result is Map<String, dynamic>) {
+      final details = result['details'];
+      if (details is Map<String, dynamic> && details['diff'] is String) {
+        return details['diff'] as String;
+      }
+      if (result['diff'] is String) return result['diff'] as String;
+    }
+    return null;
   }
 }
 
@@ -971,16 +1177,21 @@ class _ToolResultView extends StatelessWidget {
 
   const _ToolResultView({required this.message, required this.parts});
 
-  @override Widget build(BuildContext context) {
-    final isError = message.content is Map<String, dynamic> && (message.content as Map<String, dynamic>)['isError'] == true;
+  @override
+  Widget build(BuildContext context) {
+    final isError = message.content is Map<String, dynamic> &&
+        (message.content as Map<String, dynamic>)['isError'] == true;
     final text = _MessageView._textOf(parts);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: (isError ? PiColors.error : PiColors.success).withValues(alpha: 0.10),
+        color: (isError ? PiColors.error : PiColors.success)
+            .withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: (isError ? PiColors.error : PiColors.success).withValues(alpha: 0.2)),
+        border: Border.all(
+            color: (isError ? PiColors.error : PiColors.success)
+                .withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -995,7 +1206,10 @@ class _ToolResultView extends StatelessWidget {
               text.isEmpty ? 'Tool result' : text,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textSecondary),
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'JetBrains Mono',
+                  color: PiColors.textSecondary),
             ),
           ),
         ],
@@ -1009,9 +1223,11 @@ class _MarkdownContent extends ConsumerWidget {
   final String data;
   const _MarkdownContent({required this.messageId, required this.data});
 
-  @override Widget build(BuildContext context, WidgetRef ref) {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     // Chat text size is a user setting (doc 06 §5; desktop SettingsPanel).
-    final scale = ref.watch(settingsProvider.select((s) => s.chatTextSize)) / 14.0;
+    final scale =
+        ref.watch(settingsProvider.select((s) => s.chatTextSize)) / 14.0;
     // Keep parsed markdown cached keyed by (messageId, contentLength) so
     // message_update never renders stale content.
     markdownBlockCache.get<List<dynamic>>(messageId, data.length) ??
@@ -1019,6 +1235,7 @@ class _MarkdownContent extends ConsumerWidget {
     double fs(double v) => v * scale;
     return MarkdownBody(
       data: data,
+      selectable: true,
       softLineBreak: true,
       builders: {
         // Horizontal-scroll code blocks — desktop doesn't clip long lines.
@@ -1026,14 +1243,28 @@ class _MarkdownContent extends ConsumerWidget {
       },
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(fontSize: fs(14), height: 1.5, color: PiColors.text),
-        h1: TextStyle(fontSize: fs(18), fontWeight: FontWeight.w600, color: PiColors.text),
-        h2: TextStyle(fontSize: fs(16), fontWeight: FontWeight.w600, color: PiColors.text),
-        h3: TextStyle(fontSize: fs(15), fontWeight: FontWeight.w600, color: PiColors.text),
+        h1: TextStyle(
+            fontSize: fs(18),
+            fontWeight: FontWeight.w600,
+            color: PiColors.text),
+        h2: TextStyle(
+            fontSize: fs(16),
+            fontWeight: FontWeight.w600,
+            color: PiColors.text),
+        h3: TextStyle(
+            fontSize: fs(15),
+            fontWeight: FontWeight.w600,
+            color: PiColors.text),
         strong: const TextStyle(fontWeight: FontWeight.w600),
         em: const TextStyle(fontStyle: FontStyle.italic),
-        code: TextStyle(fontSize: fs(13), fontFamily: 'JetBrains Mono', color: PiColors.accent, backgroundColor: PiColors.surfaceRaised),
+        code: TextStyle(
+            fontSize: fs(13),
+            fontFamily: 'JetBrains Mono',
+            color: PiColors.accent,
+            backgroundColor: PiColors.surfaceRaised),
         codeblockDecoration: BoxDecoration(
-          color: const Color(0xFF0A0A0C), // code blocks stay dark (desktop parity)
+          color:
+              const Color(0xFF0A0A0C), // code blocks stay dark (desktop parity)
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: PiColors.border),
         ),
@@ -1053,8 +1284,8 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
   bool isBlockElement() => true;
 
   @override
-  Widget? visitElementAfterWithContext(
-      BuildContext context, md.Element element, TextStyle? preferredStyle, TextStyle? parentStyle) {
+  Widget? visitElementAfterWithContext(BuildContext context, md.Element element,
+      TextStyle? preferredStyle, TextStyle? parentStyle) {
     final code = element.textContent;
     return Container(
       width: double.infinity,
@@ -1068,7 +1299,11 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
         scrollDirection: Axis.horizontal,
         child: Text(
           code,
-          style: TextStyle(fontSize: fontSize, fontFamily: 'JetBrains Mono', height: 1.45, color: PiColors.text),
+          style: TextStyle(
+              fontSize: fontSize,
+              fontFamily: 'JetBrains Mono',
+              height: 1.45,
+              color: PiColors.text),
         ),
       ),
     );
@@ -1079,13 +1314,15 @@ class _ThinkingBlock extends StatefulWidget {
   final String thinking;
   const _ThinkingBlock({required this.thinking});
 
-  @override State<_ThinkingBlock> createState() => _ThinkingBlockState();
+  @override
+  State<_ThinkingBlock> createState() => _ThinkingBlockState();
 }
 
 class _ThinkingBlockState extends State<_ThinkingBlock> {
   bool _expanded = false;
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => setState(() => _expanded = !_expanded),
       child: Container(
@@ -1101,15 +1338,22 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
           children: [
             Row(
               children: [
-                Text(_expanded ? '▾' : '▸', style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
+                Text(_expanded ? '▾' : '▸',
+                    style: const TextStyle(
+                        fontSize: 12, color: PiColors.textMuted)),
                 const SizedBox(width: 4),
                 const Text('Thinking',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: PiColors.textMuted)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: PiColors.textMuted)),
               ],
             ),
             if (_expanded) ...[
               const SizedBox(height: 4),
-              Text(widget.thinking, style: const TextStyle(fontSize: 12, color: PiColors.textSecondary)),
+              Text(widget.thinking,
+                  style: const TextStyle(
+                      fontSize: 12, color: PiColors.textSecondary)),
             ],
           ],
         ),
@@ -1122,32 +1366,39 @@ class _TypingDot extends StatefulWidget {
   final Duration delay;
   const _TypingDot({required this.delay});
 
-  @override State<_TypingDot> createState() => _TypingDotState();
+  @override
+  State<_TypingDot> createState() => _TypingDotState();
 }
 
-class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMixin {
+class _TypingDotState extends State<_TypingDot>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
-  @override void initState() {
+  @override
+  void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
     _animation = Tween<double>(begin: 0.2, end: 1.0).animate(_controller);
     _controller.repeat(reverse: true);
   }
 
-  @override void dispose() {
+  @override
+  void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     if (MediaQuery.of(context).disableAnimations) {
       return Container(
           width: 6,
           height: 6,
           margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: const BoxDecoration(color: PiColors.accent, shape: BoxShape.circle));
+          decoration: const BoxDecoration(
+              color: PiColors.accent, shape: BoxShape.circle));
     }
     return AnimatedBuilder(
       animation: _animation,
@@ -1157,7 +1408,8 @@ class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMi
             width: 6,
             height: 6,
             margin: const EdgeInsets.symmetric(horizontal: 2),
-            decoration: const BoxDecoration(color: PiColors.accent, shape: BoxShape.circle)),
+            decoration: const BoxDecoration(
+                color: PiColors.accent, shape: BoxShape.circle)),
       ),
     );
   }
@@ -1175,9 +1427,11 @@ class _UiRequestCard extends ConsumerStatefulWidget {
   final er.UiRequest request;
   final SessionController controller;
 
-  const _UiRequestCard({super.key, required this.request, required this.controller});
+  const _UiRequestCard(
+      {super.key, required this.request, required this.controller});
 
-  @override ConsumerState<_UiRequestCard> createState() => _UiRequestCardState();
+  @override
+  ConsumerState<_UiRequestCard> createState() => _UiRequestCardState();
 }
 
 class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
@@ -1189,14 +1443,17 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
   DateTime? _expiry;
   Timer? _expiryTimer;
 
-  @override void initState() {
+  @override
+  void initState() {
     super.initState();
     _startCountdown(widget.request);
   }
 
-  @override void didUpdateWidget(covariant _UiRequestCard oldWidget) {
+  @override
+  void didUpdateWidget(covariant _UiRequestCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.request.id != widget.request.id || oldWidget.request.timeout != widget.request.timeout) {
+    if (oldWidget.request.id != widget.request.id ||
+        oldWidget.request.timeout != widget.request.timeout) {
       _expiryTimer?.cancel();
       _responding = false;
       _startCountdown(widget.request);
@@ -1223,7 +1480,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
     });
   }
 
-  @override void dispose() {
+  @override
+  void dispose() {
     _expiryTimer?.cancel();
     _inputController.dispose();
     super.dispose();
@@ -1238,14 +1496,17 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
     setState(() => _responding = true);
   }
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     final request = widget.request;
-    final header = request.title ?? request.toolName ?? 'Agent needs your input';
+    final header =
+        request.title ?? request.toolName ?? 'Agent needs your input';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: PiColors.warning.withValues(alpha: request.method == 'notify' ? 0.05 : 0.08),
+        color: PiColors.warning
+            .withValues(alpha: request.method == 'notify' ? 0.05 : 0.08),
         border: Border(top: BorderSide(color: PiColors.border)),
       ),
       child: Column(
@@ -1269,19 +1530,26 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                 child: Text(header,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: PiColors.textSecondary)),
               ),
               if (widget.request.timeout != null)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Text(
                     '${_remaining ?? widget.request.timeout}s',
-                    style: const TextStyle(fontSize: 11, fontFamily: 'JetBrains Mono', color: PiColors.textMuted),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'JetBrains Mono',
+                        color: PiColors.textMuted),
                   ),
                 ),
               // Dismiss = engine default/timeout resolution.
               IconButton(
-                icon: const Icon(Icons.close, size: 16, color: PiColors.textMuted),
+                icon: const Icon(Icons.close,
+                    size: 16, color: PiColors.textMuted),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                 onPressed: () {
@@ -1291,12 +1559,14 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
               ),
             ],
           ),
-
           if (request.toolName != null && request.message != null) ...[
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(request.toolName!,
-                  style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono', fontWeight: FontWeight.w500)),
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'JetBrains Mono',
+                      fontWeight: FontWeight.w500)),
             ),
           ],
           if (request.message != null)
@@ -1305,9 +1575,11 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
               child: Text(request.message!,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'JetBrains Mono',
+                      color: PiColors.textMuted)),
             ),
-
           ..._buildMethodBody(request),
         ],
       ),
@@ -1371,7 +1643,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                 flex: 2,
                 child: GestureDetector(
                   onHorizontalDragUpdate: (d) => setState(() {
-                    _dragExtent = (_dragExtent + d.delta.distance / 200).clamp(0.0, 1.0);
+                    _dragExtent =
+                        (_dragExtent + d.delta.distance / 200).clamp(0.0, 1.0);
                   }),
                   onHorizontalDragEnd: (d) {
                     if (!_responding && _dragExtent > 0.7) {
@@ -1384,19 +1657,24 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: PiColors.warning.withValues(alpha: 0.15 + 0.2 * _dragExtent),
+                      color: PiColors.warning
+                          .withValues(alpha: 0.15 + 0.2 * _dragExtent),
                       borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: PiColors.warning.withValues(alpha: 0.4)),
+                      border: Border.all(
+                          color: PiColors.warning.withValues(alpha: 0.4)),
                     ),
                     child: const Center(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.swipe_right_rounded, size: 16, color: PiColors.warning),
+                          Icon(Icons.swipe_right_rounded,
+                              size: 16, color: PiColors.warning),
                           SizedBox(width: 6),
                           Text('Swipe to allow',
                               style: TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.warning)),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: PiColors.warning)),
                         ],
                       ),
                     ),
@@ -1414,7 +1692,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                           _beginRespond();
                           widget.controller.respondApproval(request, 'allow');
                         },
-                  style: ElevatedButton.styleFrom(backgroundColor: PiColors.warning),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: PiColors.warning),
                   child: const Text('Allow'),
                 ),
               ),
@@ -1429,7 +1708,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                     },
               style: OutlinedButton.styleFrom(
                   foregroundColor: PiColors.error,
-                  side: BorderSide(color: PiColors.error.withValues(alpha: 0.3))),
+                  side:
+                      BorderSide(color: PiColors.error.withValues(alpha: 0.3))),
               child: const Text('Deny'),
             ),
             if (isPermission) ...[
@@ -1440,7 +1720,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                     : () {
                         _haptic();
                         _beginRespond();
-                        widget.controller.respondApproval(request, 'always_allow');
+                        widget.controller
+                            .respondApproval(request, 'always_allow');
                       },
                 child: const Text('Always'),
               ),
@@ -1452,7 +1733,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
   }
 
   // ── question: tappable option rows ──
-  List<Widget> _buildOptionList(er.UiRequest request, {required ValueChanged<String> onPick}) {
+  List<Widget> _buildOptionList(er.UiRequest request,
+      {required ValueChanged<String> onPick}) {
     final options = request.options ?? const [];
     return [
       for (final option in options)
@@ -1473,10 +1755,12 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(option['label'] as String? ?? '',
-                      style: const TextStyle(fontSize: 13, color: PiColors.text)),
+                      style:
+                          const TextStyle(fontSize: 13, color: PiColors.text)),
                   if (option['description'] is String)
                     Text(option['description'] as String,
-                        style: const TextStyle(fontSize: 11, color: PiColors.textMuted)),
+                        style: const TextStyle(
+                            fontSize: 11, color: PiColors.textMuted)),
                 ],
               ),
             ),
@@ -1506,7 +1790,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
           child: _MultiSelectRow(
             label: option['label'] as String? ?? '',
             value: _checked[option['label'] as String? ?? ''] ?? false,
-            onToggled: (v) => setState(() => _checked[option['label'] as String? ?? ''] = v),
+            onToggled: (v) =>
+                setState(() => _checked[option['label'] as String? ?? ''] = v),
           ),
         ),
       Padding(
@@ -1517,7 +1802,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
               : () {
                   _haptic();
                   _beginRespond();
-                  widget.controller.respondSelect(request, _checkedValues(request));
+                  widget.controller
+                      .respondSelect(request, _checkedValues(request));
                 },
           child: const Text('Submit'),
         ),
@@ -1546,8 +1832,10 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                 decoration: InputDecoration(
                   hintText: request.title ?? 'Type your answer…',
                   isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 ),
               ),
             ),
@@ -1558,7 +1846,8 @@ class _UiRequestCardState extends ConsumerState<_UiRequestCard> {
                   : () {
                       _haptic();
                       _beginRespond();
-                      widget.controller.respondInput(request, _inputController.text.trim());
+                      widget.controller
+                          .respondInput(request, _inputController.text.trim());
                     },
               child: const Text('Send'),
             ),
@@ -1575,9 +1864,11 @@ class _MultiSelectRow extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onToggled;
 
-  const _MultiSelectRow({required this.label, required this.value, required this.onToggled});
+  const _MultiSelectRow(
+      {required this.label, required this.value, required this.onToggled});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
@@ -1600,9 +1891,11 @@ class _QueuedCard extends StatelessWidget {
   final void Function(String kind, int index) onRemove;
   final VoidCallback onRestore;
 
-  const _QueuedCard({required this.queue, required this.onRemove, required this.onRestore});
+  const _QueuedCard(
+      {required this.queue, required this.onRemove, required this.onRestore});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -1615,18 +1908,27 @@ class _QueuedCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.queue_play_next_rounded, size: 14, color: PiColors.accent),
+              const Icon(Icons.queue_play_next_rounded,
+                  size: 14, color: PiColors.accent),
               const SizedBox(width: 4),
               Text('Queued ${queue.steering.length + queue.followUp.length}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: PiColors.textSecondary)),
             ],
           ),
           const SizedBox(height: 4),
           for (var i = 0; i < queue.steering.length; i++)
-            _QueueItem(label: queue.steering[i], type: QueueItemType.steering, onRemove: () => onRemove('steering', i)),
+            _QueueItem(
+                label: queue.steering[i],
+                type: QueueItemType.steering,
+                onRemove: () => onRemove('steering', i)),
           for (var i = 0; i < queue.followUp.length; i++)
             _QueueItem(
-                label: queue.followUp[i], type: QueueItemType.followUp, onRemove: () => onRemove('followUp', i)),
+                label: queue.followUp[i],
+                type: QueueItemType.followUp,
+                onRemove: () => onRemove('followUp', i)),
           const SizedBox(height: 4),
           InkWell(
             onTap: onRestore,
@@ -1634,7 +1936,9 @@ class _QueuedCard extends StatelessWidget {
               padding: EdgeInsets.only(top: 2),
               child: Text('Restore to composer',
                   style: TextStyle(
-                      fontSize: 12, color: PiColors.accent, decoration: TextDecoration.underline)),
+                      fontSize: 12,
+                      color: PiColors.accent,
+                      decoration: TextDecoration.underline)),
             ),
           ),
         ],
@@ -1650,23 +1954,34 @@ class _QueueItem extends StatelessWidget {
   final QueueItemType type;
   final VoidCallback onRemove;
 
-  const _QueueItem({required this.label, required this.type, required this.onRemove});
+  const _QueueItem(
+      {required this.label, required this.type, required this.onRemove});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
           Icon(
-            type == QueueItemType.steering ? Icons.bolt_rounded : Icons.schedule_send_rounded,
+            type == QueueItemType.steering
+                ? Icons.bolt_rounded
+                : Icons.schedule_send_rounded,
             size: 14,
-            color: type == QueueItemType.steering ? PiColors.accent : PiColors.textMuted,
+            color: type == QueueItemType.steering
+                ? PiColors.accent
+                : PiColors.textMuted,
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+            child: Text(label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13)),
           ),
-          TextButton(onPressed: onRemove, child: const Text('Remove', style: TextStyle(fontSize: 11))),
+          TextButton(
+              onPressed: onRemove,
+              child: const Text('Remove', style: TextStyle(fontSize: 11))),
         ],
       ),
     );
@@ -1681,9 +1996,11 @@ class _ModeSegment extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _ModeSegment({required this.label, required this.selected, required this.onTap});
+  const _ModeSegment(
+      {required this.label, required this.selected, required this.onTap});
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -1691,7 +2008,9 @@ class _ModeSegment extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: selected ? PiColors.accent.withValues(alpha: 0.18) : Colors.transparent,
+          color: selected
+              ? PiColors.accent.withValues(alpha: 0.18)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
@@ -1724,7 +2043,8 @@ class _ComposerButton extends StatelessWidget {
     this.enabled = true,
   });
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -1733,10 +2053,13 @@ class _ComposerButton extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: enabled ? color.withValues(alpha: 0.16) : color.withValues(alpha: 0.06),
+            color: enabled
+                ? color.withValues(alpha: 0.16)
+                : color.withValues(alpha: 0.06),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, size: 22, color: enabled ? color : color.withValues(alpha: 0.6)),
+          child: Icon(icon,
+              size: 22, color: enabled ? color : color.withValues(alpha: 0.6)),
         ),
       ),
     );
@@ -1746,8 +2069,11 @@ class _ComposerButton extends StatelessWidget {
 // ─── Helpers ─────────────────────────────────────────────────
 
 String _formatUsage(proto.UsageData usage) {
-  String compact(int n) => n >= 1000 ? '${(n / 1000).toStringAsFixed(1)}K' : '$n';
-  final cost = usage.costTotal != null ? ' · \$${usage.costTotal!.toStringAsFixed(2)}' : '';
+  String compact(int n) =>
+      n >= 1000 ? '${(n / 1000).toStringAsFixed(1)}K' : '$n';
+  final cost = usage.costTotal != null
+      ? ' · \$${usage.costTotal!.toStringAsFixed(2)}'
+      : '';
   return '↑${compact(usage.input + usage.cacheWrite)} ↓${compact(usage.output + usage.cacheRead)}$cost';
 }
 
@@ -1772,7 +2098,8 @@ class _JumpToLatestPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Jump to latest messages${unreadCount > 0 ? ', $unreadCount new' : ''}',
+      label:
+          'Jump to latest messages${unreadCount > 0 ? ', $unreadCount new' : ''}',
       child: Material(
         color: PiColors.accent,
         borderRadius: BorderRadius.circular(20),
@@ -1784,11 +2111,17 @@ class _JumpToLatestPill extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
+                const Icon(Icons.arrow_downward_rounded,
+                    size: 16, color: Colors.white),
                 const SizedBox(width: 6),
                 Text(
-                  unreadCount > 0 ? 'Jump to latest ($unreadCount)' : 'Jump to latest',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  unreadCount > 0
+                      ? 'Jump to latest ($unreadCount)'
+                      : 'Jump to latest',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1797,4 +2130,125 @@ class _JumpToLatestPill extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showMessageSheet(BuildContext context, String text) async {
+  final hasCode = RegExp(r'```').hasMatch(text);
+  final codeBlocks = RegExp(r'```(?:[A-Za-z0-9_+-]*\n)?([\s\S]*?)```')
+      .allMatches(text)
+      .map((m) => (m.group(1) ?? '').trim())
+      .where((s) => s.isNotEmpty)
+      .join('\n\n');
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.copy_rounded),
+            title: const Text('Copy text'),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: text));
+              Navigator.pop(ctx);
+            },
+          ),
+          if (hasCode)
+            ListTile(
+              leading: const Icon(Icons.code_rounded),
+              title: const Text('Copy code'),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: codeBlocks));
+                Navigator.pop(ctx);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> _showToolDetailSheet(
+  BuildContext context,
+  String toolName,
+  Map<String, dynamic> args,
+  Object? result, {
+  bool isError = false,
+  String? diff,
+}) async {
+  final argsText = const JsonEncoder.withIndent('  ').convert(args);
+  final outputText = result == null
+      ? ''
+      : (result is Map || result is List
+          ? const JsonEncoder.withIndent('  ').convert(result)
+          : result.toString());
+  final diffLines = diff?.split('\n') ?? const <String>[];
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) {
+      final fullHeight = MediaQuery.of(ctx).size.height;
+      return SafeArea(
+        child: SizedBox(
+          height: fullHeight * 0.8,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text(
+                  toolName,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'JetBrains Mono'),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Arguments',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: PiColors.textSecondary)),
+                      const SizedBox(height: 4),
+                      SelectableText(argsText,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'JetBrains Mono',
+                              color: PiColors.text)),
+                      const SizedBox(height: 12),
+                      const Text('Output',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: PiColors.textSecondary)),
+                      const SizedBox(height: 4),
+                      if (diff != null && diff.isNotEmpty) ...[
+                        for (final line in diffLines) DiffRow(line: line),
+                      ] else
+                        SelectableText(
+                          outputText.isEmpty ? '(no output)' : outputText,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'JetBrains Mono',
+                              color: PiColors.text),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
