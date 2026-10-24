@@ -1,15 +1,15 @@
 // lib/features/sessions/screens/home_screen.dart
 library;
-/// Session list & status (doc 06 §2).
-/// Header: machine name + connection pill, chips row, search field, session list, FAB.
-/// Wired in M3: sessions from list_sessions, background sessions from
-/// get_sessions_status, connection pill from SessionController.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/connection/connection_state.dart' as cs;
 import '../../../design/theme.dart';
+import '../../../design/components/empty_state.dart';
 import '../../../design/components/status_dot.dart';
 import '../../../design/components/chip.dart';
 import '../../pairing/providers/connection_providers.dart';
@@ -24,16 +24,14 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAliveClientMixin {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _searchQuery = '';
-
-  @override
-  bool get wantKeepAlive => true; // keep alive when tab is hidden
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    // Keep the connection provider alive while Home is open and fetch once.
     Future.microtask(() async {
       try {
         await ref.read(sessionControllerProvider(widget.activeHostId).notifier).refreshSessions();
@@ -45,18 +43,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAlive
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _setSearchQuery(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = value);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     final hostAsync = ref.watch(activeHostProvider);
     final sessions = ref.watch(sessionsListProvider);
-    final background = ref.watch(backgroundSessionsProvider);
-    final chat = ref.watch(chatStateProvider);
     final conn = ref.watch(sessionControllerProvider(widget.activeHostId));
-    final hostName = hostAsync.value?.name ?? 'A-Coder';
+    final hostName = hostAsync.valueOrNull ?? 'A-Coder';
+    final connected = conn.connection.state == cs.ConnectionState.ready;
 
     final filtered = _searchQuery.isEmpty
         ? sessions
@@ -71,21 +77,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAlive
       appBar: AppBar(
         title: Text(hostName),
         actions: [
-          // Connection pill
           IconButton(
-            icon: StatusDot(
-              type: switch (conn.connection.state) {
-                cs.ConnectionState.ready => StatusDotType.live,
-                cs.ConnectionState.disconnected => StatusDotType.idle,
-                _ => StatusDotType.idle,
-              },
-              size: 8,
+            tooltip: 'Connection status',
+            icon: Semantics(
+              label: 'Connection status',
+              child: StatusDot(
+                type: switch (conn.connection.state) {
+                  cs.ConnectionState.ready => StatusDotType.live,
+                  cs.ConnectionState.disconnected => StatusDotType.error,
+                  _ => StatusDotType.idle,
+                },
+                size: 10,
+              ),
             ),
             onPressed: () => _showConnectionSheet(context, conn),
-            tooltip: 'Connection status',
           ),
-          // Settings
           IconButton(
+            tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).pushNamed('/settings'),
           ),
@@ -93,99 +101,151 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAlive
       ),
       body: Column(
         children: [
-          // ─── Chips row ────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                if (chat.isStreaming)
-                  const StatusChip(label: '● streaming', variant: ChipVariant.accent),
-                if (chat.isStreaming) const SizedBox(width: 8),
-                if (background.isNotEmpty)
-                  StatusChip(
-                    label: '${background.length} background',
-                    variant: ChipVariant.muted,
-                    onTap: () => _showBackgroundSheet(context, background),
-                  ),
-                if (background.isNotEmpty) const SizedBox(width: 8),
-                if (chat.queue.isNotEmpty)
-                  StatusChip(
-                    label: 'queue ${chat.queue.steering.length + chat.queue.followUp.length}',
-                    variant: ChipVariant.tool,
-                  ),
-              ],
+            child: Consumer(
+              builder: (context, ref, _) {
+                final chat = ref.watch(chatStateProvider);
+                final background = ref.watch(backgroundSessionsProvider);
+                return Row(
+                  children: [
+                    if (chat.isStreaming) ...[
+                      const StatusChip(label: '● streaming', variant: ChipVariant.accent),
+                      const SizedBox(width: 8),
+                    ],
+                    if (background.isNotEmpty) ...[
+                      StatusChip(
+                        label: '${background.length} background',
+                        variant: ChipVariant.muted,
+                        onTap: () => _showBackgroundSheet(context, background),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (chat.queue.steering.isNotEmpty || chat.queue.followUp.isNotEmpty)
+                      StatusChip(
+                        label: 'queue ${chat.queue.steering.length + chat.queue.followUp.length}',
+                        variant: ChipVariant.tool,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
-          // ─── Search field ─────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
-              onChanged: (q) => setState(() => _searchQuery = q),
+              controller: _searchController,
+              onChanged: (q) {
+                _setSearchQuery(q);
+                if (q.isEmpty) setState(() => _searchQuery = '');
+              },
               decoration: InputDecoration(
-                hintText: 'Search sessions by name or path...',
+                hintText: 'Search sessions by name or path…',
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.clear_rounded),
+                        onPressed: () {
+                          _searchController.clear();
+                          if (mounted) setState(() => _searchQuery = '');
+                        },
+                      ),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),
           ),
-          // ─── Session list (pull-to-refresh = list_sessions) ──
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
+                if (!connected) return;
                 try {
                   await ref.read(sessionControllerProvider(widget.activeHostId).notifier).refreshSessions();
                 } catch (_) {}
               },
-              child: ListView.builder(
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final session = filtered[index];
-                  return _SessionRow(
-                    name: (session.name?.isNotEmpty ?? false) ? session.name! : (session.firstMessage ?? session.id),
-                    time: DateTime.tryParse(session.modified) ?? DateTime.now(),
-                    messageCount: session.messageCount,
-                    path: session.cwd,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      Navigator.of(context).pushNamed(
-                        '/chat',
-                        arguments: {'hostId': widget.activeHostId, 'sessionPath': session.path},
-                      );
-                    },
-                    onLongPress: () => _renameSession(session),
-                  );
-                },
-              ),
+              child: filtered.isEmpty
+                  ? _emptyState(context, sessions, connected)
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 88),
+                      itemCount: filtered.length,
+                      itemExtent: null,
+                      itemBuilder: (context, index) {
+                        final session = filtered[index];
+                        return _SessionRow(
+                          key: ValueKey(session.path.isNotEmpty ? session.path : session.id),
+                          session: session,
+                          connected: connected,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            Navigator.of(context).pushNamed(
+                              '/chat',
+                              arguments: {'hostId': widget.activeHostId, 'sessionPath': session.path},
+                            );
+                          },
+                          onRename: () => _renameSession(session),
+                          onDelete: () => _confirmDelete(session),
+                        );
+                      },
+                    ),
             ),
           ),
         ],
       ),
-      // ─── FAB: new session ─────────────────────────────────
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
-          try {
-            await controller.newSession();
-          } catch (_) {
-            // Not connected yet — still open the chat (it will show the banner).
-          }
-          if (mounted) {
-            Navigator.of(context).pushNamed(
-              '/chat',
-              arguments: {'hostId': widget.activeHostId},
-            );
-          }
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: Semantics(
+        label: 'New session',
+        child: FloatingActionButton(
+          onPressed: () async {
+            final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
+            try {
+              await controller.newSession();
+            } catch (_) {
+              // Not connected yet — still open the chat (it will show the banner).
+            }
+            if (mounted) {
+              Navigator.of(context).pushNamed(
+                '/chat',
+                arguments: {'hostId': widget.activeHostId},
+              );
+            }
+          },
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
 
+  Widget _emptyState(BuildContext context, List<RpcSessionInfo> sessions, bool connected) {
+    if (!connected) {
+      return const ErrorState(
+        message: 'Offline — reconnect to load sessions.',
+        onRetry: _noop,
+      );
+    }
+    if (_searchQuery.isNotEmpty) {
+      return const EmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No matching sessions',
+        hint: 'Try a different query.',
+      );
+    }
+    if (sessions.isEmpty) {
+      return const EmptyState(
+        icon: Icons.forum_outlined,
+        title: 'No sessions yet',
+        hint: 'Start one from the + button.',
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  static void _noop() {}
+
   Future<void> _renameSession(dynamic session) async {
     final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
     final nameController = TextEditingController(text: (session.name as String?) ?? '');
-    final newName = await showDialog<String>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Rename session'),
@@ -195,57 +255,96 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAlive
           decoration: const InputDecoration(hintText: 'Session name'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Rename')),
         ],
       ),
     );
-    if (newName == true && mounted) {
-      final name = nameController.text.trim();
-      if (name.isNotEmpty) {
-        try {
-          await controller.renameSession(session.path as String, name);
-          await controller.refreshSessions();
-        } catch (_) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Rename failed — not connected')),
-            );
-          }
-        }
+    if (confirmed != true || !mounted) return;
+    final previous = (session.name as String?) ?? '';
+    final name = nameController.text.trim();
+    if (name.isEmpty || name == previous) return;
+    try {
+      await controller.renameSession(session.path as String, name);
+      await controller.refreshSessions();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Renamed to "$name"'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              await controller.renameSession(session.path as String, previous);
+              await controller.refreshSessions();
+            },
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rename failed — not connected')),
+        );
       }
     }
   }
 
+  Future<void> _confirmDelete(dynamic session) async {
+    final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete session?'),
+        content: Text('Remove "${(session.name as String?)?.isNotEmpty == true ? session.name : session.id}" from the list?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: PiColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // stop if streaming handled by engine; best-effort local remove.
+    ref.read(sessionsListProvider.notifier).removeSession(session.path as String);
+    try {
+      await controller.refreshSessions();
+    } catch (_) {}
+  }
+
   void _showConnectionSheet(BuildContext context, SessionControllerState conn) {
-    final host = ref.read(activeHostProvider).value;
+    final host = ref.read(activeHostProvider).valueOrNull;
     final url = host?.wsUrl ?? '—';
     final connected = conn.connection.state == cs.ConnectionState.ready;
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(children: [StatusDot(type: StatusDotType.live)]),
-            const SizedBox(height: 8),
-            Text(
-              connected ? 'Connected' : (conn.connection.state.name),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(url, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
-            if (conn.connection.errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  conn.connection.errorMessage!,
-                  style: const TextStyle(fontSize: 13, color: PiColors.error),
-                ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [StatusDot(type: connected ? StatusDotType.live : StatusDotType.idle, size: 8)]),
+              const SizedBox(height: 8),
+              Text(
+                connected ? 'Connected' : conn.connection.state.name,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
-          ],
+              const SizedBox(height: 4),
+              Text(url, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+              if (conn.connection.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    conn.connection.errorMessage!,
+                    style: const TextStyle(fontSize: 13, color: PiColors.error),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -254,61 +353,114 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAlive
   void _showBackgroundSheet(BuildContext context, List<dynamic> sessions) {
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Background Sessions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            if (sessions.isEmpty)
-              const Text('No background sessions', style: TextStyle(fontSize: 13, color: PiColors.textMuted)),
-            // RuntimeSessionStatus rows.
-            for (final s in sessions)
-              _BgSessionRow(
-                cwd: s.cwd as String,
-                status: s.status as String,
-                pending: s.pendingMessageCount as int,
-              ),
-          ],
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Background Sessions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              if (sessions.isEmpty)
+                const Text('No background sessions', style: TextStyle(fontSize: 13, color: PiColors.textMuted))
+              else
+                for (final s in sessions)
+                  _BgSessionRow(
+                    cwd: s.cwd as String,
+                    status: s.status as String,
+                    pending: s.pendingMessageCount as int,
+                    onOpen: () {
+                      Navigator.pop(ctx);
+                      Navigator.of(context).pushNamed(
+                        '/chat',
+                        arguments: {'hostId': widget.activeHostId, 'sessionPath': s.sessionPath as String?},
+                      );
+                    },
+                    onAbort: () {
+                      // Best-effort; the engine owns abort.
+                    },
+                  ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+extension _AsyncValueX<T> on AsyncValue<T> {
+  T? get valueOrNull => hasError ? null : value;
+}
+
 class _SessionRow extends StatelessWidget {
-  final String name;
-  final DateTime time;
-  final int messageCount;
-  final String path;
+  final dynamic session;
+  final bool connected;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
 
-  const _SessionRow({required this.name, required this.time, required this.messageCount, required this.path, required this.onTap, this.onLongPress});
+  const _SessionRow({
+    super.key,
+    required this.session,
+    required this.connected,
+    required this.onTap,
+    required this.onRename,
+    required this.onDelete,
+  });
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final name = (session.name is String && (session.name as String).isNotEmpty)
+        ? session.name as String
+        : (session.firstMessage as String? ?? session.id as String);
+    final path = session.cwd as String? ?? '';
+    final msgCount = session.messageCount as int? ?? 0;
+    final modified = DateTime.tryParse(session.modified as String? ?? '') ?? DateTime.now();
     return ListTile(
+      key: ValueKey(session.path),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(path, style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+          Text(path, style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
           Row(
             children: [
-              Text(_relativeTime(time), style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
+              Text(_relativeTime(modified), style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
               const SizedBox(width: 12),
-              Text('$messageCount messages', style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
+              Text('$msgCount messages', style: const TextStyle(fontSize: 12, color: PiColors.textMuted)),
             ],
           ),
         ],
       ),
       trailing: const Icon(Icons.chevron_right, size: 20, color: PiColors.textFaint),
       onTap: onTap,
-      onLongPress: onLongPress,
+      onLongPress: () async {
+        final action = await showModalBottomSheet<String>(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Rename'), onTap: () => Navigator.pop(ctx, 'rename')),
+                ListTile(leading: const Icon(Icons.stop_circle_outlined), title: const Text('Stop'), onTap: () => Navigator.pop(ctx, 'stop')),
+                ListTile(leading: const Icon(Icons.delete_outline, color: PiColors.error), title: const Text('Delete', style: TextStyle(color: PiColors.error)), onTap: () => Navigator.pop(ctx, 'delete')),
+              ],
+            ),
+          ),
+        );
+        if (!context.mounted) return;
+        switch (action) {
+          case 'rename':
+            onRename();
+          case 'delete':
+            onDelete();
+          default:
+            break;
+        }
+      },
     );
   }
 
@@ -323,20 +475,33 @@ class _SessionRow extends StatelessWidget {
 
 class _BgSessionRow extends StatelessWidget {
   final String cwd;
-  final String status; // running | needsInput
+  final String status;
   final int pending;
+  final VoidCallback onOpen;
+  final VoidCallback onAbort;
 
-  const _BgSessionRow({required this.cwd, required this.status, required this.pending});
+  const _BgSessionRow({
+    required this.cwd,
+    required this.status,
+    required this.pending,
+    required this.onOpen,
+    required this.onAbort,
+  });
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final running = status == 'running';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          StatusDot(type: status == 'running' ? StatusDotType.live : StatusDotType.idle, size: 6),
+          StatusDot(type: running ? StatusDotType.live : StatusDotType.idle, size: 6),
           const SizedBox(width: 8),
-          Expanded(child: Text(cwd, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono'))),
+          Expanded(child: Text(cwd, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono'), maxLines: 1, overflow: TextOverflow.ellipsis)),
           StatusChip(label: '$pending pending', variant: ChipVariant.muted),
+          const SizedBox(width: 8),
+          TextButton(onPressed: onOpen, child: const Text('Open')),
+          TextButton(onPressed: onAbort, child: const Text('Abort')),
         ],
       ),
     );

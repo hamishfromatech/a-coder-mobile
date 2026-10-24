@@ -4,6 +4,7 @@ library;
 /// Segmented control: Scan QR / Manual / On this network.
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
@@ -60,6 +61,11 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
   final MobileScannerController _camera = MobileScannerController();
   bool _handledLatest = true; // debounce duplicate detections
   String? _errorMessage;
+  String? _lastInvalidQr;
+  bool _cameraDenied = false;
+  String _discoveryState = 'scanning'; // scanning | empty | error
+  List<Map<String, String>> _discovered = const [];
+  bool _manualConnecting = false;
   // Manual entry fields — token renders as groups of 8 (5×8 + 4 for 44 chars).
   final _hostController = TextEditingController();
   final _portController = TextEditingController(text: '8787');
@@ -88,13 +94,25 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       if (raw == null || raw.isEmpty) continue;
       final payload = QrPairingPayload.parse(raw);
       if (payload == null) {
-        setState(() => _errorMessage = 'Invalid QR code — not an A-Coder pairing code');
+        // Avoid spamming the same failed decode every frame; allow recovery
+        // once a *different* code is presented.
+        if (_lastInvalidQr != raw) {
+          _lastInvalidQr = raw;
+          if (mounted) {
+            setState(() => _errorMessage = 'Invalid QR code — not an A-Coder pairing code. Try again or use Manual.');
+          }
+        }
         continue;
       }
+      _lastInvalidQr = null;
       _handledLatest = false;
       final confirmed = await _confirmPayload(payload);
+      if (!mounted) {
+        _handledLatest = true;
+        return;
+      }
       _handledLatest = true;
-      if (confirmed && mounted) {
+      if (confirmed) {
         await _saveAndEnter(payload.host, payload.port, payload.tls, payload.token, payload.name,
             id: payload.id.isNotEmpty ? payload.id : null);
       }
@@ -111,13 +129,17 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       tls: tls,
       lastConnected: DateTime.now(),
     );
-    await ref.read(hostsProvider.notifier).addHost(paired, token);
-    await ref.read(hostsProvider.notifier).setActive(paired.id);
-    // Re-gate: activeHostProvider refreshes → app shows Home + connects.
-    ref.invalidate(activeHostIdProvider);
-    ref.invalidate(activeHostProvider);
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/home', arguments: {'hostId': paired.id});
+    try {
+      await ref.read(hostsProvider.notifier).addHost(paired, token);
+      await ref.read(hostsProvider.notifier).setActive(paired.id);
+      // Re-gate: activeHostProvider refreshes → app shows Home + connects.
+      ref.invalidate(activeHostIdProvider);
+      ref.invalidate(activeHostProvider);
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/home', arguments: {'hostId': paired.id});
+      }
+    } catch (e) {
+      if (mounted) setState(() => _errorMessage = 'Pairing failed: $e');
     }
   }
 
@@ -161,16 +183,84 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     );
     return result == true;
   }
-  /// Handle manual entry connect.
+  /// Validate manual entry fields and connect.
   Future<void> _handleManualConnect() async {
-    final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text.trim()) ?? 8787;
-    final token = _tokenControllers.map((c) => c.text.trim()).join('');
-    if (host.isEmpty || token.length < 32) {
-      setState(() => _errorMessage = 'Enter a valid host and full token (43 chars)');
+    final error = validateManualEntry(
+      host: _hostController.text,
+      portText: _portController.text,
+      token: readManualToken(_tokenControllers),
+    );
+    if (error != null) {
+      if (mounted) setState(() => _errorMessage = error);
       return;
     }
-    await _saveAndEnter(host, port, false, token, 'Manual — $host');
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = null;
+      _manualConnecting = true;
+    });
+    final host = _hostController.text.trim();
+    final port = int.parse(_portController.text.trim());
+    final token = normalizeToken(readManualToken(_tokenControllers));
+    try {
+      await _saveAndEnter(host, port, false, token, 'Manual — $host');
+    } finally {
+      if (mounted) setState(() => _manualConnecting = false);
+    }
+  }
+
+  static String readManualToken(List<TextEditingController> controllers) =>
+      controllers.map((c) => c.text).join();
+
+  static String normalizeToken(String raw) => raw.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+
+  static String? validateManualEntry({
+    required String host,
+    required String portText,
+    required String token,
+  }) {
+    final h = host.trim();
+    final p = int.tryParse(portText.trim());
+    final t = normalizeToken(token);
+    if (h.isEmpty) return 'Enter a host (IP or hostname)';
+    if (p == null || p <= 0 || p > 65535) return 'Enter a valid port (1–65535)';
+    if (t.length < 32) return 'Enter the full pairing token (32+ characters)';
+    return null;
+  }
+
+  Future<void> _pasteToken() async {
+    final data = await Clipboard.getData('text/plain');
+    final text = data?.text;
+    if (text == null || text.trim().isEmpty) return;
+    final normalized = normalizeToken(text);
+    // Distribute across fields (best-effort, 8 chars per field).
+    for (final c in _tokenControllers) {
+      c.clear();
+    }
+    var i = 0;
+    for (final c in _tokenControllers) {
+      if (i >= normalized.length) break;
+      final end = (i + 8).clamp(0, normalized.length);
+      c.text = normalized.substring(i, end);
+      i = end;
+    }
+    if (mounted) setState(() => _errorMessage = null);
+  }
+
+  Future<void> _cancelDiscovery() async {
+    if (!mounted) return;
+    setState(() => _discoveryState = 'scanning');
+  }
+
+  Future<void> _retryDiscovery() async {
+    if (!mounted) return;
+    setState(() {
+      _discoveryState = 'scanning';
+      _discovered = const [];
+    });
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    setState(() => _discoveryState = 'empty');
   }
   @override
   Widget build(BuildContext context) {
@@ -294,8 +384,17 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
             ),
             const SizedBox(height: 4),
             Text(
-              'Copy the "Pairing token" groups from the serve banner (5 groups of 8 + 1 of 4).',
+              'Paste the 44-character pairing token from the serve banner. Any grouping works.',
               style: TextStyle(fontSize: 11, color: c.textFaint),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _pasteToken,
+                icon: const Icon(Icons.content_paste_rounded, size: 16),
+                label: const Text('Paste full token'),
+              ),
             ),
             const SizedBox(height: 24),
             if (_errorMessage != null)
@@ -303,9 +402,15 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(_errorMessage!, style: const TextStyle(color: PiColors.error, fontSize: 13)),
               ),
-            ElevatedButton(
-              onPressed: _handleManualConnect,
-              child: const Text('Connect'),
+            Semantics(
+              button: true,
+              label: 'Connect using manual credentials',
+              child: ElevatedButton(
+                onPressed: _manualConnecting ? null : _handleManualConnect,
+                child: _manualConnecting
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Connect'),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -319,7 +424,6 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     );
   }
   Widget _buildDiscoverTab(PiPalette c) {
-    // bonsoir mDNS discovery of _a-coder._tcp services (wired in M4).
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -327,13 +431,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
           Icon(Icons.wifi_rounded, size: 48, color: c.textFaint),
           const SizedBox(height: 16),
           Text(
-            'Scanning for A-Coder on this network...',
+            'Devices on this network',
             style: TextStyle(fontSize: 15, color: c.textSecondary),
           ),
           const SizedBox(height: 8),
           Text(
-            'Make sure the desktop is running `a-coder-cli serve`.\nTap a device below to connect.',
-            style: TextStyle(fontSize: 13, color: c.textMuted),
+            'Make sure the desktop is running a-coder-cli serve. '
+            'Tap a device, then enter its pairing token.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -346,21 +450,31 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
             ),
             child: Column(
               children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [StatusDot(type: StatusDotType.live)],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'No devices found',
-                  style: TextStyle(color: c.textMuted, fontSize: 14),
-                ),
+                if (_discoveryState == 'scanning') ...[
+                  const StatusDot(type: StatusDotType.live),
+                  const SizedBox(height: 8),
+                  const Text('Scanning…', style: TextStyle(fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextButton(onPressed: _cancelDiscovery, child: const Text('Cancel')),
+                ] else if (_discovered.isEmpty) ...[
+                  Icon(Icons.search_off_rounded, size: 24, color: c.textMuted),
+                  const SizedBox(height: 8),
+                  const Text('No devices found', style: TextStyle(fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextButton(onPressed: _retryDiscovery, child: const Text('Retry')),
+                ] else
+                  for (final d in _discovered)
+                    ListTile(
+                      title: Text(d['name'] ?? 'Unknown'),
+                      subtitle: Text('${d['host']}:${d['port']}'),
+                      onTap: () {},
+                    ),
               ],
             ),
           ),
           const SizedBox(height: 24),
           Text(
-            'Discovery shows available devices. You still need to enter the pairing token.',
+            'Discovery never bypasses auth — you still need the pairing token.',
             style: TextStyle(fontSize: 12, color: c.textMuted),
             textAlign: TextAlign.center,
           ),
@@ -369,3 +483,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     );
   }
 }
+/// Public validation helper for manual pairing entry (used by tests/tools).
+String? validateManualPairingEntry({
+  required String host,
+  required String portText,
+  required String token,
+}) =>
+    _PairingScreenState.validateManualEntry(host: host, portText: portText, token: token);

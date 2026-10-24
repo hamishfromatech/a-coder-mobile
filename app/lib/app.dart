@@ -30,6 +30,8 @@ class ACoderApp extends ConsumerStatefulWidget {
 
 class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserver {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  DateTime? _lastReconnectAt;
+  bool _reconnecting = false;
 
   @override
   void initState() {
@@ -60,22 +62,42 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
     }
   }
 
+  /// Delegates reconnection to the connection layer. Coalesces resume and
+  /// network-change events that arrive within [_reconnectWindow] so the
+  /// connection stack only does the work once.
+  static const _reconnectWindow = Duration(seconds: 2);
+
   void _reconnectActive() {
-    final hostId = ref.read(activeHostIdProvider).value;
-    if (hostId != null) {
-      ref.read(sessionControllerProvider(hostId).notifier).forceReconnectNow();
+    final now = DateTime.now();
+    if (_reconnecting) return;
+    if (_lastReconnectAt != null &&
+        now.difference(_lastReconnectAt!) < _reconnectWindow) {
+      return;
+    }
+    _reconnecting = true;
+    _lastReconnectAt = now;
+    try {
+      final hostId = ref.read(activeHostIdProvider).value;
+      if (hostId != null) {
+        ref.read(sessionControllerProvider(hostId).notifier).forceReconnectNow();
+      }
+    } finally {
+      // Reset after a short window; the connection layer owns actual reconnect.
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) _reconnecting = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider);
+    final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
     return MaterialApp(
       title: 'A-Coder',
       debugShowCheckedModeBanner: false,
       theme: PiTheme.light,
       darkTheme: PiTheme.dark,
-      themeMode: settings.themeMode, // dark-first default (doc 09), user-overridable
+      themeMode: themeMode, // dark-first default (doc 09), user-overridable
       // ─── Route map (doc 06) ──────────────────────────────────
       // /                     → gate: no hosts → Pairing; else → Home
       // /pair                 → Pairing screen

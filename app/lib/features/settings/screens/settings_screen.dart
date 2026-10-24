@@ -1,88 +1,128 @@
 // lib/features/settings/screens/settings_screen.dart
-library;
 /// Settings: hosts management, appearance, about (doc 06 §5).
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/connection/host_registry.dart';
 import '../../../design/theme.dart';
 import '../../../design/components/status_dot.dart';
 import '../../pairing/providers/connection_providers.dart';
+import '../../pairing/providers/pairing_providers.dart';
 import '../providers/settings_providers.dart';
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
-  @override ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
-class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTickerProviderStateMixin {
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final Map<String, bool> _testingHosts = {};
+  final Map<String, String?> _testResults = {};
+  int? _pendingRemoval;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
   }
-  @override void dispose() {
+
+  @override
+  void dispose() {
     _tabController.dispose();
     super.dispose();
   }
-  @override Widget build(BuildContext context) {
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.computer_rounded), text: 'Machines'),
+            Tab(icon: Icon(Icons.palette_rounded), text: 'Appearance'),
+            Tab(icon: Icon(Icons.info_outline_rounded), text: 'About'),
+          ],
+        ),
+      ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildMachinesTab(),
+          _buildMachinesTab(context),
           _buildAppearanceTab(),
           _buildAboutTab(),
         ],
       ),
     );
   }
-  Widget _buildMachinesTab() {
+
+  Widget _buildMachinesTab(BuildContext context) {
+    final hosts = ref.watch(hostsProvider);
+    final activeId = ref.watch(activeHostIdProvider).valueOrNull;
     return ListView(
       children: [
-        // Paired hosts list
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Machines', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              Text(
+                'Machines',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: PiColors.textSecondary,
+                ),
+              ),
               const SizedBox(height: 8),
-              // Active host
-              _HostCard(
-                name: "Hamish's MacBook",
-                address: '192.168.1.20:8787',
-                isActive: true,
-                lastConnected: DateTime.now().subtract(const Duration(hours: 2)),
-              ),
-              // Inactive host (placeholder)
-              _HostCard(
-                name: 'Home Server',
-                address: '192.168.1.30:8787',
-                isActive: false,
-                lastConnected: DateTime.now().subtract(const Duration(days: 3)),
-              ),
+              if (hosts.isEmpty)
+                const ListTile(
+                  leading: Icon(Icons.cloud_off_rounded),
+                  title: Text('No paired machines'),
+                  subtitle: Text('Add a machine to get started'),
+                ),
+              for (final host in hosts)
+                _HostCard(
+                  host: host,
+                  isActive: host.id == activeId,
+                  testing: _testingHosts[host.id] == true,
+                  testResult: _testResults[host.id],
+                  onMakeActive: () async {
+                    await ref.read(hostsProvider.notifier).setActive(host.id);
+                    ref.invalidate(activeHostIdProvider);
+                    ref.invalidate(activeHostProvider);
+                  },
+                  onTest: () => _testConnection(host),
+                  onRemove: () => _confirmRemove(host),
+                ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).pushReplacementNamed('/pair'),
+                onPressed: () => Navigator.of(context).pushNamed('/pair'),
                 icon: const Icon(Icons.add),
                 label: const Text('Add Machine'),
               ),
-            ],
-          ),
-        ),
-        // Danger zone
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Danger', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
+              const SizedBox(height: 24),
+              Text(
+                'Danger',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: PiColors.textSecondary,
+                ),
+              ),
               const SizedBox(height: 8),
               ListTile(
                 leading: Icon(Icons.warning_amber_rounded, color: PiColors.error),
                 title: const Text('Forget this device'),
                 subtitle: const Text('Wipes all pairing tokens and connections'),
-                onTap: () => _showForgetConfirmation(context),
+                onTap: _showForgetConfirmation,
               ),
             ],
           ),
@@ -90,6 +130,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       ],
     );
   }
+
+  Future<void> _testConnection(PairedHost host) async {
+    if (!mounted) return;
+    setState(() {
+      _testingHosts[host.id] = true;
+      _testResults[host.id] = null;
+    });
+    String? result;
+    try {
+      final registry = HostRegistry();
+      final token = await registry.getToken(host.id);
+      if (token == null || token.isEmpty) {
+        result = 'Failed: no pairing token';
+      } else {
+        result = 'OK — credentials present';
+      }
+    } catch (e) {
+      result = 'Failed: $e';
+    }
+    if (!mounted) return;
+    setState(() {
+      _testingHosts[host.id] = false;
+      _testResults[host.id] = result;
+    });
+  }
+
+  Future<void> _confirmRemove(PairedHost host) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${host.name}?'),
+        content: const Text('This only revokes local pairing. The desktop keeps its token.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: PiColors.error),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await ref.read(hostsProvider.notifier).removeHost(host.id);
+    ref.invalidate(activeHostIdProvider);
+    ref.invalidate(activeHostProvider);
+  }
+
   Widget _buildAppearanceTab() {
     final settings = ref.watch(settingsProvider);
     return ListView(
@@ -106,13 +194,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 icon: Icons.brightness_auto,
                 value: ThemePreference.system,
                 selected: _themePref(settings),
-                onSelected: (v) => ref.read(settingsProvider.notifier).setTheme(
-                      switch (v) {
-                        ThemePreference.system => ThemePref.system,
-                        ThemePreference.light => ThemePref.light,
-                        ThemePreference.dark => ThemePref.dark,
-                      },
-                    ),
+                onSelected: (v) => ref.read(settingsProvider.notifier).setTheme(ThemePref.system),
               ),
               _ThemeOption(
                 label: 'Dark',
@@ -166,6 +248,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
         ThemePref.dark => ThemePreference.dark,
         ThemePref.light => ThemePreference.light,
       };
+
   Widget _buildAboutTab() {
     return ListView(
       children: [
@@ -174,25 +257,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('A-Coder Mobile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Text('A-Coder Mobile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text('Version 1.0.0 (build 1)', style: TextStyle(color: PiColors.textMuted)),
               const SizedBox(height: 24),
-              _AboutRow(label: 'Protocol version', value: 'v1'),
-              _AboutRow(label: 'WebSocket transport', value: 'ws://'),
-              _AboutRow(label: 'Framework', value: 'Flutter 3.24+'),
+              const _AboutRow(label: 'Protocol version', value: 'v1'),
+              const _AboutRow(label: 'WebSocket transport', value: 'ws://'),
+              const _AboutRow(label: 'Framework', value: 'Flutter 3.24+'),
               const SizedBox(height: 24),
               Text('Links', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: PiColors.textSecondary)),
               const SizedBox(height: 8),
-              ListTile(
-                leading: const Icon(Icons.code_rounded),
-                title: const Text('GitHub'),
-                onTap: () {},
+              const ListTile(
+                leading: Icon(Icons.code_rounded),
+                title: Text('GitHub'),
               ),
-              ListTile(
-                leading: const Icon(Icons.article_rounded),
-                title: const Text('Documentation'),
-                onTap: () {},
+              const ListTile(
+                leading: Icon(Icons.article_rounded),
+                title: Text('Documentation'),
               ),
             ],
           ),
@@ -200,7 +281,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       ],
     );
   }
-  void _showForgetConfirmation(BuildContext context) {
+
+  void _showForgetConfirmation() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -210,12 +292,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
-              // Wipe tokens from secure storage, clear host metadata + active id.
               final registry = HostRegistry();
               for (final host in await registry.getHosts()) {
                 await registry.removeHost(host.id);
               }
-              if (!mounted) return;
+              if (!mounted || !context.mounted) return;
               ref.invalidate(activeHostIdProvider);
               ref.invalidate(activeHostProvider);
               Navigator.of(context).pushReplacementNamed('/pair');
@@ -228,13 +309,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     );
   }
 }
+
 class _HostCard extends StatelessWidget {
-  final String name;
-  final String address;
+  final PairedHost host;
   final bool isActive;
-  final DateTime lastConnected;
-  const _HostCard({required this.name, required this.address, required this.isActive, required this.lastConnected});
-  @override Widget build(BuildContext context) {
+  final bool testing;
+  final String? testResult;
+  final VoidCallback onMakeActive;
+  final VoidCallback onTest;
+  final VoidCallback onRemove;
+
+  const _HostCard({
+    required this.host,
+    required this.isActive,
+    required this.testing,
+    required this.testResult,
+    required this.onMakeActive,
+    required this.onTest,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
@@ -255,38 +351,64 @@ class _HostCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(name, style: TextStyle(fontWeight: FontWeight.w600)),
+                      Flexible(
+                        child: Text(host.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
                       if (isActive) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(color: PiColors.accentSoft, borderRadius: BorderRadius.circular(4)),
-                          child: Text('ACTIVE', style: TextStyle(fontSize: 9, fontFamily: 'JetBrains Mono', color: PiColors.accent)),
+                          child: Text('ACTIVE', style: const TextStyle(fontSize: 9, fontFamily: 'JetBrains Mono', color: PiColors.accent)),
                         ),
                       ],
                     ],
                   ),
-                  Text(address, style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+                  Text(host.address, style: const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+                  if (testResult != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        testResult!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: testResult!.startsWith('OK') ? PiColors.success : PiColors.error,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-            PopupMenuButton<String>(
-              onSelected: (val) {
-                if (val == 'test') ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Connection test: OK')));
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'test', child: Text('Test connection')),
-                const PopupMenuDivider(),
-                const PopupMenuItem(value: 'remove', child: Text('Remove', style: TextStyle(color: PiColors.error))),
-              ],
-            ),
+            if (testing)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Semantics(
+                label: 'Machine actions menu',
+                child: PopupMenuButton<String>(
+                  tooltip: 'Machine actions',
+                  onSelected: (val) {
+                    if (val == 'test') onTest();
+                    if (val == 'active') onMakeActive();
+                    if (val == 'remove') onRemove();
+                  },
+                  itemBuilder: (_) => [
+                    if (!isActive) const PopupMenuItem(value: 'active', child: Text('Set active')),
+                    const PopupMenuItem(value: 'test', child: Text('Test connection')),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(value: 'remove', child: Text('Remove', style: TextStyle(color: PiColors.error))),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 }
-enum ThemePreference { system, dark, light }
 
 class _ThemeOption extends StatelessWidget {
   final ThemePreference value;
@@ -301,20 +423,29 @@ class _ThemeOption extends StatelessWidget {
     required this.icon,
     required this.label,
   });
-  @override Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      trailing: value == selected ? Icon(Icons.check_rounded, color: PiColors.accent) : null,
-      onTap: () => onSelected(value),
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = value == selected;
+    return Semantics(
+      label: '$label theme',
+      button: true,
+      selected: isSelected,
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(label),
+        trailing: isSelected ? Icon(Icons.check_rounded, color: PiColors.accent) : null,
+        onTap: () => onSelected(value),
+      ),
     );
   }
 }
+
 class _AboutRow extends StatelessWidget {
   final String label;
   final String value;
   const _AboutRow({required this.label, required this.value});
-  @override Widget build(BuildContext context) => Padding(
+  @override
+  Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -324,4 +455,15 @@ class _AboutRow extends StatelessWidget {
           ],
         ),
       );
+}
+
+enum ThemePreference { system, dark, light }
+
+// Extension-friendly getter for AsyncValue.
+extension _AsyncValueX<T> on AsyncValue<T> {
+  T? get valueOrNull => hasError ? null : value;
+}
+
+extension _HostAddress on PairedHost {
+  String get address => '${host}:${port}';
 }
