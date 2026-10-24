@@ -41,10 +41,9 @@
   and `SharedPreferences` usage. The headless E2E exercises the transport
   protocol against the fake server but cannot pump the real `PairingScreen`
   flow without platform mocks.
-- Chat bubbles (user/assistant/thinking), approval card, and queue card are
-  private widgets inside `chat_screen.dart`; they cannot be golden-tested from
-  `test/` without exposing them. Only public proxies (`ToolCard`, `DiffRow`,
-  `EmptyState`) are covered by goldens.
+- Chat bubbles (user/assistant/thinking), the approval card, the queue card and
+  the jump-to-latest pill are now public and covered by deterministic goldens
+  (`test/golden/components_golden_test.dart`, 390x844 dark/light).
 - Home session row (`_SessionRow`) is private; empty state is covered via
   `EmptyState`.
 - Settings screen sections were not made golden because they depend on shared

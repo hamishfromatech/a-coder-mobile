@@ -7,7 +7,9 @@ on:
 
 jobs:
   flutter:
-    runs-on: ubuntu-latest
+    # macOS keeps golden-image rendering deterministic (same fonts/rasteriser
+    # the baselines were generated with). Ubuntu golden diffs are unreliable.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -21,7 +23,7 @@ jobs:
       - name: Analyze
         run: |
           cd app
-          flutter analyze --fatal-infos=false
+          flutter analyze
       - name: Test
         run: |
           cd app
@@ -31,6 +33,13 @@ jobs:
         with:
           name: lcov.info
           path: app/coverage/lcov.info
+      - name: Upload golden failure diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: app/test/golden/failures
+          if-no-files-found: ignore
 
 # Optional (commented): run the bridge test suite in its own repo/job.
 # - The A-Coder bridge lives in a different repository and is not a required
