@@ -231,7 +231,13 @@ class SessionController extends StateNotifier<SessionControllerState> {
   Future<Map<String, dynamic>> _send(String type, Map<String, dynamic> payload, {Duration? timeout}) async {
     final client = _client;
     if (client == null) throw Exception('Not connected');
-    return client.sendCommand(type, payload, timeout: timeout ?? const Duration(seconds: 15));
+    final result = await client.sendCommand(type, payload,
+        timeout: timeout ?? const Duration(seconds: 15));
+    // The engine accepted a command — drop a transient "engine starting" banner.
+    if (state.connection.errorMessage == engineStartingMessage) {
+      state = state.copyWith(connection: state.connection.copyWith(errorMessage: null));
+    }
+    return result;
   }
 
   /// Send the composer text. mode: prompt | steer | followUp.
@@ -264,6 +270,11 @@ class SessionController extends StateNotifier<SessionControllerState> {
   /// Abort a session by path (works for background sessions too).
   Future<void> abortSession(String sessionPath) =>
       _send('abort_session', {'sessionPath': sessionPath});
+
+  /// Restore tracked files to a previous turn (file-history rewind).
+  /// Returns the engine payload: {steps, filesChanged, insertions, deletions}.
+  Future<Map<String, dynamic>> rewindFiles({int steps = 1}) =>
+      _send('rewind', {'steps': steps});
 
   // ─── Extension UI responses (doc 03 §4.5) ──────────────────────
   // Shapes per method:

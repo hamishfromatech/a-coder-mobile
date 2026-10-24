@@ -9,6 +9,10 @@ import 'connection_state.dart';
 import 'rpc_client.dart';
 /// Backoff sequence: 1s → 2s → 4s → 8s → 15s (cap), with ±20% jitter.
 const _backoffBaseMs = [1000, 2000, 4000, 8000, 15000];
+/// Shown when the bridge reports `engine_unavailable`; cleared on the next
+/// successful command so a stale banner never sticks.
+const engineStartingMessage =
+    'Engine is starting — commands will be accepted shortly';
 final _random = Random();
 class ConnectionManager {
   final RpcClient client;
@@ -103,6 +107,12 @@ class ConnectionManager {
         break;
       case 'slow_client':
         onError('Network too slow — server may drop this connection');
+        break;
+      case 'engine_unavailable':
+        // The bridge is healthy but the engine is not accepting commands yet
+        // (starting or restarting). Surface it without tearing down the socket.
+        _changeState(_currentState.copyWith(errorMessage: engineStartingMessage));
+        onError(engineStartingMessage);
         break;
       case 'engine_failed':
         _changeState(ConnectionInfo(

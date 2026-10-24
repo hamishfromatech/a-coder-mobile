@@ -22,6 +22,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/connection/connection_state.dart' as cs;
+import '../../../core/connection/rpc_client.dart' show CommandError;
 import '../../../core/protocol/events.dart' as proto;
 import '../../../design/components/banner.dart';
 import '../../../design/components/chip.dart';
@@ -294,6 +295,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           onSelected: (val) => _onMenuAction(val, chat),
           itemBuilder: (_) => const [
             PopupMenuItem(value: 'compact', child: Text('Compact Context')),
+            PopupMenuItem(value: 'rewind', child: Text('Rewind Files…')),
             PopupMenuItem(value: 'export', child: Text('Export HTML')),
             PopupMenuDivider(),
             PopupMenuItem(value: 'copy', child: Text('Copy Transcript')),
@@ -309,6 +311,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     switch (val) {
       case 'compact':
         await controller.compact();
+      case 'rewind':
+        if (!mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Rewind files?'),
+            content: const Text(
+                'Restores tracked files on your desktop to the previous turn, '
+                'undoing the edits made since then. This cannot be undone.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Rewind')),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+        try {
+          final res = await controller.rewindFiles();
+          final changed = res['filesChanged'] as List<dynamic>? ?? const [];
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Rewound ${changed.length} file(s) to the previous turn')));
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Rewind failed: ${e is CommandError ? e.message : e}')));
+          }
+        }
       case 'export':
         try {
           final path = await controller.exportHtml(

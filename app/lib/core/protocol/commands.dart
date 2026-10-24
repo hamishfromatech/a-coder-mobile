@@ -75,6 +75,15 @@ class AbortCommand extends RpcCommand with _GeneratedId {
   @override
   Map<String, dynamic> toJson() => {'type': type, if (sessionPath != null) 'sessionPath': sessionPath};
 }
+/// Restore tracked files to a previous turn (file-history rewind).
+class RewindCommand extends RpcCommand with _GeneratedId {
+  final int? steps;
+  RewindCommand({this.steps});
+  @override
+  String get type => 'rewind';
+  @override
+  Map<String, dynamic> toJson() => {'type': type, if (steps != null) 'steps': steps};
+}
 class ClearQueueCommand extends RpcCommand with _GeneratedId {
   final String? sessionPath;
   ClearQueueCommand({this.sessionPath});
