@@ -55,3 +55,19 @@ source of `a-coder-cli` (paths in [09-references.md](09-references.md)).
    protocol client side; the Flutter code mirrors those shapes exactly.
 5. When a package API is unclear, check the package docs (versions pinned in
    [09-references.md](09-references.md)) before guessing.
+---
+
+## As-built notes (2026-10-25)
+
+The implementation has diverged from this plan in a few useful ways:
+
+- The standalone `mobile-app/bridge/` package was retired; the bridge ships as
+  the `a-coder-cli serve` subcommand in `../a-coder-cli/packages/coding-agent/src/serve/`.
+- State management uses Riverpod `StateNotifier` providers with a pure event
+  router, and navigation uses named routes (not `go_router`) — the route map in
+  doc 06 still applies.
+- The app ships with `flutter analyze` clean, 130+ tests including deterministic
+  component goldens and a fake-bridge E2E suite, and CI in
+  `.github/workflows/mobile.yml`.
+- Remaining work (device matrix, rewind, transcript pagination, M6) is tracked
+  in [`../BUILD.md`](../BUILD.md) and [`../QA.md`](../QA.md).
