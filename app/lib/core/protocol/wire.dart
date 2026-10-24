@@ -43,19 +43,21 @@ class LineAccumulator {
   LineAccumulator({required this.onLine});
   /// Feed raw data into the accumulator. Complete lines go to [onLine].
   void feed(String data) {
-    _buffer += data;
+    // Accumulate without quadratic string copies.
+    _buffer = _buffer.isEmpty ? data : '$_buffer$data';
     // Extract complete lines first — never drop valid completed data.
-    var idx = _buffer.indexOf('\n');
-    while (idx >= 0) {
+    while (true) {
+      final idx = _buffer.indexOf('\n');
+      if (idx < 0) break;
       var line = _buffer.substring(0, idx);
       _buffer = _buffer.substring(idx + 1);
       if (line.endsWith('\r')) {
         line = line.substring(0, line.length - 1);
       }
-      if (line.isNotEmpty) {
+      if (line.isNotEmpty && line.length <= maxLineBytes) {
         onLine(line);
       }
-      idx = _buffer.indexOf('\n');
+      // Oversized complete lines are dropped (protocol garbage).
     }
     // Only the incomplete remainder is left. If it exceeds the cap, drop it:
     // a single line this large is protocol garbage (max payload is 16 MiB).
@@ -70,7 +72,7 @@ class LineAccumulator {
     if (tail.endsWith('\r')) {
       tail = tail.substring(0, tail.length - 1);
     }
-    if (tail.trim().isNotEmpty) {
+    if (tail.trim().isNotEmpty && tail.length <= maxLineBytes) {
       onLine(tail.trim());
     }
   }

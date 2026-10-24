@@ -17,6 +17,9 @@ class ConnectionManager {
   int _attempt = 0;
   bool _isConnected = false;
   bool _shuttingDown = false;
+  bool _terminalAuthFailure = false;
+  Future<void>? _connectFuture;
+  Future<void>? _resyncFuture;
   late StreamSubscription<ConnectionInfo> _stateSub;
   /// Connection info stream (for UI).
   Stream<ConnectionInfo> get stateStream => _stateController.stream;
@@ -37,7 +40,34 @@ class ConnectionManager {
   /// Start connecting (called from UI after pairing).
   Future<void> connect() async {
     _shuttingDown = false;
-    await client.connect();
+    _terminalAuthFailure = false;
+    _attempt = 0;
+    await _connectClient();
+  }
+
+  Future<void> connectClient() => _connectClient();
+  void scheduleReconnect(int ms) => _scheduleReconnect(ms);
+  Future<void> handleClientStateChange(ConnectionInfo info) => _handleClientStateChange(info);
+
+  Future<void> _connectClient() async {
+    if (_connectFuture != null) {
+      await _connectFuture;
+      return;
+    }
+    final future = _doConnect();
+    _connectFuture = future;
+    try {
+      await future;
+    } finally {
+      _connectFuture = null;
+    }
+  }
+  Future<void> _doConnect() async {
+    try {
+      await client.connect();
+    } catch (e) {
+      onError('Connect failed: $e');
+    }
   }
   /// Stop and disconnect.
   Future<void> disconnect() async {
@@ -49,15 +79,19 @@ class ConnectionManager {
   /// No-op while the connection is healthy — tearing down a working
   /// connection just to rebuild it drops in-flight turn state.
   void forceReconnectNow() {
+    if (_shuttingDown || _terminalAuthFailure) return;
     if (_currentState.state == ConnectionState.ready || _isConnected) return;
+    if (_connectFuture != null || _reconnectTimer != null) return; // dedupe
     _attempt = 0; // reset backoff
     _scheduleReconnect(0);
   }
+  /// Dedup entry points for app-lifecycle / connectivity events.
+  void onAppResumed() => forceReconnectNow();
+  void onConnectivityChanged() => forceReconnectNow();
   /// Handle a bridge control frame from the engine.
   void handleBridgeFrame(BridgeControlFrame frame) {
     switch (frame.event) {
       case 'connected':
-        // Client connected to server — handled by state change
         break;
       case 'shutting_down':
         _changeState(const ConnectionInfo(state: ConnectionState.shuttingDown));
@@ -66,12 +100,8 @@ class ConnectionManager {
         break;
       case 'engine_exited':
         onError('Engine exited (code ${frame.code}) — restarting...');
-        // Engine will auto-restart; we just resync when it's back
         break;
       case 'slow_client':
-        // Server warns this client is falling behind (bufferedAmount high).
-        // The bridge drops clients that stay slow; surface it so the user
-        // understands an imminent reconnect.
         onError('Network too slow — server may drop this connection');
         break;
       case 'engine_failed':
@@ -82,13 +112,11 @@ class ConnectionManager {
         onError('Engine failed — check desktop app');
         break;
       case 'server_version':
-        // Auth successful + server version received
         _attempt = 0;
         _isConnected = true;
-        _resync();
+        unawaited(_resync());
         break;
       default:
-        // Unknown bridge event — log it
         onError('Unknown bridge frame: ${frame.event}');
     }
   }
@@ -103,7 +131,7 @@ class ConnectionManager {
         _changeState(info);
         break;
       case ConnectionState.authenticating:
-        // Waiting for server_version frame — handled in handleBridgeFrame
+        _changeState(info);
         break;
       case ConnectionState.ready:
         if (!_isConnected) {
@@ -118,11 +146,18 @@ class ConnectionManager {
         break;
       case ConnectionState.disconnected:
         _isConnected = false;
+        if (info.errorMessage != null && _isAuthError(info.errorMessage!)) {
+          _terminalAuthFailure = true;
+          _cancelReconnectTimer();
+          _changeState(ConnectionInfo(
+            state: ConnectionState.disconnected,
+            errorMessage: info.errorMessage,
+          ));
+          onError(info.errorMessage ?? 'Auth failed');
+          return;
+        }
         if (!_shuttingDown) {
-          // Schedule reconnect with exponential backoff. Preserve the
-          // client's error detail (e.g. "401 — wrong token") so the UI
-          // can explain WHY it is reconnecting.
-          final delay = Duration(milliseconds: _backoffMs(_attempt));
+          final delay = Duration(milliseconds: backoffMs(_attempt));
           _changeState(ConnectionInfo(
             state: ConnectionState.reconnecting,
             reconnectAttempt: _attempt + 1,
@@ -130,6 +165,8 @@ class ConnectionManager {
             errorMessage: info.errorMessage,
           ));
           _scheduleReconnect(delay.inMilliseconds);
+        } else {
+          _changeState(info);
         }
         break;
       case ConnectionState.shuttingDown:
@@ -137,18 +174,32 @@ class ConnectionManager {
         break;
     }
   }
+  bool _isAuthError(String msg) {
+    final lower = msg.toLowerCase();
+    return lower.contains('401') ||
+        lower.contains('unauthorized') ||
+        lower.contains('403') ||
+        lower.contains('forbidden') ||
+        lower.contains('authentication') ||
+        lower.contains('auth failed');
+  }
   void _scheduleReconnect(int ms) {
-    _cancelReconnectTimer();
+    if (_shuttingDown || _terminalAuthFailure) return;
+    if (_reconnectTimer != null) {
+      _reconnectTimer?.cancel();
+    }
     _reconnectTimer = Timer(Duration(milliseconds: ms), () {
-      if (_shuttingDown) return;
+      _reconnectTimer = null;
+      if (_shuttingDown || _terminalAuthFailure) return;
       _attempt++;
-      client.connect();
+      unawaited(_connectClient());
     });
   }
+  /// Public backoff calculation (base index clamped; ±20% jitter).
+  int backoffMs(int attempt) => _backoffMs(attempt);
   int _backoffMs(int attempt) {
     final baseIdx = attempt.clamp(0, _backoffBaseMs.length - 1);
     final base = _backoffBaseMs[baseIdx];
-    // ±20% jitter
     final roll = _random.nextDouble();
     return (base * (0.8 + 0.4 * roll)).round();
   }
@@ -157,42 +208,54 @@ class ConnectionManager {
     _reconnectTimer = null;
   }
   // ─── Resync after reconnect ──────────────────────────────────
+  /// Public resync entry point (connection + tests).
+  Future<void> resync() => _resync();
   Future<void> _resync() async {
+    if (_resyncFuture != null) return _resyncFuture;
+    final future = _doResync();
+    _resyncFuture = future;
+    try {
+      await future;
+    } finally {
+      _resyncFuture = null;
+    }
+  }
+  Future<void> _doResync() async {
     try {
       _changeState(_currentState.copyWith(isResyncing: true, errorMessage: 'Reconnected — resyncing'));
       // Step 1: get_state for current session state
       await client.sendCommand('get_state', {});
-      // (Dispatched via response handlers / event router by the app layer)
-      // Step 2: get_messages to refresh transcript
+      // Step 2: get_messages to refresh transcript. Server may return
+      // FEWER messages than local (session truncated/switched) — state
+      // layer replaces the list wholesale on response, dropping the tail.
       await client.sendCommand('get_messages', {});
       // Step 3: get_sessions_status for background sessions
       await client.sendCommand('get_sessions_status', {});
-      // Diff message list by length; drop tail if server < local (not implemented here, handled by state layer)
-      // If server messageCount > local, fetch and replace.
-      _changeState(const ConnectionInfo(
-        state: ConnectionState.ready,
-        isResyncing: false,
-      ));
+      if (!_shuttingDown) {
+        _changeState(const ConnectionInfo(
+          state: ConnectionState.ready,
+          isResyncing: false,
+        ));
+      }
     } catch (e) {
       onError('Resync failed: $e');
+      _changeState(_currentState.copyWith(isResyncing: false, errorMessage: 'Resync failed: $e'));
       // The socket may still be alive but our state is stale — force a
       // clean reconnect cycle instead of waiting for a ping timeout.
-      if (!_shuttingDown) {
+      if (!_shuttingDown && !_terminalAuthFailure) {
         _scheduleReconnect(0);
       }
-    } finally {
-      
     }
   }
   void _changeState(ConnectionInfo info) {
     _currentState = info;
-    _stateController.add(info);
+    if (!_stateController.isClosed) _stateController.add(info);
   }
   /// Clean up resources.
   void dispose() {
     _cancelReconnectTimer();
     _stateSub.cancel();
-    _stateController.close();
+    if (!_stateController.isClosed) _stateController.close();
   }
 }
 /// Bridge that wires RpcClient events to ConnectionManager.

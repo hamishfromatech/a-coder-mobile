@@ -30,7 +30,7 @@ class PairedHost {
         'lastConnected': lastConnected.toIso8601String(),
       };
   factory PairedHost.fromJson(Map<String, dynamic> json) => PairedHost(
-        id: json['id'] as String,
+        id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? '',
         host: json['host'] as String? ?? '',
         port: (json['port'] as num?)?.toInt() ?? 0,
@@ -51,22 +51,65 @@ class PairedHost {
   }
 }
 class HostRegistry {
-  static const _secureStorage = FlutterSecureStorage();
   static const _prefKey = 'paired_hosts'; // JSON list of host metadata
   static const _activeKey = 'active_host_id';
+
+  final FlutterSecureStorage _secureStorage;
+  SharedPreferences? _prefsOverride;
+  Future<SharedPreferences>? _prefsFuture;
+
+  HostRegistry({
+    FlutterSecureStorage? secureStorage,
+    FlutterSecureStorage? storage,
+    SharedPreferences? prefs,
+    SharedPreferences? preferences,
+    Future<SharedPreferences>? sharedPreferences,
+  })  : _secureStorage = secureStorage ?? storage ?? const FlutterSecureStorage(),
+        _prefsOverride = prefs ?? preferences {
+    if (sharedPreferences != null) _prefsFuture = sharedPreferences;
+  }
+
+  Future<SharedPreferences> _prefs() async {
+    if (_prefsOverride != null) return _prefsOverride!;
+    final f = _prefsFuture;
+    if (f != null) return f;
+    return SharedPreferences.getInstance();
+  }
+
+  Future<T> _safeSecure<T>(Future<T> Function() op, T fallback) async {
+    try {
+      return await op();
+    } catch (_) {
+      // Missing secure-storage plugin or platform error: degrade gracefully.
+      return fallback;
+    }
+  }
+
   /// All paired hosts, most recent first.
   Future<List<PairedHost>> getHosts() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
     final raw = prefs.getString(_prefKey);
     if (raw == null || raw.isEmpty) return [];
     try {
-      final list = (jsonDecode(raw) as List<dynamic>)
-          .whereType<Map<String, dynamic>>()
-          .map(PairedHost.fromJson)
-          .toList();
-      list.sort((a, b) => b.lastConnected.compareTo(a.lastConnected));
-      return list;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) throw const FormatException('not a list');
+      final result = <PairedHost>[];
+      for (final entry in decoded) {
+        if (entry is Map) {
+          try {
+            result.add(PairedHost.fromJson(Map<String, dynamic>.from(entry)));
+          } catch (_) {
+            // Skip corrupt entries.
+          }
+        }
+      }
+      result.sort((a, b) => b.lastConnected.compareTo(a.lastConnected));
+      return result;
     } catch (_) {
+      // Corrupt/partial JSON tolerance: clear and start fresh.
+      try {
+        await prefs.remove(_prefKey);
+      } catch (_) {}
       return [];
     }
   }
@@ -80,39 +123,78 @@ class HostRegistry {
   }
   /// Save a paired host (token in secure storage, metadata in prefs).
   Future<void> saveHost(PairedHost host, String token) async {
-    // Secret: bearer token goes to secure storage only.
-    await _secureStorage.write(key: 'token_${host.id}', value: token);
-    // Non-secret: upsert host metadata.
-    final prefs = await SharedPreferences.getInstance();
+    // Secret: bearer token goes to secure storage only (never logged).
+    await _safeSecure(() => _secureStorage.write(key: 'token_${host.id}', value: token), null);
+    // Non-secret: upsert host metadata atomically as one JSON value.
+    final prefs = await _prefs();
     final hosts = await getHosts();
     final updated = hosts.where((h) => h.id != host.id).toList()..add(host);
-    await prefs.setString(_prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
+    try {
+      await prefs.setString(_prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
+    } catch (_) {
+      // Tolerate storage failures for metadata.
+    }
   }
   /// Get the token for a paired host (from secure storage).
   Future<String?> getToken(String hostId) async {
-    return _secureStorage.read(key: 'token_$hostId');
+    return _safeSecure(() => _secureStorage.read(key: 'token_$hostId'), null);
   }
   /// Remove a paired host (metadata + token).
   Future<void> removeHost(String id) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
     final hosts = await getHosts();
     final updated = hosts.where((h) => h.id != id).toList();
-    await prefs.setString(_prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
+    try {
+      await prefs.setString(_prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
+    } catch (_) {}
     await prefs.remove('host_meta_$id');
     await prefs.remove('host_data_$id');
-    await _secureStorage.delete(key: 'token_$id');
-    if (await getActiveHostId() == id) {
-      await prefs.remove(_activeKey);
+    await _safeSecure(() => _secureStorage.delete(key: 'token_$id'), null);
+    final active = await getActiveHostId();
+    if (active == id) {
+      if (updated.isNotEmpty) {
+        try {
+          await prefs.setString(_activeKey, updated.first.id);
+        } catch (_) {}
+      } else {
+        try {
+          await prefs.remove(_activeKey);
+        } catch (_) {}
+      }
     }
   }
   /// Set the active host (the one to connect to).
   Future<void> setActiveHost(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_activeKey, id);
+    final prefs = await _prefs();
+    try {
+      await prefs.setString(_activeKey, id);
+    } catch (_) {}
   }
-  /// Get the active host ID.
+  /// Get the active host ID, with fallback to the most recent host.
   Future<String?> getActiveHostId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_activeKey);
+    final prefs = await _prefs();
+    final hosts = await getHosts();
+    if (hosts.isEmpty) {
+      try {
+        await prefs.remove(_activeKey);
+      } catch (_) {}
+      return null;
+    }
+    final stored = prefs.getString(_activeKey);
+    if (stored != null && hosts.any((h) => h.id == stored)) {
+      return stored;
+    }
+    // Fallback to most recently connected host.
+    final fallback = hosts.first.id;
+    try {
+      await prefs.setString(_activeKey, fallback);
+    } catch (_) {}
+    return fallback;
+  }
+  /// Get the active host, if any.
+  Future<PairedHost?> getActiveHost() async {
+    final id = await getActiveHostId();
+    if (id == null) return null;
+    return getHost(id);
   }
 }
