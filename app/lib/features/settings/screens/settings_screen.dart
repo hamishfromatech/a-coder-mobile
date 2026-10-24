@@ -459,11 +459,6 @@ class _AboutRow extends StatelessWidget {
 
 enum ThemePreference { system, dark, light }
 
-// Extension-friendly getter for AsyncValue.
-extension _AsyncValueX<T> on AsyncValue<T> {
-  T? get valueOrNull => hasError ? null : value;
-}
-
 extension _HostAddress on PairedHost {
   String get address => '${host}:${port}';
 }

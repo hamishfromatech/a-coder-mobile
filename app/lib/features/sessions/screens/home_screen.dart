@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/connection/connection_state.dart' as cs;
+import '../../../core/protocol/responses.dart' show RpcSessionInfo;
 import '../../../design/theme.dart';
 import '../../../design/components/empty_state.dart';
 import '../../../design/components/status_dot.dart';
@@ -387,10 +388,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
-}
-
-extension _AsyncValueX<T> on AsyncValue<T> {
-  T? get valueOrNull => hasError ? null : value;
 }
 
 class _SessionRow extends StatelessWidget {
