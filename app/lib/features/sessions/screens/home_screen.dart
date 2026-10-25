@@ -30,17 +30,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
+  bool _syncInFlight = false;
+  bool _syncedOnce = false;
+  String? _syncError;
+  bool _allProjects = false;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() async {
-      try {
-        await ref.read(sessionControllerProvider(widget.activeHostId).notifier).refreshSessions();
-      } catch (_) {
-        // Not connected yet — retry via pull-to-refresh.
-      }
-    });
+    // May run before the socket is ready; _syncSessions no-ops then and the
+    // ready listener below retries as soon as the connection settles.
+    Future.microtask(_syncSessions);
   }
 
   @override
@@ -58,6 +58,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
+  Future<void> _syncSessions() async {
+    if (_syncInFlight) return;
+    final connection = ref
+        .read(sessionControllerProvider(widget.activeHostId))
+        .connection;
+    if (connection.state != cs.ConnectionState.ready) return;
+    setState(() {
+      _syncInFlight = true;
+      _syncError = null;
+    });
+    try {
+      await ref
+          .read(sessionControllerProvider(widget.activeHostId).notifier)
+          .refreshSessions();
+      if (!mounted) return;
+      setState(() {
+        _syncInFlight = false;
+        _syncedOnce = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _syncInFlight = false;
+        _syncError = 'Could not load sessions.';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hostAsync = ref.watch(activeHostProvider);
@@ -65,10 +93,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final conn = ref.watch(sessionControllerProvider(widget.activeHostId));
     final hostName = hostAsync.valueOrNull?.name ?? 'A-Coder';
     final connected = conn.connection.state == cs.ConnectionState.ready;
+    final currentCwd = ref.watch(chatStateProvider).session.cwd;
+
+    // Sessions are not part of the core resync (the list can be thousands of
+    // rows), so fetch them the moment the connection becomes ready — and again
+    // after any reconnect.
+    ref.listen(sessionControllerProvider(widget.activeHostId), (prev, next) {
+      final wasReady = prev?.connection.state == cs.ConnectionState.ready;
+      final isReady = next.connection.state == cs.ConnectionState.ready;
+      if (!isReady) {
+        _syncedOnce = false;
+        return;
+      }
+      if (isReady && !wasReady && !_syncedOnce && !_syncInFlight) {
+        // Defer out of the provider-notification frame before setState.
+        Future.microtask(_syncSessions);
+      }
+    });
+
+    final scoped = (_allProjects || currentCwd.isEmpty)
+        ? sessions
+        : sessions.where((s) => s.cwd == currentCwd).toList();
+    final projectCount = currentCwd.isEmpty
+        ? sessions.length
+        : sessions.where((s) => s.cwd == currentCwd).length;
 
     final filtered = _searchQuery.isEmpty
-        ? sessions
-        : sessions
+        ? scoped
+        : scoped
             .where((s) =>
                 (s.name ?? '').toLowerCase().contains(_searchQuery.toLowerCase()) ||
                 s.cwd.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -179,16 +231,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
+          if (sessions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+              child: Row(
+                children: [
+                  if (currentCwd.isNotEmpty) ...[
+                    StatusChip(
+                      label: 'this project · $projectCount',
+                      variant: _allProjects ? ChipVariant.muted : ChipVariant.accent,
+                      onTap: () => setState(() => _allProjects = false),
+                    ),
+                    const SizedBox(width: 6),
+                    StatusChip(
+                      label: 'all · ${sessions.length}',
+                      variant: _allProjects ? ChipVariant.accent : ChipVariant.muted,
+                      onTap: () => setState(() => _allProjects = true),
+                    ),
+                  ] else
+                    StatusChip(
+                      label: '${sessions.length} sessions',
+                      variant: ChipVariant.muted,
+                    ),
+                  const Spacer(),
+                  if (_syncInFlight)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    ),
+                ],
+              ),
+            ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
-                if (!connected) return;
-                try {
-                  await ref.read(sessionControllerProvider(widget.activeHostId).notifier).refreshSessions();
-                } catch (_) {}
-              },
+              onRefresh: _syncSessions,
               child: filtered.isEmpty
-                  ? _emptyState(context, sessions, connected)
+                  ? _emptyState(context, scoped, sessions, connected)
                   : ListView.builder(
                       padding: const EdgeInsets.only(bottom: 88),
                       itemCount: filtered.length,
@@ -241,12 +320,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _emptyState(BuildContext context, List<RpcSessionInfo> sessions, bool connected) {
+  Widget _emptyState(BuildContext context, List<RpcSessionInfo> scoped,
+      List<RpcSessionInfo> all, bool connected) {
     if (!connected) {
       return const ErrorState(
         message: 'Offline — reconnect to load sessions.',
         onRetry: _noop,
       );
+    }
+    if (_syncError != null && all.isEmpty) {
+      return ErrorState(message: _syncError!, onRetry: _syncSessions);
+    }
+    if (all.isEmpty && (_syncInFlight || !_syncedOnce)) {
+      return const LoadingList(itemCount: 8);
     }
     if (_searchQuery.isNotEmpty) {
       return const EmptyState(
@@ -255,11 +341,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         hint: 'Try a different query.',
       );
     }
-    if (sessions.isEmpty) {
+    if (all.isEmpty) {
       return const EmptyState(
         icon: Icons.forum_outlined,
         title: 'No sessions yet',
         hint: 'Start one from the + button.',
+      );
+    }
+    if (scoped.isEmpty) {
+      return EmptyState(
+        icon: Icons.folder_off_outlined,
+        title: 'No sessions in this project',
+        hint: 'Other projects have ${all.length} sessions.',
+        action: () => setState(() => _allProjects = true),
+        actionLabel: 'Show all projects',
       );
     }
     return const SizedBox.shrink();
@@ -267,9 +362,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   static void _noop() {}
 
-  Future<void> _renameSession(dynamic session) async {
+  Future<void> _renameSession(RpcSessionInfo session) async {
     final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
-    final nameController = TextEditingController(text: (session.name as String?) ?? '');
+    final nameController = TextEditingController(text: session.name ?? '');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -286,11 +381,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final previous = (session.name as String?) ?? '';
+    final previous = session.name ?? '';
     final name = nameController.text.trim();
     if (name.isEmpty || name == previous) return;
     try {
-      await controller.renameSession(session.path as String, name);
+      await controller.renameSession(session.path, name);
       await controller.refreshSessions();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -299,7 +394,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () async {
-              await controller.renameSession(session.path as String, previous);
+              await controller.renameSession(session.path, previous);
               await controller.refreshSessions();
             },
           ),
@@ -314,13 +409,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Future<void> _confirmDelete(dynamic session) async {
+  Future<void> _confirmDelete(RpcSessionInfo session) async {
     final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete session?'),
-        content: Text('Remove "${(session.name as String?)?.isNotEmpty == true ? session.name : session.id}" from the list?'),
+        content: Text('Remove "${session.name?.isNotEmpty == true ? session.name : session.id}" from the list?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
@@ -333,7 +428,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     if (confirmed != true || !mounted) return;
     // stop if streaming handled by engine; best-effort local remove.
-    ref.read(sessionsListProvider.notifier).removeSession(session.path as String);
+    ref.read(sessionsListProvider.notifier).removeSession(session.path);
     try {
       await controller.refreshSessions();
     } catch (_) {}

@@ -550,7 +550,8 @@ class SessionController extends StateNotifier<SessionControllerState> {
   Future<void> refreshModels() => _send('refresh_models', {});
 
   /// Refresh the session list (home screen pull-to-refresh).
-  Future<void> refreshSessions() => _send('list_sessions', {});
+  Future<void> refreshSessions() =>
+      _send('list_sessions', {}, timeout: const Duration(seconds: 45));
 
   /// Page size for the initial transcript load and each "older" request.
   static const int transcriptPageSize = 80;
