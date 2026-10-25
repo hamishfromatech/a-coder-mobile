@@ -60,7 +60,10 @@ class SessionControllerState {
     this.starting = false,
   });
 
-  bool get isReady => connection.state == ConnectionState.ready && !starting;
+  // NOTE: `starting` marks the initial connect→resync window, but readiness is
+  // a property of the connection itself. Gating on `starting` parked the cold
+  // boot splash forever when the flag was never cleared.
+  bool get isReady => connection.state == ConnectionState.ready;
 
   SessionControllerState copyWith(
           {ConnectionInfo? connection, bool? starting}) =>
@@ -132,7 +135,14 @@ class SessionController extends StateNotifier<SessionControllerState> {
 
   void _onConnState(ConnectionInfo info) {
     if (_disposed) return;
-    state = state.copyWith(connection: info);
+    // The initial connect sequence is over once we reach a terminal state.
+    final settled = info.state == ConnectionState.ready ||
+        info.state == ConnectionState.disconnected ||
+        info.state == ConnectionState.shuttingDown;
+    state = state.copyWith(
+      connection: info,
+      starting: settled ? false : state.starting,
+    );
     // Connected + resynced → deliver anything buffered while offline.
     if (info.state == ConnectionState.ready &&
         !info.isResyncing &&

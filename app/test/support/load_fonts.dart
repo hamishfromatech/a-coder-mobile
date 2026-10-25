@@ -4,7 +4,6 @@
 // glyph as a box — goldens then verify layout but not the actual type.
 // Load the SDK's Roboto + MaterialIcons so goldens show real text and icons.
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

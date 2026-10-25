@@ -78,6 +78,31 @@ void main() {
       expect(find.byType(DecodeText), findsNothing);
     });
 
+    testWidgets('exits on ready even if `starting` was never cleared', (tester) async {
+      // Regression: the controller used to keep `starting: true`, so isReady
+      // stayed false and the splash never left the screen although the app
+      // was fully connected.
+      expect(
+        const SessionControllerState(
+          connection: conn.ConnectionInfo(state: conn.ConnectionState.ready),
+          starting: true,
+        ).isReady,
+        isTrue,
+      );
+
+      await tester.pumpWidget(host());
+      await tester.pump(const Duration(milliseconds: 50));
+      await emit(
+        tester,
+        const SessionControllerState(
+          connection: conn.ConnectionInfo(state: conn.ConnectionState.ready),
+          starting: true,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+      expect(find.byType(DecodeText), findsNothing);
+    });
+
     testWidgets('does not resurrect after a healthy boot (reconnecting is banner territory)', (tester) async {
       await tester.pumpWidget(host());
       await tester.pump(const Duration(milliseconds: 50));

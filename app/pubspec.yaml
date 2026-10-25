@@ -29,7 +29,6 @@ dependencies:
 
 dev_dependencies:
   alchemist: ^0.14.0                # golden tests (dark/light themes)
-  stream_channel: ^2.1.4            # in-memory WebSocketChannel fakes
   flutter_launcher_icons: ^0.14.4   # app icon generation
   flutter_lints: ^5.0.0
   flutter_native_splash: ^2.4.8     # native splash generation
@@ -38,6 +37,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   mocktail: ^1.0.4                  # test doubles
+  stream_channel: ^2.1.4            # in-memory WebSocketChannel fakes
 
 flutter_launcher_icons:
   image_path: assets/icon/icon.png
