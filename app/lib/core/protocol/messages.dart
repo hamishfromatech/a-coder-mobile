@@ -1,5 +1,6 @@
 // lib/core/protocol/messages.dart
 library;
+
 /// AgentMessage types — the content model for everything the chat renders.
 /// Derived from packages/ai/src/types.ts `AgentMessage` (desktop reference).
 /// Plain Dart — no codegen, zero Flutter dependency (doc 05 §3.1).
@@ -26,6 +27,7 @@ abstract class ContentBlock {
   }
   Map<String, dynamic> toJson();
 }
+
 class TextContent extends ContentBlock {
   final String type; // always "text"
   final String text;
@@ -37,24 +39,32 @@ class TextContent extends ContentBlock {
   @override
   Map<String, dynamic> toJson() => {'type': type, 'text': text};
 }
+
 class ThinkingContent extends ContentBlock {
   final String type; // always "thinking"
   final String thinking;
   final Duration? duration; // client-side measured, not from engine
-  const ThinkingContent({this.type = 'thinking', required this.thinking, this.duration});
-  factory ThinkingContent.fromJson(Map<String, dynamic> json) => ThinkingContent(
+  const ThinkingContent(
+      {this.type = 'thinking', required this.thinking, this.duration});
+  factory ThinkingContent.fromJson(Map<String, dynamic> json) =>
+      ThinkingContent(
         type: json['type'] as String? ?? 'thinking',
         thinking: json['thinking'] as String? ?? '',
       );
   @override
   Map<String, dynamic> toJson() => {'type': type, 'thinking': thinking};
 }
+
 class ToolCall extends ContentBlock {
   final String type; // always "toolCall"
   final String id;
   final String name;
   final Map<String, dynamic> arguments; // parsed tool arguments
-  const ToolCall({this.type = 'toolCall', required this.id, required this.name, this.arguments = const {}});
+  const ToolCall(
+      {this.type = 'toolCall',
+      required this.id,
+      required this.name,
+      this.arguments = const {}});
   factory ToolCall.fromJson(Map<String, dynamic> json) => ToolCall(
         type: json['type'] as String? ?? 'toolCall',
         id: json['id'] as String? ?? '',
@@ -64,21 +74,26 @@ class ToolCall extends ContentBlock {
             : const {},
       );
   @override
-  Map<String, dynamic> toJson() => {'type': type, 'id': id, 'name': name, 'arguments': arguments};
+  Map<String, dynamic> toJson() =>
+      {'type': type, 'id': id, 'name': name, 'arguments': arguments};
 }
+
 class ImageContent extends ContentBlock {
   final String type; // always "image"
   final String data; // base64, no data: prefix
   final String mimeType;
-  const ImageContent({this.type = 'image', required this.data, this.mimeType = 'image/png'});
+  const ImageContent(
+      {this.type = 'image', required this.data, this.mimeType = 'image/png'});
   factory ImageContent.fromJson(Map<String, dynamic> json) => ImageContent(
         type: json['type'] as String? ?? 'image',
         data: json['data'] as String? ?? '',
         mimeType: json['mimeType'] as String? ?? 'image/png',
       );
   @override
-  Map<String, dynamic> toJson() => {'type': type, 'data': data, 'mimeType': mimeType};
+  Map<String, dynamic> toJson() =>
+      {'type': type, 'data': data, 'mimeType': mimeType};
 }
+
 // ─── AgentMessage roles ──────────────────────────────────────────
 abstract class AgentMessage {
   const AgentMessage();
@@ -99,19 +114,28 @@ abstract class AgentMessage {
   }
   Map<String, dynamic> toJson();
 }
+
 class UserMessage extends AgentMessage {
   final String role; // "user"
   final List<ContentBlock> content; // TextContent | ImageContent
   final int timestamp;
-  const UserMessage({this.role = 'user', required this.content, required this.timestamp});
+  const UserMessage(
+      {this.role = 'user', required this.content, required this.timestamp});
   factory UserMessage.fromJson(Map<String, dynamic> json) => UserMessage(
         role: json['role'] as String? ?? 'user',
-        content: (json['content'] as List<dynamic>? ?? []).map(ContentBlock.fromJson).toList(),
+        content: (json['content'] as List<dynamic>? ?? [])
+            .map(ContentBlock.fromJson)
+            .toList(),
         timestamp: (json['timestamp'] as num?)?.toInt() ?? 0,
       );
   @override
-  Map<String, dynamic> toJson() => {'role': role, 'content': content.map((c) => c.toJson()).toList(), 'timestamp': timestamp};
+  Map<String, dynamic> toJson() => {
+        'role': role,
+        'content': content.map((c) => c.toJson()).toList(),
+        'timestamp': timestamp
+      };
 }
+
 class AssistantMessage extends AgentMessage {
   final String role; // "assistant"
   final List<ContentBlock> content; // TextContent | ThinkingContent | ToolCall
@@ -135,13 +159,18 @@ class AssistantMessage extends AgentMessage {
     this.retryAfterMs,
     required this.timestamp,
   });
-  factory AssistantMessage.fromJson(Map<String, dynamic> json) => AssistantMessage(
+  factory AssistantMessage.fromJson(Map<String, dynamic> json) =>
+      AssistantMessage(
         role: json['role'] as String? ?? 'assistant',
-        content: (json['content'] as List<dynamic>? ?? []).map(ContentBlock.fromJson).toList(),
+        content: (json['content'] as List<dynamic>? ?? [])
+            .map(ContentBlock.fromJson)
+            .toList(),
         api: json['api'] as String?,
         provider: json['provider'] as String?,
         model: json['model'] as String?,
-        usage: json['usage'] is Map<String, dynamic> ? Usage.fromJson(json['usage'] as Map<String, dynamic>) : null,
+        usage: json['usage'] is Map<String, dynamic>
+            ? Usage.fromJson(json['usage'] as Map<String, dynamic>)
+            : null,
         stopReason: json['stopReason'] as String?,
         errorMessage: json['errorMessage'] as String?,
         retryAfterMs: (json['retryAfterMs'] as num?)?.toInt(),
@@ -161,6 +190,7 @@ class AssistantMessage extends AgentMessage {
         'timestamp': timestamp,
       };
 }
+
 class ToolResultMessage extends AgentMessage {
   final String role; // "toolResult"
   final String toolCallId;
@@ -178,11 +208,14 @@ class ToolResultMessage extends AgentMessage {
     required this.isError,
     required this.timestamp,
   });
-  factory ToolResultMessage.fromJson(Map<String, dynamic> json) => ToolResultMessage(
+  factory ToolResultMessage.fromJson(Map<String, dynamic> json) =>
+      ToolResultMessage(
         role: json['role'] as String? ?? 'toolResult',
         toolCallId: json['toolCallId'] as String? ?? '',
         toolName: json['toolName'] as String? ?? '',
-        content: (json['content'] as List<dynamic>? ?? []).map(ContentBlock.fromJson).toList(),
+        content: (json['content'] as List<dynamic>? ?? [])
+            .map(ContentBlock.fromJson)
+            .toList(),
         details: json['details'],
         isError: json['isError'] as bool? ?? false,
         timestamp: (json['timestamp'] as num?)?.toInt() ?? 0,
@@ -198,6 +231,7 @@ class ToolResultMessage extends AgentMessage {
         'timestamp': timestamp,
       };
 }
+
 // ─── Usage & model info ─────────────────────────────────────────
 class Usage {
   final int input;
@@ -205,7 +239,12 @@ class Usage {
   final int cacheRead;
   final int cacheWrite;
   final double? costTotal;
-  const Usage({required this.input, required this.output, required this.cacheRead, required this.cacheWrite, this.costTotal});
+  const Usage(
+      {required this.input,
+      required this.output,
+      required this.cacheRead,
+      required this.cacheWrite,
+      this.costTotal});
   factory Usage.fromJson(Map<String, dynamic> json) => Usage(
         input: (json['input'] as num?)?.toInt() ?? 0,
         output: (json['output'] as num?)?.toInt() ?? 0,
@@ -221,6 +260,7 @@ class Usage {
         if (costTotal != null) 'costTotal': costTotal,
       };
 }
+
 class Model {
   final String id;
   final String name;
@@ -229,7 +269,14 @@ class Model {
   final int? maxTokens;
   final bool? reasoning;
   final ModelCost? cost;
-  const Model({required this.id, required this.name, required this.provider, this.contextWindow, this.maxTokens, this.reasoning, this.cost});
+  const Model(
+      {required this.id,
+      required this.name,
+      required this.provider,
+      this.contextWindow,
+      this.maxTokens,
+      this.reasoning,
+      this.cost});
   factory Model.fromJson(Map<String, dynamic> json) => Model(
         id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? '',
@@ -237,7 +284,9 @@ class Model {
         contextWindow: (json['contextWindow'] as num?)?.toInt(),
         maxTokens: (json['maxTokens'] as num?)?.toInt(),
         reasoning: json['reasoning'] as bool?,
-        cost: json['cost'] is Map<String, dynamic> ? ModelCost.fromJson(json['cost'] as Map<String, dynamic>) : null,
+        cost: json['cost'] is Map<String, dynamic>
+            ? ModelCost.fromJson(json['cost'] as Map<String, dynamic>)
+            : null,
       );
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -249,12 +298,14 @@ class Model {
         if (cost != null) 'cost': cost!.toJson(),
       };
 }
+
 class ModelCost {
   final double? prompt;
   final double? completion;
   final double? cacheRead;
   final double? cacheWrite;
-  const ModelCost({this.prompt, this.completion, this.cacheRead, this.cacheWrite});
+  const ModelCost(
+      {this.prompt, this.completion, this.cacheRead, this.cacheWrite});
   factory ModelCost.fromJson(Map<String, dynamic> json) => ModelCost(
         prompt: (json['prompt'] as num?)?.toDouble(),
         completion: (json['completion'] as num?)?.toDouble(),

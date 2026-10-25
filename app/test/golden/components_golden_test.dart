@@ -39,6 +39,11 @@ Future<void> _pump(
         theme: base.copyWith(
           textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
         ),
+        // Mirrors ACoderApp: refresh the static token set for the theme mode.
+        builder: (context, child) => PiColorsScope(
+          skin: 'aurora',
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: MediaQuery(
           data: MediaQueryData(size: size, disableAnimations: true),
           child: Scaffold(body: Center(child: child)),

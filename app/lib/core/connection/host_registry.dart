@@ -1,10 +1,12 @@
 // lib/core/connection/host_registry.dart
 library;
+
 /// Paired hosts CRUD — tokens in secure storage (Keychain/Keystore),
 /// non-secret host metadata in shared_preferences (doc 04 §5.3).
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 class PairedHost {
   final String id; // machine ID from QR (SHA-256(token) first 8 hex chars)
   final String name; // friendly name ("Hamish's MacBook")
@@ -41,11 +43,16 @@ class PairedHost {
         tls: json['tls'] as bool? ?? false,
         certFingerprint: json['certFingerprint'] as String?,
         lastConnected: json['lastConnected'] is String
-            ? DateTime.tryParse(json['lastConnected'] as String) ?? DateTime.now()
+            ? DateTime.tryParse(json['lastConnected'] as String) ??
+                DateTime.now()
             : DateTime.now(),
       );
   PairedHost copyWith(
-      {String? name, String? host, int? port, bool? tls, String? certFingerprint}) {
+      {String? name,
+      String? host,
+      int? port,
+      bool? tls,
+      String? certFingerprint}) {
     return PairedHost(
       id: id,
       name: name ?? this.name,
@@ -57,6 +64,7 @@ class PairedHost {
     );
   }
 }
+
 class HostRegistry {
   static const _prefKey = 'paired_hosts'; // JSON list of host metadata
   static const _activeKey = 'active_host_id';
@@ -71,7 +79,8 @@ class HostRegistry {
     SharedPreferences? prefs,
     SharedPreferences? preferences,
     Future<SharedPreferences>? sharedPreferences,
-  })  : _secureStorage = secureStorage ?? storage ?? const FlutterSecureStorage(),
+  })  : _secureStorage =
+            secureStorage ?? storage ?? const FlutterSecureStorage(),
         _prefsOverride = prefs ?? preferences {
     if (sharedPreferences != null) _prefsFuture = sharedPreferences;
   }
@@ -120,6 +129,7 @@ class HostRegistry {
       return [];
     }
   }
+
   /// Get a specific host by ID.
   Future<PairedHost?> getHost(String id) async {
     final hosts = await getHosts();
@@ -128,31 +138,38 @@ class HostRegistry {
     }
     return null;
   }
+
   /// Save a paired host (token in secure storage, metadata in prefs).
   Future<void> saveHost(PairedHost host, String token) async {
     // Secret: bearer token goes to secure storage only (never logged).
-    await _safeSecure(() => _secureStorage.write(key: 'token_${host.id}', value: token), null);
+    await _safeSecure(
+        () => _secureStorage.write(key: 'token_${host.id}', value: token),
+        null);
     // Non-secret: upsert host metadata atomically as one JSON value.
     final prefs = await _prefs();
     final hosts = await getHosts();
     final updated = hosts.where((h) => h.id != host.id).toList()..add(host);
     try {
-      await prefs.setString(_prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
+      await prefs.setString(
+          _prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
     } catch (_) {
       // Tolerate storage failures for metadata.
     }
   }
+
   /// Get the token for a paired host (from secure storage).
   Future<String?> getToken(String hostId) async {
     return _safeSecure(() => _secureStorage.read(key: 'token_$hostId'), null);
   }
+
   /// Remove a paired host (metadata + token).
   Future<void> removeHost(String id) async {
     final prefs = await _prefs();
     final hosts = await getHosts();
     final updated = hosts.where((h) => h.id != id).toList();
     try {
-      await prefs.setString(_prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
+      await prefs.setString(
+          _prefKey, jsonEncode(updated.map((h) => h.toJson()).toList()));
     } catch (_) {}
     await prefs.remove('host_meta_$id');
     await prefs.remove('host_data_$id');
@@ -170,6 +187,7 @@ class HostRegistry {
       }
     }
   }
+
   /// Set the active host (the one to connect to).
   Future<void> setActiveHost(String id) async {
     final prefs = await _prefs();
@@ -177,6 +195,7 @@ class HostRegistry {
       await prefs.setString(_activeKey, id);
     } catch (_) {}
   }
+
   /// Get the active host ID, with fallback to the most recent host.
   Future<String?> getActiveHostId() async {
     final prefs = await _prefs();
@@ -198,6 +217,7 @@ class HostRegistry {
     } catch (_) {}
     return fallback;
   }
+
   /// Get the active host, if any.
   Future<PairedHost?> getActiveHost() async {
     final id = await getActiveHostId();

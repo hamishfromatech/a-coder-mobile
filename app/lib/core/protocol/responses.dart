@@ -1,5 +1,6 @@
 // lib/core/protocol/responses.dart
 library;
+
 /// Typed response classes for every command (doc 03 §4).
 class Response {
   final String id;
@@ -7,7 +8,8 @@ class Response {
   final bool success;
   final String? error; // present when success:false
   final Map<String, dynamic>? data; // command-specific payload
-  const Response({required this.id, required this.success, this.error, this.data});
+  const Response(
+      {required this.id, required this.success, this.error, this.data});
   factory Response.fromJson(Map<String, dynamic> json) {
     return Response(
       id: json['id'] as String? ?? '',
@@ -24,6 +26,7 @@ class Response {
         if (data != null) 'data': data,
       };
 }
+
 // ─── Command-specific response shapes ────────────────────────────
 /// Model reference as returned by get_state — an OBJECT, not a string
 /// (desktop App.tsx syncEngineState: `model?: { provider, id, name? }`).
@@ -83,7 +86,8 @@ class SessionStateResponse {
     required this.messageCount,
     required this.pendingMessageCount,
   });
-  factory SessionStateResponse.fromJson(Map<String, dynamic> json) => SessionStateResponse(
+  factory SessionStateResponse.fromJson(Map<String, dynamic> json) =>
+      SessionStateResponse(
         model: StateModelRef.fromJson(json['model']),
         thinkingLevel: json['thinkingLevel'] as String? ?? 'off',
         permissionMode: json['permissionMode'] as String? ?? 'default',
@@ -97,7 +101,8 @@ class SessionStateResponse {
         sessionId: json['sessionId'] as String? ?? '',
         sessionName: json['sessionName'] as String?,
         autoCompactionEnabled: json['autoCompactionEnabled'] as bool? ?? false,
-        compactionAutoContinue: json['compactionAutoContinue'] as bool? ?? false,
+        compactionAutoContinue:
+            json['compactionAutoContinue'] as bool? ?? false,
         messageCount: json['messageCount'] as int? ?? 0,
         pendingMessageCount: json['pendingMessageCount'] as int? ?? 0,
       );
@@ -120,6 +125,7 @@ class SessionStateResponse {
         'pendingMessageCount': pendingMessageCount,
       };
 }
+
 class SetModelResponse {
   final String id;
   final String name;
@@ -127,8 +133,15 @@ class SetModelResponse {
   final int? contextWindow;
   final int? maxTokens;
   final bool? reasoning;
-  const SetModelResponse({required this.id, required this.name, required this.provider, this.contextWindow, this.maxTokens, this.reasoning});
-  factory SetModelResponse.fromJson(Map<String, dynamic> json) => SetModelResponse(
+  const SetModelResponse(
+      {required this.id,
+      required this.name,
+      required this.provider,
+      this.contextWindow,
+      this.maxTokens,
+      this.reasoning});
+  factory SetModelResponse.fromJson(Map<String, dynamic> json) =>
+      SetModelResponse(
         id: json['id'] as String,
         name: json['name'] as String,
         provider: json['provider'] as String,
@@ -137,51 +150,71 @@ class SetModelResponse {
         reasoning: json['reasoning'] as bool?,
       );
 }
+
 class ClearQueueResponse {
   final List<String> steering;
   final List<String> followUp;
   const ClearQueueResponse({required this.steering, required this.followUp});
-  factory ClearQueueResponse.fromJson(Map<String, dynamic> json) => ClearQueueResponse(
-        steering: (json['steering'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
-        followUp: (json['followUp'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+  factory ClearQueueResponse.fromJson(Map<String, dynamic> json) =>
+      ClearQueueResponse(
+        steering: (json['steering'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        followUp: (json['followUp'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
       );
 }
+
 class QueueRemoveResponse {
   final bool removed;
   const QueueRemoveResponse({required this.removed});
-  factory QueueRemoveResponse.fromJson(Map<String, dynamic> json) => QueueRemoveResponse(removed: json['removed'] as bool);
+  factory QueueRemoveResponse.fromJson(Map<String, dynamic> json) =>
+      QueueRemoveResponse(removed: json['removed'] as bool);
 }
+
 class StopWorkflowRunResponse {
   final bool stopped;
   const StopWorkflowRunResponse({required this.stopped});
-  factory StopWorkflowRunResponse.fromJson(Map<String, dynamic> json) => StopWorkflowRunResponse(stopped: json['stopped'] as bool);
+  factory StopWorkflowRunResponse.fromJson(Map<String, dynamic> json) =>
+      StopWorkflowRunResponse(stopped: json['stopped'] as bool);
 }
+
 class NewSessionResponse {
   final bool? cancelled;
   const NewSessionResponse({this.cancelled});
-  factory NewSessionResponse.fromJson(Map<String, dynamic> json) => NewSessionResponse(cancelled: json['cancelled'] as bool?);
+  factory NewSessionResponse.fromJson(Map<String, dynamic> json) =>
+      NewSessionResponse(cancelled: json['cancelled'] as bool?);
 }
+
 class SwitchSessionResponse {
   final bool? cancelled;
   final bool? reattached;
-  final Map<String, dynamic>? snapshot; // {running, needsInput, pendingMessageCount}
+  final Map<String, dynamic>?
+      snapshot; // {running, needsInput, pendingMessageCount}
   const SwitchSessionResponse({this.cancelled, this.reattached, this.snapshot});
-  factory SwitchSessionResponse.fromJson(Map<String, dynamic> json) => SwitchSessionResponse(
+  factory SwitchSessionResponse.fromJson(Map<String, dynamic> json) =>
+      SwitchSessionResponse(
         cancelled: json['cancelled'] as bool?,
         reattached: json['reattached'] as bool?,
         snapshot: json['snapshot'] as Map<String, dynamic>?,
       );
 }
+
 class ListSessionsResponse {
   final List<RpcSessionInfo> sessions;
   const ListSessionsResponse({required this.sessions});
-  factory ListSessionsResponse.fromJson(Map<String, dynamic> json) => ListSessionsResponse(
+  factory ListSessionsResponse.fromJson(Map<String, dynamic> json) =>
+      ListSessionsResponse(
         sessions: (json['sessions'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(RpcSessionInfo.fromJson)
             .toList(),
       );
 }
+
 class RpcSessionInfo {
   final String path;
   final String id;
@@ -192,7 +225,16 @@ class RpcSessionInfo {
   final String modified; // ISO date string
   final int messageCount;
   final String? firstMessage;
-  const RpcSessionInfo({required this.path, required this.id, required this.cwd, this.name, this.parentSessionPath, required this.created, required this.modified, required this.messageCount, this.firstMessage});
+  const RpcSessionInfo(
+      {required this.path,
+      required this.id,
+      required this.cwd,
+      this.name,
+      this.parentSessionPath,
+      required this.created,
+      required this.modified,
+      required this.messageCount,
+      this.firstMessage});
   factory RpcSessionInfo.fromJson(Map<String, dynamic> json) => RpcSessionInfo(
         path: json['path'] as String,
         id: json['id'] as String,
@@ -205,13 +247,17 @@ class RpcSessionInfo {
         firstMessage: json['firstMessage'] as String?,
       );
 }
+
 class GetMessagesResponse {
   final List<Object> messages; // AgentMessage[] (parsed from JSON)
   const GetMessagesResponse({required this.messages});
-  factory GetMessagesResponse.fromJson(Map<String, dynamic> json) => GetMessagesResponse(
-        messages: (json['messages'] as List<dynamic>? ?? []).cast<Object>().toList(),
+  factory GetMessagesResponse.fromJson(Map<String, dynamic> json) =>
+      GetMessagesResponse(
+        messages:
+            (json['messages'] as List<dynamic>? ?? []).cast<Object>().toList(),
       );
 }
+
 /// One stored session entry (`get_transcript_page`). Only `type == "message"`
 /// entries carry an AgentMessage; other types (compaction, custom) are
 /// bookkeeping the mobile transcript does not render.
@@ -222,8 +268,15 @@ class TranscriptEntry {
   final String timestamp;
   final Object? message;
   final String? summary;
-  const TranscriptEntry({required this.id, this.parentId, required this.type, required this.timestamp, this.message, this.summary});
-  factory TranscriptEntry.fromJson(Map<String, dynamic> json) => TranscriptEntry(
+  const TranscriptEntry(
+      {required this.id,
+      this.parentId,
+      required this.type,
+      required this.timestamp,
+      this.message,
+      this.summary});
+  factory TranscriptEntry.fromJson(Map<String, dynamic> json) =>
+      TranscriptEntry(
         id: json['id'] as String? ?? '',
         parentId: json['parentId'] as String?,
         type: json['type'] as String? ?? '',
@@ -239,8 +292,14 @@ class TranscriptPageResponse {
   final int start;
   final int end;
   final bool hasMore;
-  const TranscriptPageResponse({required this.entries, required this.total, required this.start, required this.end, required this.hasMore});
-  factory TranscriptPageResponse.fromJson(Map<String, dynamic> json) => TranscriptPageResponse(
+  const TranscriptPageResponse(
+      {required this.entries,
+      required this.total,
+      required this.start,
+      required this.end,
+      required this.hasMore});
+  factory TranscriptPageResponse.fromJson(Map<String, dynamic> json) =>
+      TranscriptPageResponse(
         entries: (json['entries'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(TranscriptEntry.fromJson)
@@ -257,8 +316,13 @@ class AttachmentResponse {
   final String mimeType;
   final int bytes;
   final String data; // base64
-  const AttachmentResponse({required this.id, required this.mimeType, required this.bytes, required this.data});
-  factory AttachmentResponse.fromJson(Map<String, dynamic> json) => AttachmentResponse(
+  const AttachmentResponse(
+      {required this.id,
+      required this.mimeType,
+      required this.bytes,
+      required this.data});
+  factory AttachmentResponse.fromJson(Map<String, dynamic> json) =>
+      AttachmentResponse(
         id: json['id'] as String? ?? '',
         mimeType: json['mimeType'] as String? ?? 'application/octet-stream',
         bytes: (json['bytes'] as num?)?.toInt() ?? 0,
@@ -310,13 +374,15 @@ class CronJob {
         isolated: json['isolated'] as bool? ?? true,
         revision: (json['revision'] as num?)?.toInt() ?? 1,
       );
+
   /// Human schedule label ("daily 09:00", "every 30m", …).
   String get scheduleLabel {
     final kind = schedule['kind'] as String? ?? '';
     return switch (kind) {
       'every' => 'every ${schedule['minutes'] ?? '?'}m',
       'daily' => 'daily ${schedule['time'] ?? ''}',
-      'weekly' => 'weekly ${(schedule['days'] as List<dynamic>? ?? const []).join(',')} @ ${schedule['time'] ?? ''}',
+      'weekly' =>
+        'weekly ${(schedule['days'] as List<dynamic>? ?? const []).join(',')} @ ${schedule['time'] ?? ''}',
       'once' => 'once',
       'event' => 'on ${schedule['trigger'] ?? 'event'}',
       _ => kind.isEmpty ? 'manual' : kind,
@@ -411,7 +477,9 @@ class HuddleSummary {
   factory HuddleSummary.fromJson(Map<String, dynamic> json) => HuddleSummary(
         id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? '',
-        members: (json['members'] as List<dynamic>? ?? const []).whereType<String>().toList(),
+        members: (json['members'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(),
         preview: json['preview'] as String?,
         lastActive: (json['lastActive'] as num?)?.toInt(),
         pinned: json['pinned'] as bool? ?? false,
@@ -424,12 +492,20 @@ class OfficeErrand {
   final String name;
   final String prompt;
   final bool continuity;
+  final Map<String, dynamic> schedule;
+  final String delivery; // dm | huddle
+  final String? huddleId;
+  final bool enabled;
   const OfficeErrand({
     required this.id,
     required this.coworkerId,
     required this.name,
     required this.prompt,
     this.continuity = true,
+    this.schedule = const {},
+    this.delivery = 'dm',
+    this.huddleId,
+    this.enabled = true,
   });
   factory OfficeErrand.fromJson(Map<String, dynamic> json) => OfficeErrand(
         id: json['id'] as String? ?? '',
@@ -437,7 +513,32 @@ class OfficeErrand {
         name: json['name'] as String? ?? '',
         prompt: json['prompt'] as String? ?? '',
         continuity: json['continuity'] as bool? ?? true,
+        schedule: json['schedule'] is Map<String, dynamic>
+            ? json['schedule'] as Map<String, dynamic>
+            : <String, dynamic>{},
+        delivery: json['delivery'] as String? ?? 'dm',
+        huddleId: json['huddleId'] as String?,
+        enabled: json['enabled'] as bool? ?? true,
       );
+
+  String get scheduleLabel {
+    final kind = schedule['kind'] as String?;
+    switch (kind) {
+      case 'every':
+        return 'every ${(schedule['minutes'] as num?)?.toInt() ?? 0}m';
+      case 'daily':
+        return 'daily ${schedule['time'] ?? ''}';
+      case 'once':
+        final at = (schedule['at'] as num?)?.toInt();
+        if (at == null) return 'once';
+        final when = DateTime.fromMillisecondsSinceEpoch(at);
+        String two(int n) => n.toString().padLeft(2, '0');
+        return 'once ${when.year}-${two(when.month)}-${two(when.day)} '
+            '${two(when.hour)}:${two(when.minute)}';
+      default:
+        return kind ?? '';
+    }
+  }
 }
 
 class OfficeSnapshot {
@@ -460,7 +561,7 @@ class OfficeSnapshot {
       rawStatuses.forEach((key, value) {
         statuses['$key'] = value is Map
             ? (value['status'] ?? value['state'] ?? value['kind'] ?? '')
-                    .toString()
+                .toString()
             : '$value';
       });
     }
@@ -484,7 +585,10 @@ class OfficeSnapshot {
     );
   }
   bool get isEmpty =>
-      coworkers.isEmpty && huddles.isEmpty && errands.isEmpty && pendingPrompts.isEmpty;
+      coworkers.isEmpty &&
+      huddles.isEmpty &&
+      errands.isEmpty &&
+      pendingPrompts.isEmpty;
 }
 
 class OfficeHuddlePayload {
@@ -507,6 +611,7 @@ class OfficeHuddlePayload {
             ) ??
             const {},
       );
+
   /// Messages as stored by the engine (`data.messages`), raw shape.
   List<Map<String, dynamic>> get messages =>
       (data['messages'] as List<dynamic>? ?? const [])
@@ -519,7 +624,11 @@ class BashResult {
   final String stderr;
   final int exitCode;
   final bool? cancelled;
-  const BashResult({required this.stdout, required this.stderr, required this.exitCode, this.cancelled});
+  const BashResult(
+      {required this.stdout,
+      required this.stderr,
+      required this.exitCode,
+      this.cancelled});
   factory BashResult.fromJson(Map<String, dynamic> json) => BashResult(
         stdout: json['stdout'] as String? ?? '',
         stderr: json['stderr'] as String? ?? '',
@@ -527,35 +636,47 @@ class BashResult {
         cancelled: json['cancelled'] as bool?,
       );
 }
+
 class CompactionResult {
   final Object? result;
   final bool? aborted;
   final String? errorMessage;
   const CompactionResult({this.result, this.aborted, this.errorMessage});
-  factory CompactionResult.fromJson(Map<String, dynamic> json) => CompactionResult(
+  factory CompactionResult.fromJson(Map<String, dynamic> json) =>
+      CompactionResult(
         result: json['result'],
         aborted: json['aborted'] as bool?,
         errorMessage: json['errorMessage'] as String?,
       );
 }
+
 class GetAvailableModelsResponse {
   final List<Map<String, dynamic>> models; // Model[] (parsed from JSON)
   const GetAvailableModelsResponse({required this.models});
-  factory GetAvailableModelsResponse.fromJson(Map<String, dynamic> json) => GetAvailableModelsResponse(
-        models: (json['models'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList(),
+  factory GetAvailableModelsResponse.fromJson(Map<String, dynamic> json) =>
+      GetAvailableModelsResponse(
+        models: (json['models'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList(),
       );
 }
+
 class SetThinkingLevelResponse {
   final String level; // "off"|"minimal"|"low"|"medium"|"high"
   const SetThinkingLevelResponse({required this.level});
-  factory SetThinkingLevelResponse.fromJson(Map<String, dynamic> json) => SetThinkingLevelResponse(
+  factory SetThinkingLevelResponse.fromJson(Map<String, dynamic> json) =>
+      SetThinkingLevelResponse(
         level: json['level'] as String,
       );
 }
+
 class AddSessionAllowRulesResponse {
   final List<String> rules; // e.g. ["bash(npm test)"]
   const AddSessionAllowRulesResponse({required this.rules});
-  factory AddSessionAllowRulesResponse.fromJson(Map<String, dynamic> json) => AddSessionAllowRulesResponse(
-        rules: (json['rules'] as List<dynamic>? ?? []).whereType<String>().toList(),
+  factory AddSessionAllowRulesResponse.fromJson(Map<String, dynamic> json) =>
+      AddSessionAllowRulesResponse(
+        rules: (json['rules'] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .toList(),
       );
 }

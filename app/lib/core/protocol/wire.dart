@@ -1,9 +1,11 @@
 // lib/core/protocol/wire.dart
 library;
+
 /// NDJSON wire codec — LF-only framing, U+2028/2029 safe, multi-MB line support.
 /// Mirrors the engine's jsonl.ts rules exactly (doc 03 §1).
 /// Pure Dart — no Flutter dependency.
 import 'dart:convert';
+
 /// Split raw data into complete JSON lines on LF boundaries only.
 /// Handles \r\n by stripping trailing \r. Skips empty lines.
 /// U+2028/U+2029 inside strings are legal JSON and must NOT split records.
@@ -12,13 +14,15 @@ List<String> splitLines(String data) {
   final lines = <String>[];
   for (final part in parts) {
     // Strip trailing \r before \n (engine does this too)
-    final cleaned = part.endsWith('\r') ? part.substring(0, part.length - 1) : part;
+    final cleaned =
+        part.endsWith('\r') ? part.substring(0, part.length - 1) : part;
     if (cleaned.isNotEmpty) {
       lines.add(cleaned);
     }
   }
   return lines;
 }
+
 /// Parse a single JSON line. Returns null for empty or malformed input.
 Object? parseLine(String line) {
   final trimmed = line.trim();
@@ -30,8 +34,10 @@ Object? parseLine(String line) {
     return null;
   }
 }
+
 /// Serialize a value to one JSON line terminated with LF.
 String serializeLine(Object? value) => '${jsonEncode(value)}\n';
+
 /// Line-based stream accumulator.
 /// Buffers partial data and emits complete lines via [onLine].
 /// Handles multi-MB lines without dropping the connection, and never
@@ -41,6 +47,7 @@ class LineAccumulator {
   String _buffer = '';
   final void Function(String line) onLine;
   LineAccumulator({required this.onLine});
+
   /// Feed raw data into the accumulator. Complete lines go to [onLine].
   void feed(String data) {
     // Accumulate without quadratic string copies.
@@ -65,6 +72,7 @@ class LineAccumulator {
       _buffer = '';
     }
   }
+
   /// Call when the stream ends — emits any remaining buffer as a final line.
   void flush() {
     var tail = _buffer;

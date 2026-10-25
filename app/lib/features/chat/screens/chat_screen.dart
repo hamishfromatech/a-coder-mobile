@@ -9,7 +9,7 @@
 library;
 
 import 'dart:async' show Timer;
-import 'dart:convert' show base64Decode, base64Encode, JsonEncoder;
+import 'dart:convert' show base64Decode, JsonEncoder;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -17,8 +17,8 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,6 +32,9 @@ import '../../../design/theme.dart';
 import '../../../features/tools/tool_card.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../../shell/widgets/command_palette.dart';
+import '../../shell/widgets/session_switcher.dart';
+import '../providers/attachments.dart';
 import '../providers/chat_providers.dart';
 import '../providers/markdown_cache.dart';
 import '../providers/event_router.dart' as er;
@@ -55,7 +58,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   int _lastMessageCount = 0;
   String _sendMode =
       'prompt'; // prompt | followUp (steer is implicit while streaming)
-  final List<XFile> _attachedImages = [];
+  final List<ComposerAttachment> _attachments = [];
   String? _draftSession; // sessionFile this draft belongs to
   Timer? _draftSaveTimer;
 
@@ -274,20 +277,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   PreferredSizeWidget _buildAppBar(
       String sessionName, String cwd, er.ChatState chat) {
     return AppBar(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(sessionName, maxLines: 1, overflow: TextOverflow.ellipsis),
-          if (cwd.isNotEmpty)
-            Text(cwd,
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'JetBrains Mono',
-                    color: PiColors.textMuted)),
-        ],
+      title: InkWell(
+        onTap: () => showSessionSwitcher(
+          context,
+          ref,
+          hostId: widget.hostId,
+          currentPath: widget.sessionPath,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(sessionName,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.expand_more, size: 16, color: PiColors.textMuted),
+              ],
+            ),
+            if (cwd.isNotEmpty)
+              Text(cwd,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: PiFonts.mono,
+                      color: PiColors.textMuted)),
+          ],
+        ),
       ),
       actions: [
+        IconButton(
+          icon: const Icon(Icons.search, size: 20),
+          tooltip: 'Command palette',
+          onPressed: () => showPiCommandPalette(
+            context,
+            ref,
+            hostId: widget.hostId,
+          ),
+        ),
         IconButton(
           icon: const Icon(Icons.add_comment_outlined, size: 20),
           tooltip: 'New session',
@@ -347,12 +377,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           final changed = res['filesChanged'] as List<dynamic>? ?? const [];
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('Rewound ${changed.length} file(s) to the previous turn')));
+                content: Text(
+                    'Rewound ${changed.length} file(s) to the previous turn')));
           }
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('Rewind failed: ${e is CommandError ? e.message : e}')));
+                content: Text(
+                    'Rewind failed: ${e is CommandError ? e.message : e}')));
           }
         }
       case 'export':
@@ -410,12 +442,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         );
       }
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.smart_toy_outlined, size: 40, color: PiColors.textFaint),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text('Send a task to get started',
                 style: TextStyle(color: PiColors.textMuted)),
           ],
@@ -564,9 +596,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               const SizedBox(width: 6),
               Text(
                 '${stats.percent!.round()}% ctx',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: PiFonts.mono,
                     color: PiColors.textMuted),
               ),
             ],
@@ -574,9 +606,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               const SizedBox(width: 6),
               Text(
                 _formatUsage(chat.lastUsage!),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: PiFonts.mono,
                     color: PiColors.textMuted),
               ),
             ],
@@ -644,15 +676,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('/${cmd['name']}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 13,
-                                    fontFamily: 'JetBrains Mono',
+                                    fontFamily: PiFonts.mono,
                                     color: PiColors.accent)),
                             if (cmd['description'] is String)
                               Text(cmd['description'] as String,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 11, color: PiColors.textMuted)),
                           ],
                         ),
@@ -672,11 +704,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 border:
                     Border.all(color: PiColors.error.withValues(alpha: 0.3)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.cloud_off_rounded,
                       size: 16, color: PiColors.error),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Offline — will send when reconnected',
@@ -702,15 +734,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Attachment chips — compact "Image N ×" (desktop style)
-                if (_attachedImages.isNotEmpty)
+                // Attachment chips — name + size, desktop style.
+                if (_attachments.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
                     child: Wrap(
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        for (var i = 0; i < _attachedImages.length; i++)
+                        for (var i = 0; i < _attachments.length; i++)
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
@@ -722,18 +754,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.image_outlined,
-                                    size: 13, color: PiColors.textMuted),
+                                Icon(
+                                  _attachments[i].kind == AttachmentKind.image
+                                      ? Icons.image_outlined
+                                      : Icons.description_outlined,
+                                  size: 13,
+                                  color: PiColors.textMuted,
+                                ),
                                 const SizedBox(width: 6),
-                                Text('Image ${i + 1}',
-                                    style: const TextStyle(
+                                ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 150),
+                                  child: Text(
+                                    _attachments[i].name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
                                         fontSize: 11,
-                                        color: PiColors.textSecondary)),
+                                        color: PiColors.textSecondary),
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  formatAttachmentBytes(_attachments[i].bytes),
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      fontFamily: PiFonts.mono,
+                                      color: PiColors.textFaint),
+                                ),
                                 const SizedBox(width: 4),
                                 GestureDetector(
-                                  onTap: () => setState(
-                                      () => _attachedImages.removeAt(i)),
-                                  child: const Icon(Icons.close,
+                                  onTap: () =>
+                                      setState(() => _attachments.removeAt(i)),
+                                  child: Icon(Icons.close,
                                       size: 12, color: PiColors.textMuted),
                                 ),
                               ],
@@ -749,14 +802,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   maxLines: null,
                   minLines: 1,
                   textCapitalization: TextCapitalization.sentences,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13, height: 1.45, color: PiColors.text),
                   decoration: InputDecoration(
                     hintText: isStreaming
                         ? 'Steer the agent…'
                         : 'Ask A-Coder anything — type / for commands',
-                    hintStyle: const TextStyle(
-                        fontSize: 13, color: PiColors.textFaint),
+                    hintStyle:
+                        TextStyle(fontSize: 13, color: PiColors.textFaint),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
@@ -768,14 +821,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.add_photo_alternate_outlined,
-                          size: 20),
-                      onPressed: _pickImages,
+                      icon: const Icon(Icons.attach_file, size: 19),
+                      onPressed: _pickAttachments,
                       color: PiColors.textMuted,
                       padding: EdgeInsets.zero,
                       constraints:
                           const BoxConstraints(minWidth: 36, minHeight: 36),
-                      tooltip: 'Attach images',
+                      tooltip: 'Attach files or images',
                     ),
 
                     if (!isStreaming) ...[
@@ -794,7 +846,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               selected: _sendMode == 'prompt',
                               onTap: () {
                                 setState(() => _sendMode = 'prompt');
-                                SemanticsService.sendAnnouncement(View.of(context), 'Send mode selected', TextDirection.ltr);
+                                SemanticsService.sendAnnouncement(
+                                    View.of(context),
+                                    'Send mode selected',
+                                    TextDirection.ltr);
                               },
                             ),
                             _ModeSegment(
@@ -808,10 +863,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ),
                     ] else ...[
                       const SizedBox(width: 2),
-                      const Text('STEERING',
+                      Text('STEERING',
                           style: TextStyle(
                               fontSize: 10,
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: PiFonts.mono,
                               letterSpacing: 0.5,
                               color: PiColors.accent)),
                     ],
@@ -881,24 +936,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final text = _composerController.text.trim();
     if (text.isEmpty) return;
     _composerController.clear();
-    final images = List<XFile>.from(_attachedImages);
-    _attachedImages.clear();
+    final attachments = List<ComposerAttachment>.from(_attachments);
+    _attachments.clear();
     if (mounted) setState(() {});
+    final payload = buildAttachmentPrompt(text, attachments);
     try {
       await ref
           .read(sessionControllerProvider(widget.hostId).notifier)
           .sendPrompt(
-        text,
-        mode: isStreaming ? 'steer' : _sendMode,
-        images: [
-          for (final img in images)
-            {
-              'type': 'image',
-              'data': base64Encode(await img.readAsBytes()),
-              'mimeType': img.mimeType ?? _mimeTypeFromPath(img.path),
-            },
-        ],
-      );
+            payload.text,
+            mode: isStreaming ? 'steer' : _sendMode,
+            images: payload.images,
+          );
       if (_hapticsOn) HapticFeedback.mediumImpact();
     } catch (e) {
       if (mounted) {
@@ -909,23 +958,54 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  Future<void> _pickImages() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickMultiImage(imageQuality: 85);
-    if (picked.isNotEmpty) setState(() => _attachedImages.addAll(picked));
+  /// One attach affordance for images and text files (desktop composer has a
+  /// single drop target; mobile has a single picker).
+  Future<void> _pickAttachments() async {
+    if (_attachments.length >= maxComposerAttachments) {
+      _toast('Up to $maxComposerAttachments attachments per message.');
+      return;
+    }
+    try {
+      final picked = await openFiles();
+      if (picked.isEmpty) return;
+      final next = <ComposerAttachment>[];
+      for (final file in picked) {
+        if (_attachments.length + next.length >= maxComposerAttachments) {
+          break;
+        }
+        try {
+          next.add(await attachmentFromXFile(file));
+        } on AttachmentException catch (e) {
+          _toast(e.message);
+        }
+      }
+      if (next.isNotEmpty && mounted) {
+        setState(() => _attachments.addAll(next));
+      }
+    } catch (e) {
+      _toast('Could not read that file.');
+    }
   }
 
-  String _mimeTypeFromPath(String path) {
-    final ext = path.split('.').last.toLowerCase();
-    return switch (ext) {
-      'png' => 'image/png',
-      'gif' => 'image/gif',
-      'webp' => 'image/webp',
-      _ => 'image/jpeg',
-    };
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _subagentAction(
+      BuildContext sheetContext, Future<void> Function() action) async {
+    try {
+      await action();
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+    } catch (_) {
+      _toast('Could not update the sub-agent.');
+    }
   }
 
   void _showSubagentsSheet(List<proto.SubAgentRecord> agents) {
+    final controller =
+        ref.read(sessionControllerProvider(widget.hostId).notifier);
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -939,8 +1019,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             if (agents.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
+              Padding(
+                padding: const EdgeInsets.all(16),
                 child: Text('No subagents',
                     style: TextStyle(fontSize: 13, color: PiColors.textMuted)),
               ),
@@ -964,11 +1044,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13)),
-                trailing: Text(a.status,
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'JetBrains Mono',
+                subtitle: Text(a.status,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: PiFonts.mono,
                         color: PiColors.textMuted)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (a.status == 'running')
+                      IconButton(
+                        tooltip: 'Stop sub-agent',
+                        icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                        color: PiColors.error,
+                        onPressed: () => _subagentAction(
+                            ctx, () => controller.killSubagent(a.id)),
+                      )
+                    else ...[
+                      IconButton(
+                        tooltip: 'Rerun sub-agent',
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        color: PiColors.accent,
+                        onPressed: () => _subagentAction(
+                            ctx, () => controller.rerunSubagent(a.id)),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove from list',
+                        icon: const Icon(Icons.close, size: 16),
+                        color: PiColors.textMuted,
+                        onPressed: () => _subagentAction(
+                            ctx, () => controller.removeSubagent(a.id)),
+                      ),
+                    ],
+                  ],
+                ),
               ),
           ],
         ),
@@ -1006,7 +1115,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ListTile(
                 title: Text(level),
                 trailing: level == current
-                    ? const Icon(Icons.check_rounded, color: PiColors.accent)
+                    ? Icon(Icons.check_rounded, color: PiColors.accent)
                     : null,
                 onTap: () {
                   controller.setThinkingLevel(level);
@@ -1043,17 +1152,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             for (final mode in const [
-              ('default', 'Ask first', 'Confirm every tool call before it runs'),
+              (
+                'default',
+                'Ask first',
+                'Confirm every tool call before it runs'
+              ),
               ('plan', 'Plan', 'Explore and read; no edits or commands'),
               ('auto', 'Act freely', 'Run tools without asking'),
             ])
               ListTile(
                 title: Text(mode.$2),
                 subtitle: Text(mode.$3,
-                    style: const TextStyle(
-                        fontSize: 11, color: PiColors.textMuted)),
+                    style: TextStyle(fontSize: 11, color: PiColors.textMuted)),
                 trailing: mode.$1 == current
-                    ? const Icon(Icons.check_rounded, color: PiColors.accent)
+                    ? Icon(Icons.check_rounded, color: PiColors.accent)
                     : null,
                 onTap: () {
                   controller.setPermissionMode(mode.$1);
@@ -1120,6 +1232,7 @@ class _MessageView extends StatelessWidget {
 
 class UserMessageBubble extends StatelessWidget {
   final String text;
+
   /// Inline image parts (`{type: image, data: base64, mimeType}`) that were
   /// sent with the message — history must show them, not just the text.
   final List<Map<String, dynamic>> images;
@@ -1136,7 +1249,9 @@ class UserMessageBubble extends StatelessWidget {
       child: Align(
         alignment: Alignment.centerRight,
         child: Semantics(
-          label: images.isEmpty ? text : '$text. ${images.length} image attachment(s)',
+          label: images.isEmpty
+              ? text
+              : '$text. ${images.length} image attachment(s)',
           child: GlassSurface(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             radius: PiRadius.xl,
@@ -1152,14 +1267,15 @@ class UserMessageBubble extends StatelessWidget {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: [for (final image in images) _ImageThumb(image: image)],
+                    children: [
+                      for (final image in images) _ImageThumb(image: image)
+                    ],
                   ),
                 if (text.isNotEmpty)
                   Padding(
                     padding: EdgeInsets.only(top: images.isNotEmpty ? 8 : 0),
                     child: SelectableText(text,
-                        style: PiType.bodyStyle.copyWith(
-                            color: PiColors.text)),
+                        style: PiType.bodyStyle.copyWith(color: PiColors.text)),
                   ),
               ],
             ),
@@ -1185,7 +1301,7 @@ class _ImageThumb extends StatelessWidget {
     try {
       bytes = base64Decode(raw);
     } catch (_) {
-      return const Icon(Icons.broken_image_outlined,
+      return Icon(Icons.broken_image_outlined,
           size: 20, color: PiColors.textMuted);
     }
     return GestureDetector(
@@ -1209,10 +1325,8 @@ class _ImageThumb extends StatelessWidget {
           fit: BoxFit.cover,
           cacheWidth: 176,
           gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => const Icon(
-              Icons.broken_image_outlined,
-              size: 24,
-              color: PiColors.textMuted),
+          errorBuilder: (_, __, ___) => Icon(Icons.broken_image_outlined,
+              size: 24, color: PiColors.textMuted),
         ),
       ),
     );
@@ -1224,8 +1338,11 @@ class AssistantMessageView extends ConsumerWidget {
   final List<Map<String, dynamic>> parts;
   final Map<String, er.ToolCardState> toolCards;
 
-  const AssistantMessageView({super.key,
-      required this.message, required this.parts, required this.toolCards});
+  const AssistantMessageView(
+      {super.key,
+      required this.message,
+      required this.parts,
+      required this.toolCards});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1245,59 +1362,60 @@ class AssistantMessageView extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-          if (errorMessage != null && errorMessage.isNotEmpty) ...[
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: PiColors.error.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(8),
-                border:
-                    Border.all(color: PiColors.error.withValues(alpha: 0.4)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(errorMessage,
-                      style:
-                          const TextStyle(fontSize: 13, color: PiColors.error)),
-                  if (isRetrying)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
-                      child: Text('Retrying… (auto-retry active)',
-                          style: TextStyle(
-                              fontSize: 11, color: PiColors.textMuted)),
+                if (errorMessage != null && errorMessage.isNotEmpty) ...[
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: PiColors.error.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: PiColors.error.withValues(alpha: 0.4)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(errorMessage,
+                            style:
+                                TextStyle(fontSize: 13, color: PiColors.error)),
+                        if (isRetrying)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text('Retrying… (auto-retry active)',
+                                style: TextStyle(
+                                    fontSize: 11, color: PiColors.textMuted)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                // Interleave content parts in order: thinking / text / toolCall.
+                for (final part in parts) ...[
+                  if (part['type'] == 'thinking' && part['thinking'] is String)
+                    ThinkingBlock(thinking: part['thinking'] as String),
+                  if (part['type'] == 'text' && part['text'] is String)
+                    _MarkdownContent(
+                        messageId: message.id, data: part['text'] as String),
+                  if (part['type'] == 'toolCall')
+                    _InlineToolCall(
+                      callId: part['id'] as String? ?? '',
+                      toolName: part['name'] as String? ?? 'tool',
+                      args: part['arguments'] is Map<String, dynamic>
+                          ? part['arguments'] as Map<String, dynamic>
+                          : const {},
+                      card: toolCards[part['id']],
                     ),
                 ],
-              ),
-            ),
-          ],
-          // Interleave content parts in order: thinking / text / toolCall.
-          for (final part in parts) ...[
-            if (part['type'] == 'thinking' && part['thinking'] is String)
-              ThinkingBlock(thinking: part['thinking'] as String),
-            if (part['type'] == 'text' && part['text'] is String)
-              _MarkdownContent(
-                  messageId: message.id, data: part['text'] as String),
-            if (part['type'] == 'toolCall')
-              _InlineToolCall(
-                callId: part['id'] as String? ?? '',
-                toolName: part['name'] as String? ?? 'tool',
-                args: part['arguments'] is Map<String, dynamic>
-                    ? part['arguments'] as Map<String, dynamic>
-                    : const {},
-                card: toolCards[part['id']],
-              ),
-          ],
 
-          // Typing indicator while this message streams.
-          if (message.isStreaming)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child:
-                  Row(children: [_TypingDot(delay: Duration(milliseconds: 0))]),
-            ),
+                // Typing indicator while this message streams.
+                if (message.isStreaming)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Row(children: [
+                      _TypingDot(delay: Duration(milliseconds: 0))
+                    ]),
+                  ),
               ],
             ),
           ),
@@ -1393,9 +1511,9 @@ class _ToolResultView extends StatelessWidget {
               text.isEmpty ? 'Tool result' : text,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12,
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: PiFonts.mono,
                   color: PiColors.textSecondary),
             ),
           ),
@@ -1448,7 +1566,7 @@ class _MarkdownContent extends ConsumerWidget {
         em: const TextStyle(fontStyle: FontStyle.italic),
         code: TextStyle(
             fontSize: fs(12.5),
-            fontFamily: 'JetBrains Mono',
+            fontFamily: PiFonts.mono,
             color: PiColors.accent,
             backgroundColor: PiColors.surfaceRaised),
         codeblockDecoration: BoxDecoration(
@@ -1492,7 +1610,7 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
           code,
           style: TextStyle(
               fontSize: fontSize,
-              fontFamily: 'JetBrains Mono',
+              fontFamily: PiFonts.mono,
               height: 1.45,
               color: PiColors.text),
         ),
@@ -1531,10 +1649,9 @@ class ThinkingBlockState extends State<ThinkingBlock> {
             Row(
               children: [
                 Text(_expanded ? '▾' : '▸',
-                    style: const TextStyle(
-                        fontSize: 11, color: PiColors.textMuted)),
+                    style: TextStyle(fontSize: 11, color: PiColors.textMuted)),
                 const SizedBox(width: 4),
-                const Text('Thinking',
+                Text('Thinking',
                     style: TextStyle(
                         fontSize: 11,
                         fontStyle: FontStyle.italic,
@@ -1544,8 +1661,10 @@ class ThinkingBlockState extends State<ThinkingBlock> {
             if (_expanded) ...[
               const SizedBox(height: 4),
               Text(widget.thinking,
-                  style: const TextStyle(
-                      fontSize: 12, height: 1.5, color: PiColors.textSecondary)),
+                  style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: PiColors.textSecondary)),
             ],
           ],
         ),
@@ -1589,8 +1708,8 @@ class _TypingDotState extends State<_TypingDot>
           width: 6,
           height: 6,
           margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: const BoxDecoration(
-              color: PiColors.accent, shape: BoxShape.circle));
+          decoration:
+              BoxDecoration(color: PiColors.accent, shape: BoxShape.circle));
     }
     return AnimatedBuilder(
       animation: _animation,
@@ -1600,8 +1719,8 @@ class _TypingDotState extends State<_TypingDot>
             width: 6,
             height: 6,
             margin: const EdgeInsets.symmetric(horizontal: 2),
-            decoration: const BoxDecoration(
-                color: PiColors.accent, shape: BoxShape.circle)),
+            decoration:
+                BoxDecoration(color: PiColors.accent, shape: BoxShape.circle)),
       ),
     );
   }
@@ -1619,8 +1738,7 @@ class UiRequestCard extends ConsumerStatefulWidget {
   final er.UiRequest request;
   final SessionController? controller;
 
-  const UiRequestCard(
-      {super.key, required this.request, this.controller});
+  const UiRequestCard({super.key, required this.request, this.controller});
 
   @override
   ConsumerState<UiRequestCard> createState() => UiRequestCardState();
@@ -1722,7 +1840,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                 child: Text(header,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: PiColors.textSecondary)),
@@ -1732,16 +1850,15 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                   padding: const EdgeInsets.only(right: 8),
                   child: Text(
                     '${_remaining ?? widget.request.timeout}s',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11,
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: PiFonts.mono,
                         color: PiColors.textMuted),
                   ),
                 ),
               // Dismiss = engine default/timeout resolution.
               IconButton(
-                icon: const Icon(Icons.close,
-                    size: 16, color: PiColors.textMuted),
+                icon: Icon(Icons.close, size: 16, color: PiColors.textMuted),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                 onPressed: () {
@@ -1755,9 +1872,9 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(request.toolName!,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13,
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: PiFonts.mono,
                       fontWeight: FontWeight.w500)),
             ),
           ],
@@ -1767,9 +1884,9 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
               child: Text(request.message!,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: PiFonts.mono,
                       color: PiColors.textMuted)),
             ),
           ..._buildMethodBody(request),
@@ -1854,13 +1971,13 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                     border: Border.all(
                         color: PiColors.warning.withValues(alpha: 0.4)),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.swipe_right_rounded,
                             size: 16, color: PiColors.warning),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Flexible(
                           child: Text(
                             'Swipe to allow',
@@ -1886,8 +2003,8 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                         _beginRespond();
                         widget.controller?.respondApproval(request, 'allow');
                       },
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: PiColors.warning),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: PiColors.warning),
                 child: const Text('Allow'),
               ),
             const SizedBox(height: 8),
@@ -1900,8 +2017,7 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                         : () {
                             _haptic();
                             _beginRespond();
-                            widget.controller
-                                ?.respondApproval(request, 'deny');
+                            widget.controller?.respondApproval(request, 'deny');
                           },
                     style: OutlinedButton.styleFrom(
                         foregroundColor: PiColors.error,
@@ -1957,12 +2073,11 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(option['label'] as String? ?? '',
-                      style:
-                          const TextStyle(fontSize: 13, color: PiColors.text)),
+                      style: TextStyle(fontSize: 13, color: PiColors.text)),
                   if (option['description'] is String)
                     Text(option['description'] as String,
-                        style: const TextStyle(
-                            fontSize: 11, color: PiColors.textMuted)),
+                        style:
+                            TextStyle(fontSize: 11, color: PiColors.textMuted)),
                 ],
               ),
             ),
@@ -2004,7 +2119,8 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
               : () {
                   _haptic();
                   _beginRespond();
-                  widget.controller?.respondSelect(request, _checkedValues(request));
+                  widget.controller
+                      ?.respondSelect(request, _checkedValues(request));
                 },
           child: const Text('Submit'),
         ),
@@ -2047,7 +2163,8 @@ class UiRequestCardState extends ConsumerState<UiRequestCard> {
                   : () {
                       _haptic();
                       _beginRespond();
-                      widget.controller?.respondInput(request, _inputController.text.trim());
+                      widget.controller
+                          ?.respondInput(request, _inputController.text.trim());
                     },
               child: const Text('Send'),
             ),
@@ -2091,8 +2208,11 @@ class QueuedCard extends StatelessWidget {
   final void Function(String kind, int index) onRemove;
   final VoidCallback onRestore;
 
-  const QueuedCard({super.key,
-      required this.queue, required this.onRemove, required this.onRestore});
+  const QueuedCard(
+      {super.key,
+      required this.queue,
+      required this.onRemove,
+      required this.onRestore});
 
   @override
   Widget build(BuildContext context) {
@@ -2108,11 +2228,11 @@ class QueuedCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.queue_play_next_rounded,
+              Icon(Icons.queue_play_next_rounded,
                   size: 14, color: PiColors.accent),
               const SizedBox(width: 4),
               Text('Queued ${queue.steering.length + queue.followUp.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: PiColors.textSecondary)),
@@ -2132,8 +2252,8 @@ class QueuedCard extends StatelessWidget {
           const SizedBox(height: 4),
           InkWell(
             onTap: onRestore,
-            child: const Padding(
-              padding: EdgeInsets.only(top: 2),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
               child: Text('Restore to composer',
                   style: TextStyle(
                       fontSize: 12,
@@ -2154,8 +2274,11 @@ class QueueItem extends StatelessWidget {
   final QueueItemType type;
   final VoidCallback onRemove;
 
-  const QueueItem({super.key,
-      required this.label, required this.type, required this.onRemove});
+  const QueueItem(
+      {super.key,
+      required this.label,
+      required this.type,
+      required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -2211,27 +2334,27 @@ class _ModeSegment extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
-        duration: MediaQuery.of(context).disableAnimations
-            ? Duration.zero
-            : const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected
-              ? PiColors.accent.withValues(alpha: 0.18)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            color: selected ? PiColors.accent : PiColors.textMuted,
+          duration: MediaQuery.of(context).disableAnimations
+              ? Duration.zero
+              : const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: selected
+                ? PiColors.accent.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
           ),
-        ),
-      ), // AnimatedContainer
-    ), // GestureDetector
-  ); // Semantics
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? PiColors.accent : PiColors.textMuted,
+            ),
+          ),
+        ), // AnimatedContainer
+      ), // GestureDetector
+    ); // Semantics
   }
 }
 
@@ -2266,18 +2389,19 @@ class _ComposerButton extends StatelessWidget {
           child: Container(
             width: 48,
             height: 48,
-          decoration: BoxDecoration(
-            color: enabled
-                ? color.withValues(alpha: 0.16)
-                : color.withValues(alpha: 0.06),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon,
-              size: 22, color: enabled ? color : color.withValues(alpha: 0.6)),
-        ), // Container
-      ), // GestureDetector
-    ), // Tooltip
-  ); // Semantics
+            decoration: BoxDecoration(
+              color: enabled
+                  ? color.withValues(alpha: 0.16)
+                  : color.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon,
+                size: 22,
+                color: enabled ? color : color.withValues(alpha: 0.6)),
+          ), // Container
+        ), // GestureDetector
+      ), // Tooltip
+    ); // Semantics
   }
 }
 
@@ -2307,7 +2431,8 @@ String _plainText(er.UiMessage m) {
 class JumpToLatestPill extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onTap;
-  const JumpToLatestPill({super.key, required this.unreadCount, required this.onTap});
+  const JumpToLatestPill(
+      {super.key, required this.unreadCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2415,10 +2540,10 @@ Future<void> _showToolDetailSheet(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Text(
                   toolName,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'JetBrains Mono'),
+                      fontFamily: PiFonts.mono),
                 ),
               ),
               Expanded(
@@ -2428,19 +2553,19 @@ Future<void> _showToolDetailSheet(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Arguments',
+                      Text('Arguments',
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: PiColors.textSecondary)),
                       const SizedBox(height: 4),
                       SelectableText(argsText,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12,
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: PiFonts.mono,
                               color: PiColors.text)),
                       const SizedBox(height: 12),
-                      const Text('Output',
+                      Text('Output',
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -2451,9 +2576,9 @@ Future<void> _showToolDetailSheet(
                       ] else
                         SelectableText(
                           outputText.isEmpty ? '(no output)' : outputText,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12,
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: PiFonts.mono,
                               color: PiColors.text),
                         ),
                     ],
@@ -2467,7 +2592,6 @@ Future<void> _showToolDetailSheet(
     },
   );
 }
-
 
 typedef AssistantMessageBubble = AssistantMessageView;
 typedef AssistantBubble = AssistantMessageView;

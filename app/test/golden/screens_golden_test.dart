@@ -21,6 +21,10 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             theme: dark ? PiTheme.dark : PiTheme.light,
+            builder: (context, child) => PiColorsScope(
+              skin: 'aurora',
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: const PairingScreen(),
           ),
         );

@@ -1,5 +1,6 @@
 // lib/features/chat/providers/chat_providers.dart
 library;
+
 /// Chat state providers (doc 05 §4).
 ///
 /// Single source of truth: `chatStateProvider` — a `StateNotifier<ChatState>`
@@ -15,7 +16,8 @@ import '../../../core/protocol/responses.dart' as responses;
 import 'event_router.dart' as er;
 
 // ─── Core chat state ──────────────────────────────────────────────
-final chatStateProvider = StateNotifierProvider<ChatStateNotifier, er.ChatState>((ref) {
+final chatStateProvider =
+    StateNotifierProvider<ChatStateNotifier, er.ChatState>((ref) {
   return ChatStateNotifier();
 });
 
@@ -181,30 +183,41 @@ er.UiMessage _uiMessageFromJson(Object msg) {
 }
 
 // ─── Derived selectors (stable names for screens) ─────────────────
-final messagesProvider = Provider<List<er.UiMessage>>((ref) => ref.watch(chatStateProvider).messages);
-final toolCardsProvider = Provider<Map<String, er.ToolCardState>>((ref) => ref.watch(chatStateProvider).toolCards);
-final queueProvider = Provider<er.QueueState>((ref) => ref.watch(chatStateProvider).queue);
-final approvalsProvider = Provider<Map<String, er.UiRequest>>((ref) => ref.watch(chatStateProvider).approvals);
-final sessionStateProvider = Provider<er.SessionState>((ref) => ref.watch(chatStateProvider).session);
-final streamingUsageProvider = Provider<proto_events.UsageData?>((ref) => ref.watch(chatStateProvider).lastUsage);
+final messagesProvider = Provider<List<er.UiMessage>>(
+    (ref) => ref.watch(chatStateProvider).messages);
+final toolCardsProvider = Provider<Map<String, er.ToolCardState>>(
+    (ref) => ref.watch(chatStateProvider).toolCards);
+final queueProvider =
+    Provider<er.QueueState>((ref) => ref.watch(chatStateProvider).queue);
+final approvalsProvider = Provider<Map<String, er.UiRequest>>(
+    (ref) => ref.watch(chatStateProvider).approvals);
+final sessionStateProvider =
+    Provider<er.SessionState>((ref) => ref.watch(chatStateProvider).session);
+final streamingUsageProvider = Provider<proto_events.UsageData?>(
+    (ref) => ref.watch(chatStateProvider).lastUsage);
 
 // ─── Subagents strip (desktop SubagentPanel parity) ───────────────
-final subagentsProvider = StateNotifierProvider<SubagentsNotifier, List<proto_events.SubAgentRecord>>((ref) {
+final subagentsProvider =
+    StateNotifierProvider<SubagentsNotifier, List<proto_events.SubAgentRecord>>(
+        (ref) {
   return SubagentsNotifier();
 });
 
-class SubagentsNotifier extends StateNotifier<List<proto_events.SubAgentRecord>> {
+class SubagentsNotifier
+    extends StateNotifier<List<proto_events.SubAgentRecord>> {
   SubagentsNotifier() : super([]);
   void update(List<proto_events.SubAgentRecord> agents) => state = agents;
   void clear() => state = [];
 }
 
 // ─── Background processes (desktop RuntimePanel parity) ──────────
-final backgroundProcessesProvider = StateNotifierProvider<BackgroundProcessesNotifier, List<Map<String, dynamic>>>((ref) {
+final backgroundProcessesProvider = StateNotifierProvider<
+    BackgroundProcessesNotifier, List<Map<String, dynamic>>>((ref) {
   return BackgroundProcessesNotifier();
 });
 
-class BackgroundProcessesNotifier extends StateNotifier<List<Map<String, dynamic>>> {
+class BackgroundProcessesNotifier
+    extends StateNotifier<List<Map<String, dynamic>>> {
   BackgroundProcessesNotifier() : super([]);
   void update(List<Map<String, dynamic>> processes) => state = processes;
   void clear() => state = [];
@@ -219,7 +232,8 @@ class SessionStats {
   bool get hasData => contextWindow > 0;
 }
 
-final sessionStatsProvider = StateNotifierProvider<SessionStatsNotifier, SessionStats>((ref) {
+final sessionStatsProvider =
+    StateNotifierProvider<SessionStatsNotifier, SessionStats>((ref) {
   return SessionStatsNotifier();
 });
 
@@ -239,7 +253,9 @@ class SessionStatsNotifier extends StateNotifier<SessionStats> {
 }
 
 // ─── Slash commands (desktop Composer autocomplete parity) ────────
-final slashCommandsProvider = StateNotifierProvider<SlashCommandsNotifier, List<Map<String, dynamic>>>((ref) {
+final slashCommandsProvider =
+    StateNotifierProvider<SlashCommandsNotifier, List<Map<String, dynamic>>>(
+        (ref) {
   return SlashCommandsNotifier();
 });
 
@@ -250,6 +266,8 @@ class SlashCommandsNotifier extends StateNotifier<List<Map<String, dynamic>>> {
 
   List<Map<String, dynamic>> filter(String query) {
     final q = query.toLowerCase();
-    return state.where((c) => (c['name'] as String? ?? '').toLowerCase().startsWith(q)).toList();
+    return state
+        .where((c) => (c['name'] as String? ?? '').toLowerCase().startsWith(q))
+        .toList();
   }
 }

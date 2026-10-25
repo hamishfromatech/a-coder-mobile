@@ -6,11 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/protocol/responses.dart' as responses;
 import '../../../design/theme.dart';
+import '../../../design/components/button.dart';
+import '../../../design/components/kit2.dart';
 import '../../../design/components/chip.dart';
 import '../../../design/components/empty_state.dart';
 import '../../../design/components/status_dot.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../providers/office_providers.dart';
+import '../widgets/office_editors.dart';
 
 class OfficeScreen extends ConsumerStatefulWidget {
   final String hostId;
@@ -64,7 +67,8 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
                       SizedBox(height: 120),
                       EmptyState(
                         icon: Icons.people_outline_rounded,
-                        title: 'No coworkers yet — set up Your Office on the desktop',
+                        title:
+                            'No coworkers yet — set up Your Office on the desktop',
                         hint: '',
                       ),
                     ],
@@ -84,7 +88,8 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
                           _CoworkerRow(
                             coworker: c,
                             status: snap.statuses[c.id] ?? '',
-                            onTap: () => _openCoworker(c, snap.statuses[c.id] ?? ''),
+                            onTap: () =>
+                                _openCoworker(c, snap.statuses[c.id] ?? ''),
                           ),
                       ],
                       if (snap.huddles.isNotEmpty) ...[
@@ -93,6 +98,16 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
                           _HuddleRow(
                             huddle: h,
                             onTap: () => _openHuddle(h),
+                            onLongPress: () async {
+                              final saved = await showHuddleEditor(
+                                context,
+                                ref,
+                                hostId: widget.hostId,
+                                coworkers: snap.coworkers,
+                                huddle: h,
+                              );
+                              if (saved == true) await _refresh();
+                            },
                           ),
                       ],
                       if (snap.errands.isNotEmpty) ...[
@@ -101,15 +116,75 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
                           _ErrandRow(
                             errand: e,
                             coworkerName: _nameFor(snap, e.coworkerId),
+                            onTap: () => _openErrand(snap, e),
                           ),
                       ],
                     ],
                   ),
       ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'New coworker or huddle',
+        onPressed: () => _openCreateMenu(snap),
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
-  List<responses.HuddleSummary> _sortedHuddles(List<responses.HuddleSummary> list) {
+  Future<void> _openCreateMenu(responses.OfficeSnapshot snap) async {
+    final choice = await showPiSheet<String>(
+      context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1),
+              title: const Text('New coworker'),
+              onTap: () => Navigator.pop(ctx, 'coworker'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.forum_outlined),
+              title: const Text('New huddle'),
+              onTap: () => Navigator.pop(ctx, 'huddle'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.task_alt_outlined),
+              title: const Text('New errand'),
+              enabled: snap.coworkers.isNotEmpty,
+              onTap: () => Navigator.pop(ctx, 'errand'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'coworker') {
+      final saved =
+          await showCoworkerEditor(context, ref, hostId: widget.hostId);
+      if (saved == true) await _refresh();
+    } else if (choice == 'huddle') {
+      final saved = await showHuddleEditor(
+        context,
+        ref,
+        hostId: widget.hostId,
+        coworkers: snap.coworkers,
+      );
+      if (saved == true) await _refresh();
+    } else if (choice == 'errand') {
+      final saved = await showErrandEditor(
+        context,
+        ref,
+        hostId: widget.hostId,
+        coworkers: snap.coworkers,
+        huddles: snap.huddles,
+      );
+      if (saved == true) await _refresh();
+    }
+  }
+
+  List<responses.HuddleSummary> _sortedHuddles(
+      List<responses.HuddleSummary> list) {
     final pinned = list.where((h) => h.pinned).toList();
     final rest = list.where((h) => !h.pinned).toList();
     return [...pinned, ...rest];
@@ -120,6 +195,70 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
       if (c.id == id) return c.name;
     }
     return id;
+  }
+
+  Future<void> _openErrand(
+      responses.OfficeSnapshot snap, responses.OfficeErrand errand) async {
+    final action = await showPiSheet<String>(
+      context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(errand.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(errand.scheduleLabel),
+            ),
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: const Text('Run now'),
+              onTap: () => Navigator.pop(ctx, 'run'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: PiColors.error),
+              title: Text('Delete', style: TextStyle(color: PiColors.error)),
+              onTap: () => Navigator.pop(ctx, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    final controller =
+        ref.read(sessionControllerProvider(widget.hostId).notifier);
+    switch (action) {
+      case 'run':
+        try {
+          await controller.runErrand(errand.id);
+          if (mounted) await _refresh();
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not run the errand')));
+          }
+        }
+      case 'edit':
+        final saved = await showErrandEditor(
+          context,
+          ref,
+          hostId: widget.hostId,
+          coworkers: snap.coworkers,
+          huddles: snap.huddles,
+          errand: errand,
+        );
+        if (saved == true) await _refresh();
+      case 'delete':
+        try {
+          await controller.deleteErrand(errand.id);
+          if (mounted) await _refresh();
+        } catch (_) {}
+    }
   }
 
   void _openCoworker(responses.Coworker c, String status) {
@@ -133,17 +272,44 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(c.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(c.name,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700)),
               if (c.handle.isNotEmpty)
-                Text('@${c.handle}', style: TextStyle(fontSize: 13, color: PiColors.of(ctx).textMuted)),
+                Text('@${c.handle}',
+                    style: TextStyle(
+                        fontSize: 13, color: PiColors.of(ctx).textMuted)),
               const SizedBox(height: 12),
               if (c.description != null && c.description!.isNotEmpty)
                 Text(c.description!, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 8),
               _detailLine(ctx, 'Autonomy', c.autonomy),
-              if (c.model != null && c.model!.isNotEmpty) _detailLine(ctx, 'Model', c.model!),
-              if (c.voice != null && c.voice!.isNotEmpty) _detailLine(ctx, 'Voice', c.voice!),
-              if (c.title != null && c.title!.isNotEmpty) _detailLine(ctx, 'Title', c.title!),
+              if (c.model != null && c.model!.isNotEmpty)
+                _detailLine(ctx, 'Model', c.model!),
+              if (c.voice != null && c.voice!.isNotEmpty)
+                _detailLine(ctx, 'Voice', c.voice!),
+              if (c.title != null && c.title!.isNotEmpty)
+                _detailLine(ctx, 'Title', c.title!),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: PiButton(
+                  label: 'Edit',
+                  icon: Icons.edit_outlined,
+                  variant: PiButtonVariant.outline,
+                  size: PiButtonSize.sm,
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    final saved = await showCoworkerEditor(
+                      context,
+                      ref,
+                      hostId: widget.hostId,
+                      coworker: c,
+                    );
+                    if (saved == true) await _refresh();
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -159,7 +325,11 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
         children: [
           SizedBox(
             width: 96,
-            child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: PiColors.of(ctx).textMuted)),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: PiColors.of(ctx).textMuted)),
           ),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
@@ -170,7 +340,8 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
   void _openHuddle(responses.HuddleSummary h) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => OfficeHuddleScreen(hostId: widget.hostId, huddleId: h.id),
+        builder: (_) =>
+            OfficeHuddleScreen(hostId: widget.hostId, huddleId: h.id),
       ),
     );
   }
@@ -180,7 +351,8 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => _PendingPromptsSheet(prompts: prompts, hostId: widget.hostId),
+      builder: (ctx) =>
+          _PendingPromptsSheet(prompts: prompts, hostId: widget.hostId),
     );
   }
 
@@ -193,7 +365,8 @@ class _OfficeScreenState extends ConsumerState<OfficeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Container(
           height: 64,
-          decoration: BoxDecoration(color: c.surfaceRaised, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+              color: c.surfaceRaised, borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
@@ -224,9 +397,13 @@ class _PendingPromptsBanner extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.mark_chat_unread_rounded, size: 18, color: PiColors.warning),
+              Icon(Icons.mark_chat_unread_rounded,
+                  size: 18, color: PiColors.warning),
               const SizedBox(width: 8),
-              Expanded(child: Text('$count pending prompt$plural', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+              Expanded(
+                  child: Text('$count pending prompt$plural',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600))),
               const Icon(Icons.chevron_right_rounded, size: 18),
             ],
           ),
@@ -242,7 +419,8 @@ class _PendingPromptsSheet extends ConsumerStatefulWidget {
   const _PendingPromptsSheet({required this.prompts, required this.hostId});
 
   @override
-  ConsumerState<_PendingPromptsSheet> createState() => _PendingPromptsSheetState();
+  ConsumerState<_PendingPromptsSheet> createState() =>
+      _PendingPromptsSheetState();
 }
 
 class _PendingPromptsSheetState extends ConsumerState<_PendingPromptsSheet> {
@@ -264,7 +442,9 @@ class _PendingPromptsSheetState extends ConsumerState<_PendingPromptsSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (title.isNotEmpty) Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  if (title.isNotEmpty)
+                    Text(title,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -278,7 +458,9 @@ class _PendingPromptsSheetState extends ConsumerState<_PendingPromptsSheet> {
                                 ? null
                                 : () {
                                     ref
-                                        .read(sessionControllerProvider(widget.hostId).notifier)
+                                        .read(sessionControllerProvider(
+                                                widget.hostId)
+                                            .notifier)
                                         .respondOfficePrompt(reqId, opt);
                                   },
                             child: Text(opt),
@@ -301,7 +483,8 @@ class _PendingPromptsSheetState extends ConsumerState<_PendingPromptsSheet> {
   }
 
   static String _title(Map<String, dynamic> p) {
-    final v = p['title'] ?? p['prompt'] ?? p['text'] ?? p['message'] ?? p['name'];
+    final v =
+        p['title'] ?? p['prompt'] ?? p['text'] ?? p['message'] ?? p['name'];
     return v?.toString() ?? '';
   }
 
@@ -314,7 +497,8 @@ class _PendingPromptsSheetState extends ConsumerState<_PendingPromptsSheet> {
           out.add(item);
         } else if (item is Map) {
           final m = item.cast<String, dynamic>();
-          final label = m['label'] ?? m['value'] ?? m['text'] ?? m['title'] ?? m['name'];
+          final label =
+              m['label'] ?? m['value'] ?? m['text'] ?? m['title'] ?? m['name'];
           if (label != null) out.add(label.toString());
         }
       }
@@ -328,7 +512,8 @@ class _CoworkerRow extends StatelessWidget {
   final responses.Coworker coworker;
   final String status;
   final VoidCallback onTap;
-  const _CoworkerRow({required this.coworker, required this.status, required this.onTap});
+  const _CoworkerRow(
+      {required this.coworker, required this.status, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -350,7 +535,11 @@ class _CoworkerRow extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: 24, child: Padding(padding: const EdgeInsets.only(top: 4), child: StatusDot(type: dotType))),
+                SizedBox(
+                    width: 24,
+                    child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: StatusDot(type: dotType))),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Column(
@@ -359,19 +548,36 @@ class _CoworkerRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(coworker.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            child: Text(coworker.name,
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
                           ),
                           if (coworker.handle.isNotEmpty)
-                            Text(' @${coworker.handle}', style: TextStyle(fontSize: 12, color: PiColors.of(context).textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text(' @${coworker.handle}',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: PiColors.of(context).textMuted),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
                         ],
                       ),
                       if (subtitle.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(subtitle, style: TextStyle(fontSize: 13, color: PiColors.of(context).textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(subtitle,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: PiColors.of(context).textMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
                       ],
-                      if (coworker.model != null && coworker.model!.isNotEmpty) ...[
+                      if (coworker.model != null &&
+                          coworker.model!.isNotEmpty) ...[
                         const SizedBox(height: 6),
-                        StatusChip(label: coworker.model!, variant: ChipVariant.accent),
+                        StatusChip(
+                            label: coworker.model!,
+                            variant: ChipVariant.accent),
                       ],
                     ],
                   ),
@@ -393,7 +599,9 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+      child: Text(title,
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
     );
   }
 }
@@ -401,7 +609,12 @@ class _SectionHeader extends StatelessWidget {
 class _HuddleRow extends StatelessWidget {
   final responses.HuddleSummary huddle;
   final VoidCallback onTap;
-  const _HuddleRow({required this.huddle, required this.onTap});
+  final VoidCallback? onLongPress;
+  const _HuddleRow({
+    required this.huddle,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -420,23 +633,43 @@ class _HuddleRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (huddle.pinned)
-                  const Padding(padding: EdgeInsets.only(right: 6, top: 2), child: Icon(Icons.push_pin_rounded, size: 16, color: PiColors.accent)),
+                  Padding(
+                      padding: const EdgeInsets.only(right: 6, top: 2),
+                      child: Icon(Icons.push_pin_rounded,
+                          size: 16, color: PiColors.accent)),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(huddle.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      if (huddle.preview != null && huddle.preview!.isNotEmpty) ...[
+                      Text(huddle.name,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      if (huddle.preview != null &&
+                          huddle.preview!.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(huddle.preview!, style: TextStyle(fontSize: 13, color: PiColors.of(context).textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(huddle.preview!,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: PiColors.of(context).textMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
                       ],
                       const SizedBox(height: 4),
-                      Text('${_relative(huddle.lastActive)} · $members member${members == 1 ? '' : 's'}', style: TextStyle(fontSize: 12, color: PiColors.of(context).textMuted)),
+                      Text(
+                          '${_relative(huddle.lastActive)} · $members member${members == 1 ? '' : 's'}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: PiColors.of(context).textMuted)),
                     ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                const SizedBox(height: 48, width: 24, child: Icon(Icons.chevron_right_rounded)),
+                const SizedBox(
+                    height: 48,
+                    width: 24,
+                    child: Icon(Icons.chevron_right_rounded)),
               ],
             ),
           ),
@@ -449,29 +682,55 @@ class _HuddleRow extends StatelessWidget {
 class _ErrandRow extends StatelessWidget {
   final responses.OfficeErrand errand;
   final String coworkerName;
-  const _ErrandRow({required this.errand, required this.coworkerName});
+  final VoidCallback? onTap;
+  const _ErrandRow({
+    required this.errand,
+    required this.coworkerName,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(child: Text(errand.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 8),
-                StatusChip(label: coworkerName, variant: ChipVariant.muted),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                      child: Text(errand.name,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 8),
+                  StatusChip(label: coworkerName, variant: ChipVariant.muted),
+                ],
+              ),
+              if (errand.prompt.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(errand.prompt,
+                    style: TextStyle(
+                        fontSize: 13, color: PiColors.of(context).textMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ],
-            ),
-            if (errand.prompt.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(errand.prompt, style: TextStyle(fontSize: 13, color: PiColors.of(context).textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (errand.scheduleLabel.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(errand.scheduleLabel,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: PiFonts.mono,
+                        color: PiColors.of(context).textFaint)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -495,7 +754,8 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
   final TextEditingController _composer = TextEditingController();
   bool _loading = true;
 
-  String get _huddleId => widget.huddleId ?? ref.read(officeHuddleProvider)?.huddleId ?? '';
+  String get _huddleId =>
+      widget.huddleId ?? ref.read(officeHuddleProvider)?.huddleId ?? '';
 
   @override
   void initState() {
@@ -507,7 +767,9 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
     final id = widget.huddleId;
     if (id != null && id.isNotEmpty) {
       try {
-        await ref.read(sessionControllerProvider(widget.hostId).notifier).openHuddle(id);
+        await ref
+            .read(sessionControllerProvider(widget.hostId).notifier)
+            .openHuddle(id);
       } catch (_) {}
     }
     if (mounted) setState(() => _loading = false);
@@ -537,7 +799,9 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
         leading: Semantics(
           label: 'Back',
           button: true,
-          child: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => Navigator.of(context).maybePop()),
+          child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).maybePop()),
         ),
         title: Text(title),
         actions: [
@@ -548,7 +812,9 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
               icon: const Icon(Icons.stop_circle_outlined),
               onPressed: _huddleId.isEmpty
                   ? null
-                  : () => ref.read(sessionControllerProvider(widget.hostId).notifier).stopHuddle(_huddleId),
+                  : () => ref
+                      .read(sessionControllerProvider(widget.hostId).notifier)
+                      .stopHuddle(_huddleId),
             ),
           ),
         ],
@@ -562,9 +828,15 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
               color: PiColors.accent.withValues(alpha: 0.08),
               child: Row(
                 children: [
-                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
                   const SizedBox(width: 8),
-                  Text('Working…', style: TextStyle(fontSize: 12, color: PiColors.of(context).textSecondary)),
+                  Text('Working…',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: PiColors.of(context).textSecondary)),
                 ],
               ),
             ),
@@ -574,7 +846,9 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
                 : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: messages.length,
-                    itemBuilder: (_, i) => _MessageBubble(message: messages[i], rosterName: (id) => _nameFor(snap, id)),
+                    itemBuilder: (_, i) => _MessageBubble(
+                        message: messages[i],
+                        rosterName: (id) => _nameFor(snap, id)),
                   ),
           ),
           SafeArea(
@@ -588,7 +862,10 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
                       controller: _composer,
                       minLines: 1,
                       maxLines: 4,
-                      decoration: const InputDecoration(hintText: 'Message…', border: OutlineInputBorder(), isDense: true),
+                      decoration: const InputDecoration(
+                          hintText: 'Message…',
+                          border: OutlineInputBorder(),
+                          isDense: true),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -603,7 +880,10 @@ class _OfficeHuddleScreenState extends ConsumerState<OfficeHuddleScreen> {
                         onPressed: () {
                           final text = _composer.text.trim();
                           if (text.isEmpty || _huddleId.isEmpty) return;
-                          ref.read(sessionControllerProvider(widget.hostId).notifier).sendToHuddle(_huddleId, text);
+                          ref
+                              .read(sessionControllerProvider(widget.hostId)
+                                  .notifier)
+                              .sendToHuddle(_huddleId, text);
                           _composer.clear();
                         },
                       ),
@@ -640,7 +920,9 @@ class _MessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(author, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(author,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(text, style: const TextStyle(fontSize: 14)),
         ],
@@ -657,7 +939,9 @@ class _MessageBubble extends StatelessWidget {
         if (item is Map) {
           final t = item['text'] ?? item['content'];
           if (t is String) parts.add(t);
-          if (t is List) { parts.addAll(t.whereType<String>()); }
+          if (t is List) {
+            parts.addAll(t.whereType<String>());
+          }
         } else if (item is String) {
           parts.add(item);
         }
@@ -671,15 +955,19 @@ class _MessageBubble extends StatelessWidget {
         if (p is Map) {
           final t = p['text'];
           if (t is String) out.add(t);
-        } else if (p is String) { out.add(p); }
+        } else if (p is String) {
+          out.add(p);
+        }
       }
       if (out.isNotEmpty) return out.join('\n');
     }
     return '';
   }
 
-  static String _extractAuthor(Map<String, dynamic> m, String Function(String) rosterName) {
-    final candidate = m['coworkerId'] ?? m['author'] ?? m['name'] ?? m['role'] ?? m['from'];
+  static String _extractAuthor(
+      Map<String, dynamic> m, String Function(String) rosterName) {
+    final candidate =
+        m['coworkerId'] ?? m['author'] ?? m['name'] ?? m['role'] ?? m['from'];
     if (candidate == null) return 'Unknown';
     final s = candidate.toString();
     if (s == 'user' || s == 'human' || s == 'you') return 'You';

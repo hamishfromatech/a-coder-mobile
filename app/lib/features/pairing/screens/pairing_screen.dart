@@ -1,5 +1,6 @@
 // lib/features/pairing/screens/pairing_screen.dart
 library;
+
 /// First-run pairing screen (doc 06 §1).
 /// Segmented control: Scan QR / Manual / On this network.
 import 'dart:convert';
@@ -14,7 +15,9 @@ import '../../../design/theme.dart';
 import '../../../design/components/status_dot.dart';
 import '../providers/pairing_providers.dart';
 import '../providers/connection_providers.dart';
+
 enum PairingTab { scan, manual, discover }
+
 /// Parsed QR payload (doc 04 §5.2) — mirrors the bridge's parseQrPayload.
 class QrPairingPayload {
   final String host;
@@ -58,11 +61,15 @@ class QrPairingPayload {
     }
   }
 }
+
 class PairingScreen extends ConsumerStatefulWidget {
   const PairingScreen({super.key});
-  @override ConsumerState<PairingScreen> createState() => _PairingScreenState();
+  @override
+  ConsumerState<PairingScreen> createState() => _PairingScreenState();
 }
-class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTickerProviderStateMixin {
+
+class _PairingScreenState extends ConsumerState<PairingScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final MobileScannerController _camera = MobileScannerController();
   bool _handledLatest = true; // debounce duplicate detections
@@ -74,12 +81,14 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
   // Manual entry fields — token renders as groups of 8 (5×8 + 4 for 44 chars).
   final _hostController = TextEditingController();
   final _portController = TextEditingController(text: '8787');
-  final _tokenControllers = List<TextEditingController>.generate(6, (_) => TextEditingController());
+  final _tokenControllers =
+      List<TextEditingController>.generate(6, (_) => TextEditingController());
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
   }
+
   @override
   void dispose() {
     _camera.dispose();
@@ -91,6 +100,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     _tabController.dispose();
     super.dispose();
   }
+
   /// Handle QR code detection (mobile_scanner 7.x API).
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (!mounted || !_handledLatest) return;
@@ -104,7 +114,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
         if (_lastInvalidQr != raw) {
           _lastInvalidQr = raw;
           if (mounted) {
-            setState(() => _errorMessage = 'Invalid QR code — not an A-Coder pairing code. Try again or use Manual.');
+            setState(() => _errorMessage =
+                'Invalid QR code — not an A-Coder pairing code. Try again or use Manual.');
           }
         }
         continue;
@@ -118,18 +129,22 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       }
       _handledLatest = true;
       if (confirmed) {
-        await _saveAndEnter(payload.host, payload.port, payload.tls, payload.token, payload.name,
-            pin: payload.pin,
-            id: payload.id.isNotEmpty ? payload.id : null);
+        await _saveAndEnter(payload.host, payload.port, payload.tls,
+            payload.token, payload.name,
+            pin: payload.pin, id: payload.id.isNotEmpty ? payload.id : null);
       }
       break;
     }
   }
+
   /// Persist the paired host (token → secure storage) and re-gate the app.
-  Future<void> _saveAndEnter(String host, int port, bool tls, String token, String name,
+  Future<void> _saveAndEnter(
+      String host, int port, bool tls, String token, String name,
       {String? id, String? pin}) async {
     final paired = PairedHost(
-      id: id ?? const Uuid().v4(), // QR carries the machine id; manual entry generates one
+      id: id ??
+          const Uuid()
+              .v4(), // QR carries the machine id; manual entry generates one
       name: name.isEmpty ? '$host:$port' : name,
       host: host,
       port: port,
@@ -144,7 +159,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       ref.invalidate(activeHostIdProvider);
       ref.invalidate(activeHostProvider);
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home', arguments: {'hostId': paired.id});
+        Navigator.of(context)
+            .pushReplacementNamed('/home', arguments: {'hostId': paired.id});
       }
     } catch (e) {
       if (mounted) setState(() => _errorMessage = 'Pairing failed: $e');
@@ -163,10 +179,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Pair with this machine?', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              const Text('Pair with this machine?',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Text(
-                payload.name.isEmpty ? '${payload.host}:${payload.port}' : '${payload.name} — ${payload.host}:${payload.port}',
+                payload.name.isEmpty
+                    ? '${payload.host}:${payload.port}'
+                    : '${payload.name} — ${payload.host}:${payload.port}',
                 style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 8),
@@ -191,6 +210,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     );
     return result == true;
   }
+
   /// Validate manual entry fields and connect.
   Future<void> _handleManualConnect() async {
     final error = validateManualEntry(
@@ -220,7 +240,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
   static String readManualToken(List<TextEditingController> controllers) =>
       controllers.map((c) => c.text).join();
 
-  static String normalizeToken(String raw) => raw.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+  static String normalizeToken(String raw) =>
+      raw.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
 
   static String? validateManualEntry({
     required String host,
@@ -270,6 +291,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     if (!mounted) return;
     setState(() => _discoveryState = 'empty');
   }
+
   @override
   Widget build(BuildContext context) {
     final c = PiColors.of(context);
@@ -295,6 +317,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       ),
     );
   }
+
   Widget _buildScanTab() {
     return Column(
       children: [
@@ -329,7 +352,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
                     ),
                     child: Text(
                       _errorMessage!,
-                      style: const TextStyle(fontSize: 13, color: PiColors.error),
+                      style: TextStyle(fontSize: 13, color: PiColors.error),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -349,6 +372,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       ],
     );
   }
+
   Widget _buildManualTab(PiPalette c) {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -358,7 +382,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
           children: [
             TextField(
               controller: _hostController,
-              decoration: const InputDecoration(labelText: 'Host (IP or hostname)'),
+              decoration:
+                  const InputDecoration(labelText: 'Host (IP or hostname)'),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -367,7 +392,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
               decoration: const InputDecoration(labelText: 'Port'),
             ),
             const SizedBox(height: 24),
-            Text('Pairing token', style: TextStyle(fontSize: 13, color: c.textSecondary)),
+            Text('Pairing token',
+                style: TextStyle(fontSize: 13, color: c.textSecondary)),
             const SizedBox(height: 8),
             Row(
               children: _tokenControllers.map((ctrl) {
@@ -379,11 +405,12 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
                       keyboardType: TextInputType.text,
                       maxLength: 8,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12),
+                      style: TextStyle(fontFamily: PiFonts.mono, fontSize: 12),
                       decoration: InputDecoration(
                         hintText: '--------',
                         counterText: '',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ),
@@ -408,7 +435,8 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_errorMessage!, style: const TextStyle(color: PiColors.error, fontSize: 13)),
+                child: Text(_errorMessage!,
+                    style: TextStyle(color: PiColors.error, fontSize: 13)),
               ),
             Semantics(
               button: true,
@@ -416,7 +444,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
               child: ElevatedButton(
                 onPressed: _manualConnecting ? null : _handleManualConnect,
                 child: _manualConnecting
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Connect'),
               ),
             ),
@@ -431,6 +462,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
       ),
     );
   }
+
   Widget _buildDiscoverTab(PiPalette c) {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -463,13 +495,16 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
                   const SizedBox(height: 8),
                   const Text('Scanning…', style: TextStyle(fontSize: 13)),
                   const SizedBox(height: 8),
-                  TextButton(onPressed: _cancelDiscovery, child: const Text('Cancel')),
+                  TextButton(
+                      onPressed: _cancelDiscovery, child: const Text('Cancel')),
                 ] else if (_discovered.isEmpty) ...[
                   Icon(Icons.search_off_rounded, size: 24, color: c.textMuted),
                   const SizedBox(height: 8),
-                  const Text('No devices found', style: TextStyle(fontSize: 13)),
+                  const Text('No devices found',
+                      style: TextStyle(fontSize: 13)),
                   const SizedBox(height: 8),
-                  TextButton(onPressed: _retryDiscovery, child: const Text('Retry')),
+                  TextButton(
+                      onPressed: _retryDiscovery, child: const Text('Retry')),
                 ] else
                   for (final d in _discovered)
                     ListTile(
@@ -491,10 +526,12 @@ class _PairingScreenState extends ConsumerState<PairingScreen> with SingleTicker
     );
   }
 }
+
 /// Public validation helper for manual pairing entry (used by tests/tools).
 String? validateManualPairingEntry({
   required String host,
   required String portText,
   required String token,
 }) =>
-    _PairingScreenState.validateManualEntry(host: host, portText: portText, token: token);
+    _PairingScreenState.validateManualEntry(
+        host: host, portText: portText, token: token);

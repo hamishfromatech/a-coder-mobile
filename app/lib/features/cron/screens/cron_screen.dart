@@ -5,11 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/protocol/responses.dart' show CronJob, CronRun;
+import '../../../design/primitives.dart';
 import '../../../design/theme.dart';
 import '../../../design/components/chip.dart';
 import '../../../design/components/empty_state.dart';
 import '../../pairing/providers/connection_providers.dart';
+import '../../sessions/providers/sessions_providers.dart';
 import '../providers/cron_providers.dart';
+import '../widgets/cron_calendar.dart';
+import '../widgets/cron_editor.dart';
+import '../../chat/providers/chat_providers.dart';
 
 class CronScreen extends ConsumerStatefulWidget {
   final String hostId;
@@ -21,6 +26,9 @@ class CronScreen extends ConsumerStatefulWidget {
 
 class _CronScreenState extends ConsumerState<CronScreen> {
   bool _loading = true;
+  bool _calendar = false;
+  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _selectedDay;
 
   @override
   void initState() {
@@ -54,7 +62,17 @@ class _CronScreenState extends ConsumerState<CronScreen> {
     ref.watch(sessionControllerProvider(widget.hostId));
     final jobs = ref.watch(cronJobsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Scheduled tasks')),
+      appBar: AppBar(
+        title: const Text('Scheduled tasks'),
+        actions: [
+          IconButton(
+            tooltip: _calendar ? 'Show list' : 'Show calendar',
+            icon: Icon(
+                _calendar ? Icons.view_list_outlined : Icons.calendar_month),
+            onPressed: () => setState(() => _calendar = !_calendar),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: _loading && jobs.isEmpty
@@ -66,29 +84,70 @@ class _CronScreenState extends ConsumerState<CronScreen> {
                       SizedBox(height: 120),
                       EmptyState(
                         icon: Icons.schedule_outlined,
-                        title:
-                            'No scheduled tasks — create one from the desktop or the CLI',
+                        title: 'No scheduled tasks yet',
                         hint: '',
                       ),
                     ],
                   )
-                : ListView.builder(
+                : ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 24),
-                    itemCount: jobs.length,
-                    itemBuilder: (context, index) {
-                      final job = jobs[index];
-                      return _CronJobTile(
-                        key: ValueKey(job.id),
-                        job: job,
-                        hostId: widget.hostId,
-                        onToggle: (v) => _toggle(job, v),
-                        onTap: () => _openDetail(job),
-                      );
-                    },
+                    padding: const EdgeInsets.only(bottom: 96),
+                    children: [
+                      _ActivityCard(hostId: widget.hostId, jobs: jobs),
+                      if (_calendar) ...[
+                        _MonthHeader(
+                          month: _month,
+                          onPrevious: () => setState(() {
+                            _month = DateTime(_month.year, _month.month - 1);
+                            _selectedDay = null;
+                          }),
+                          onNext: () => setState(() {
+                            _month = DateTime(_month.year, _month.month + 1);
+                            _selectedDay = null;
+                          }),
+                        ),
+                        CronCalendar(
+                          jobs: jobs,
+                          month: _month,
+                          selectedDay: _selectedDay,
+                          onSelectDay: (day) =>
+                              setState(() => _selectedDay = day),
+                          onOpenDay: (_) {},
+                        ),
+                      ],
+                      for (final job in _visibleJobs(jobs))
+                        _CronJobTile(
+                          key: ValueKey(job.id),
+                          job: job,
+                          hostId: widget.hostId,
+                          onToggle: (v) => _toggle(job, v),
+                          onTap: () => _openDetail(job),
+                        ),
+                    ],
                   ),
       ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'New routine',
+        onPressed: _create,
+        child: const Icon(Icons.add),
+      ),
     );
+  }
+
+  Future<void> _create() async {
+    final created = await showCronEditor(
+      context,
+      ref,
+      hostId: widget.hostId,
+      defaultCwd: ref.read(chatStateProvider).session.cwd,
+    );
+    if (created == true) await _refresh();
+  }
+
+  List<CronJob> _visibleJobs(List<CronJob> jobs) {
+    final day = _selectedDay;
+    if (!_calendar || day == null) return jobs;
+    return cronJobsOnDay(jobs, day);
   }
 
   Future<void> _toggle(CronJob job, bool value) async {
@@ -131,6 +190,157 @@ class _CronScreenState extends ConsumerState<CronScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Month header ────────────────────────────────────────────────
+
+class _MonthHeader extends StatelessWidget {
+  final DateTime month;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  const _MonthHeader({
+    required this.month,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const names = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 6, 0),
+      child: Row(
+        children: [
+          Text(
+            '${names[month.month - 1]} ${month.year}',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: PiColors.text,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.chevron_left),
+            onPressed: onPrevious,
+          ),
+          IconButton(
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.chevron_right),
+            onPressed: onNext,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Activity (desktop Activity panel, client-derived) ────────────
+
+/// The engine has no activity RPC, so this mirrors the desktop's attention
+/// inbox from data the phone already holds: pending approvals, running
+/// sub-agents and failing routines.
+class _ActivityCard extends ConsumerWidget {
+  final String hostId;
+  final List<CronJob> jobs;
+
+  const _ActivityCard({required this.hostId, required this.jobs});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chat = ref.watch(chatStateProvider);
+    final subagents = ref.watch(subagentsProvider);
+    final approvals = chat.approvals.length;
+    final running = subagents.where((a) => a.status == 'running').length;
+    final failing =
+        jobs.where((j) => (j.lastStatus ?? '').toLowerCase() == 'error').length;
+    final background = ref
+        .watch(backgroundSessionsProvider)
+        .where((b) => b.status == 'needs_input')
+        .length;
+    if (approvals + running + failing + background == 0) {
+      return const SizedBox.shrink();
+    }
+
+    Widget row(IconData icon, String label, int count, Color tone) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Icon(icon, size: 14, color: tone),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(label,
+                    style:
+                        TextStyle(fontSize: 12, color: PiColors.textSecondary)),
+              ),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: PiFonts.mono,
+                  fontWeight: FontWeight.w600,
+                  color: tone,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: PiColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(PiRadius.xl),
+        border: Border.all(color: PiColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'NEEDS ATTENTION',
+            style: TextStyle(
+              fontSize: 9,
+              fontFamily: PiFonts.mono,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+              color: PiColors.textFaint,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (approvals > 0)
+            row(Icons.verified_user_outlined, 'Approvals waiting', approvals,
+                PiColors.warning),
+          if (background > 0)
+            row(Icons.pause_circle_outline, 'Background sessions waiting',
+                background, PiColors.warning),
+          if (running > 0)
+            row(Icons.pending_rounded, 'Sub-agents running', running,
+                PiColors.accent),
+          if (failing > 0)
+            row(Icons.error_outline, 'Failing routines', failing,
+                PiColors.error),
+        ],
       ),
     );
   }
@@ -359,7 +569,25 @@ class _CronDetailPageState extends ConsumerState<_CronDetailPage> {
         .toList();
     final c = PiColors.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(job?.name ?? 'Scheduled task')),
+      appBar: AppBar(
+        title: Text(job?.name ?? 'Scheduled task'),
+        actions: [
+          if (job != null)
+            IconButton(
+              tooltip: 'Edit routine',
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              onPressed: () async {
+                final saved = await showCronEditor(
+                  context,
+                  ref,
+                  hostId: widget.hostId,
+                  job: job,
+                );
+                if (saved == true) await _loadRuns();
+              },
+            ),
+        ],
+      ),
       body: job == null
           ? const Center(child: Text('Not found'))
           : ListView(
@@ -378,8 +606,8 @@ class _CronDetailPageState extends ConsumerState<_CronDetailPage> {
                 const SizedBox(height: 4),
                 SelectableText(
                   job.cwd.isEmpty ? '—' : job.cwd,
-                  style: const TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                  style: TextStyle(
+                    fontFamily: PiFonts.mono,
                     fontSize: 13,
                   ),
                 ),
@@ -393,8 +621,8 @@ class _CronDetailPageState extends ConsumerState<_CronDetailPage> {
                           padding: const EdgeInsets.only(bottom: 2),
                           child: SelectableText(
                             '${e.key}=${e.value}',
-                            style: const TextStyle(
-                              fontFamily: 'JetBrains Mono',
+                            style: TextStyle(
+                              fontFamily: PiFonts.mono,
                               fontSize: 13,
                             ),
                           ),
@@ -405,21 +633,19 @@ class _CronDetailPageState extends ConsumerState<_CronDetailPage> {
                 // Schedule
                 Text('Schedule', style: _sectionLabel(context)),
                 const SizedBox(height: 4),
-                Text(job.scheduleLabel,
-                    style: const TextStyle(fontSize: 14)),
+                Text(job.scheduleLabel, style: const TextStyle(fontSize: 14)),
                 Text('Next run: ${_relative(job.nextRunAt)}',
-                    style: TextStyle(
-                        fontSize: 12, color: c.textMuted)),
+                    style: TextStyle(fontSize: 12, color: c.textMuted)),
                 if (job.lastError != null && job.lastError!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text('Last error', style: _sectionLabel(context)),
                   const SizedBox(height: 4),
                   SelectableText(
                     job.lastError!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: PiColors.error,
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: PiFonts.mono,
                     ),
                   ),
                 ],
@@ -488,9 +714,8 @@ class _RunRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = run.status.toLowerCase();
-    final startMs = run.startedAt > 1000000000000
-        ? run.startedAt
-        : run.startedAt * 1000;
+    final startMs =
+        run.startedAt > 1000000000000 ? run.startedAt : run.startedAt * 1000;
     final finishMs = run.finishedAt == null
         ? null
         : (run.finishedAt! > 1000000000000
@@ -521,7 +746,8 @@ class _RunRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               _relative(run.startedAt),
-              style: TextStyle(fontSize: 11, color: PiColors.of(context).textMuted),
+              style: TextStyle(
+                  fontSize: 11, color: PiColors.of(context).textMuted),
             ),
             if (text.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -529,8 +755,10 @@ class _RunRow extends StatelessWidget {
                 text,
                 style: TextStyle(
                   fontSize: 12,
-                  color: run.error != null ? PiColors.error : PiColors.of(context).textSecondary,
-                  fontFamily: 'JetBrains Mono',
+                  color: run.error != null
+                      ? PiColors.error
+                      : PiColors.of(context).textSecondary,
+                  fontFamily: PiFonts.mono,
                 ),
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,

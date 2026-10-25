@@ -1,5 +1,6 @@
 // lib/app.dart
 library;
+
 /// MaterialApp configuration: theme (dark-first, doc 09), route map (doc 06),
 /// and app lifecycle + connectivity observers for reconnect-on-resume.
 /// Wired in M3: active host via providers; resume/network change triggers a
@@ -15,13 +16,13 @@ import 'design/theme.dart';
 import 'features/settings/providers/settings_providers.dart';
 import 'features/pairing/providers/connection_providers.dart';
 import 'features/pairing/screens/pairing_screen.dart';
-import 'features/sessions/screens/home_screen.dart';
 import 'features/splash/connecting_overlay.dart';
 import 'features/chat/screens/chat_screen.dart';
 import 'features/chat/screens/model_picker_screen.dart';
 import 'features/cron/screens/cron_screen.dart';
 import 'features/office/screens/office_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
+import 'features/shell/screens/app_shell.dart';
 
 class ACoderApp extends ConsumerStatefulWidget {
   const ACoderApp({super.key});
@@ -30,7 +31,8 @@ class ACoderApp extends ConsumerStatefulWidget {
   ConsumerState<ACoderApp> createState() => _ACoderAppState();
 }
 
-class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserver {
+class _ACoderAppState extends ConsumerState<ACoderApp>
+    with WidgetsBindingObserver {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   DateTime? _lastReconnectAt;
   bool _reconnecting = false;
@@ -39,7 +41,8 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _connectivitySub = Connectivity().onConnectivityChanged.listen(_onNetworkChange);
+    _connectivitySub =
+        Connectivity().onConnectivityChanged.listen(_onNetworkChange);
   }
 
   @override
@@ -81,7 +84,9 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
     try {
       final hostId = ref.read(activeHostIdProvider).value;
       if (hostId != null) {
-        ref.read(sessionControllerProvider(hostId).notifier).forceReconnectNow();
+        ref
+            .read(sessionControllerProvider(hostId).notifier)
+            .forceReconnectNow();
       }
     } finally {
       // Reset after a short window; the connection layer owns actual reconnect.
@@ -93,13 +98,19 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
+    final settings = ref.watch(settingsProvider);
     return MaterialApp(
       title: 'A-Coder',
       debugShowCheckedModeBanner: false,
-      theme: PiTheme.light,
-      darkTheme: PiTheme.dark,
-      themeMode: themeMode, // dark-first default (doc 09), user-overridable
+      theme: PiTheme.lightFor(settings.skin),
+      darkTheme: PiTheme.darkFor(settings.skin),
+      themeMode: settings.themeMode, // dark-first default (doc 09)
+      // Refresh the static token set for the selected skin + brightness before
+      // the app subtree builds, so every `PiColors.x` call site follows it.
+      builder: (context, child) => PiColorsScope(
+        skin: settings.skin,
+        child: child ?? const SizedBox.shrink(),
+      ),
       // ─── Route map (doc 06) ──────────────────────────────────
       // /                     → gate: no hosts → Pairing; else → Home
       // /pair                 → Pairing screen
@@ -110,14 +121,16 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
       onGenerateRoute: (settings) {
         switch (settings.name) {
           case '/':
-            return MaterialPageRoute<void>(settings: settings, builder: (_) => const _HomeGate());
+            return MaterialPageRoute<void>(
+                settings: settings, builder: (_) => const _HomeGate());
           case '/pair':
-            return MaterialPageRoute<void>(settings: settings, builder: (_) => const PairingScreen());
+            return MaterialPageRoute<void>(
+                settings: settings, builder: (_) => const PairingScreen());
           case '/home':
             final args = settings.arguments as Map<String, String>? ?? {};
             return MaterialPageRoute<void>(
               settings: settings,
-              builder: (_) => HomeScreen(activeHostId: args['hostId'] ?? ''),
+              builder: (_) => AppShell(activeHostId: args['hostId'] ?? ''),
             );
           case '/chat':
             final args = settings.arguments as Map<String, String>? ?? {};
@@ -129,7 +142,8 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
               ),
             );
           case '/model':
-            return MaterialPageRoute<void>(settings: settings, builder: (_) => const ModelPickerScreen());
+            return MaterialPageRoute<void>(
+                settings: settings, builder: (_) => const ModelPickerScreen());
           case '/cron':
             final args = settings.arguments as Map<String, String>? ?? {};
             return MaterialPageRoute<void>(
@@ -143,7 +157,8 @@ class _ACoderAppState extends ConsumerState<ACoderApp> with WidgetsBindingObserv
               builder: (_) => OfficeScreen(hostId: args['hostId'] ?? ''),
             );
           case '/settings':
-            return MaterialPageRoute<void>(settings: settings, builder: (_) => const SettingsScreen());
+            return MaterialPageRoute<void>(
+                settings: settings, builder: (_) => const SettingsScreen());
           default:
             return null;
         }
@@ -162,7 +177,8 @@ class _HomeGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hostAsync = ref.watch(activeHostProvider);
     return hostAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => const PairingScreen(),
       data: (host) {
         if (host == null) return const PairingScreen();
@@ -172,7 +188,7 @@ class _HomeGate extends ConsumerWidget {
         // first time, plays the exit choreography on ready, never resurrects.
         return Stack(
           children: [
-            HomeScreen(activeHostId: host.id),
+            AppShell(activeHostId: host.id),
             ConnectingOverlay(hostId: host.id),
           ],
         );

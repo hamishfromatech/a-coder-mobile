@@ -1,7 +1,7 @@
 // lib/features/chat/providers/markdown_cache.dart
 library;
-import 'dart:collection';
 
+import 'dart:collection';
 
 /// Bounded LRU cache for parsed markdown blocks.
 ///
@@ -15,11 +15,13 @@ class MarkdownBlockCache {
   final LinkedHashMap<String, Object> _cache = LinkedHashMap<String, Object>();
 
   int _parseCount = 0;
+
   /// Debug counter incremented when a new message is parsed/cached (cache miss).
   /// Guarded to tests: read-only, never reset except via [clear].
   int get parseCount => _parseCount;
 
-  String keyFor(String messageId, int contentLength) => '$messageId::$contentLength';
+  String keyFor(String messageId, int contentLength) =>
+      '$messageId::$contentLength';
 
   T? get<T>(String messageId, int contentLength) {
     final key = keyFor(messageId, contentLength);

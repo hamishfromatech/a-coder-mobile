@@ -72,8 +72,13 @@ class SessionControllerState {
           starting: starting ?? this.starting);
 }
 
-final sessionControllerProvider = StateNotifierProvider.autoDispose
-    .family<SessionController, SessionControllerState, String>((ref, hostId) {
+// NOT autoDispose: the controller owns the WebSocket, the resync flow, and
+// every response handler. Auto-disposing it on the last watcher (e.g. leaving
+// the chat screen) tore down the connection mid-session and forced every
+// screen to rebuild a fresh socket; the session list never survived. The
+// connection is app-lifetime — hosts are torn down explicitly on forget.
+final sessionControllerProvider = StateNotifierProvider.family<
+    SessionController, SessionControllerState, String>((ref, hostId) {
   final controller = SessionController(ref, hostId);
   ref.onDispose(controller.dispose);
   unawaited(controller.start());
@@ -253,9 +258,12 @@ class SessionController extends StateNotifier<SessionControllerState> {
   void _registerResponseHandlers(RpcClient client) {
     void guarded(
         String type, Future<void> Function(Map<String, dynamic> data) handler) {
-      client.onResponse(type, (json) async {
+      client.onResponse(type, (data) async {
         try {
-          await handler(json['data'] as Map<String, dynamic>? ?? {});
+          // RpcClient.handleResponse already unwraps the envelope: the callback
+          // receives the response's `data` map. Extracting `data['data']` here
+          // double-unwrapped and handed every handler an empty map.
+          await handler(data);
         } catch (e) {
           debugPrint('[session:$hostId] $type handler error: $e');
         }
@@ -384,6 +392,16 @@ class SessionController extends StateNotifier<SessionControllerState> {
   Future<void> abortSession(String sessionPath) =>
       _send('abort_session', {'sessionPath': sessionPath});
 
+  /// Sub-agent actions (desktop SubagentPanel: stop / rerun / remove).
+  Future<Map<String, dynamic>> killSubagent(String subagentId) =>
+      _send('kill_subagent', {'subagentId': subagentId});
+
+  Future<Map<String, dynamic>> rerunSubagent(String subagentId) =>
+      _send('rerun_subagent', {'subagentId': subagentId});
+
+  Future<Map<String, dynamic>> removeSubagent(String subagentId) =>
+      _send('remove_subagent', {'subagentId': subagentId});
+
   /// Restore tracked files to a previous turn (file-history rewind).
   /// Returns the engine payload: {steps, filesChanged, insertions, deletions}.
   Future<Map<String, dynamic>> rewindFiles({int steps = 1}) =>
@@ -403,6 +421,15 @@ class SessionController extends StateNotifier<SessionControllerState> {
     _ref.read(cronJobsProvider.notifier).remove(jobId);
   }
 
+  /// Create a routine; the engine validates name, prompt and schedule.
+  Future<responses.CronJob> createCronJob(Map<String, dynamic> job) async {
+    final data = await _send('cron_create', {'job': job});
+    final created = responses.CronJob.fromJson(
+        data['job'] as Map<String, dynamic>? ?? <String, dynamic>{});
+    _ref.read(cronJobsProvider.notifier).upsert(created);
+    return created;
+  }
+
   /// Pause/resume or rename a job by patching its config.
   Future<void> updateCronJob(String jobId, Map<String, dynamic> patch) async {
     final data = await _send('cron_update', {'jobId': jobId, 'patch': patch});
@@ -415,6 +442,47 @@ class SessionController extends StateNotifier<SessionControllerState> {
   }
 
   // ─── M6: Your Office ───────────────────────────────────────────
+  Future<void> saveCoworker(Map<String, dynamic> coworker) async {
+    await _send('office_coworker_save', {'coworker': coworker});
+    await loadOffice();
+  }
+
+  Future<void> deleteCoworker(String coworkerId) async {
+    await _send('office_coworker_delete', {'coworkerId': coworkerId});
+    await loadOffice();
+  }
+
+  Future<void> saveHuddle({
+    String? id,
+    required String name,
+    required List<String> members,
+  }) async {
+    await _send('office_huddle_save', {
+      'huddle': {if (id != null) 'id': id, 'name': name, 'members': members},
+    });
+    await loadOffice();
+  }
+
+  Future<void> deleteHuddle(String huddleId) async {
+    await _send('office_huddle_delete', {'huddleId': huddleId});
+    await loadOffice();
+  }
+
+  Future<void> saveErrand(Map<String, dynamic> errand) async {
+    await _send('office_errand_save', {'errand': errand});
+    await loadOffice();
+  }
+
+  Future<void> deleteErrand(String errandId) async {
+    await _send('office_errand_delete', {'errandId': errandId});
+    await loadOffice();
+  }
+
+  Future<void> runErrand(String errandId) async {
+    await _send('office_errand_run', {'errandId': errandId});
+    await loadOffice();
+  }
+
   Future<void> loadOffice() => _send('office_list', {});
   Future<void> openHuddle(String huddleId) =>
       _send('office_huddle_get', {'huddleId': huddleId});
@@ -490,8 +558,19 @@ class SessionController extends StateNotifier<SessionControllerState> {
   }
 
   /// Desktop parity: set_model takes provider + modelId separately.
-  Future<void> setModel(String provider, String modelId) =>
-      _send('set_model', {'provider': provider, 'modelId': modelId});
+  ///
+  /// The engine applies the model but pushes no event for it, so refresh the
+  /// session state afterwards — the picker and chat chips read the model from
+  /// `get_state`'s response.
+  Future<void> setModel(String provider, String modelId) async {
+    await _send('set_model', {'provider': provider, 'modelId': modelId});
+    try {
+      await _send('get_state', {});
+    } catch (_) {
+      // The switch itself succeeded; the next resync/ping refreshes state.
+    }
+  }
+
   Future<void> setThinkingLevel(String level) =>
       _send('set_thinking_level', {'level': level});
   Future<void> setPermissionMode(String mode) =>
@@ -612,6 +691,9 @@ class SessionController extends StateNotifier<SessionControllerState> {
 
   @override
   void dispose() {
+    // Multiple widgets (shell pages) keep this provider alive; Riverpod can
+    // invoke dispose once per element teardown, so make it idempotent.
+    if (_disposed) return;
     _disposed = true;
     _connSub?.cancel();
     _manager?.dispose();

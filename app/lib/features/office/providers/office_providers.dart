@@ -6,8 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/protocol/responses.dart' as responses;
 
 /// Roster snapshot from `office_list` / `office_update`.
-final officeSnapshotProvider = StateNotifierProvider<OfficeSnapshotNotifier,
-    responses.OfficeSnapshot>((ref) {
+final officeSnapshotProvider =
+    StateNotifierProvider<OfficeSnapshotNotifier, responses.OfficeSnapshot>(
+        (ref) {
   return OfficeSnapshotNotifier();
 });
 
@@ -30,8 +31,9 @@ class OfficeSnapshotNotifier extends StateNotifier<responses.OfficeSnapshot> {
 }
 
 /// The currently open huddle payload (null = roster).
-final officeHuddleProvider = StateNotifierProvider<OfficeHuddleNotifier,
-    responses.OfficeHuddlePayload?>((ref) {
+final officeHuddleProvider =
+    StateNotifierProvider<OfficeHuddleNotifier, responses.OfficeHuddlePayload?>(
+        (ref) {
   return OfficeHuddleNotifier();
 });
 
@@ -77,8 +79,9 @@ class OfficeHuddleNotifier
 }
 
 /// Recent coworker activity frames (bounded).
-final officeActivityProvider = StateNotifierProvider<OfficeActivityNotifier,
-    List<Map<String, dynamic>>>((ref) {
+final officeActivityProvider =
+    StateNotifierProvider<OfficeActivityNotifier, List<Map<String, dynamic>>>(
+        (ref) {
   return OfficeActivityNotifier();
 });
 

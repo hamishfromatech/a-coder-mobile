@@ -11,11 +11,14 @@ import '../../../core/connection/connection_state.dart' as cs;
 import '../../../core/connection/feature_flags.dart';
 import '../../../core/protocol/responses.dart' show RpcSessionInfo;
 import '../../../design/theme.dart';
+import '../../../design/components/kit2.dart';
 import '../../../design/components/empty_state.dart';
 import '../../../design/components/status_dot.dart';
 import '../../../design/components/chip.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../../chat/providers/chat_providers.dart';
+import '../../shell/widgets/command_palette.dart';
+import '../providers/session_pins.dart';
 import '../providers/sessions_providers.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -28,7 +31,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   bool _syncInFlight = false;
   bool _syncedOnce = false;
@@ -46,7 +48,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -60,24 +61,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _syncSessions() async {
     if (_syncInFlight) return;
-    final connection = ref
-        .read(sessionControllerProvider(widget.activeHostId))
-        .connection;
+    final connection =
+        ref.read(sessionControllerProvider(widget.activeHostId)).connection;
     if (connection.state != cs.ConnectionState.ready) return;
     setState(() {
       _syncInFlight = true;
       _syncError = null;
     });
+    debugPrint('[sessions] fetch start (cwd scope auto)');
     try {
       await ref
           .read(sessionControllerProvider(widget.activeHostId).notifier)
           .refreshSessions();
+      debugPrint(
+          '[sessions] fetch ok -> ${ref.read(sessionsListProvider).length} sessions');
       if (!mounted) return;
       setState(() {
         _syncInFlight = false;
         _syncedOnce = true;
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[sessions] fetch FAILED: $e');
+      debugPrint('$st');
       if (!mounted) return;
       setState(() {
         _syncInFlight = false;
@@ -122,15 +127,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? scoped
         : scoped
             .where((s) =>
-                (s.name ?? '').toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                (s.name ?? '')
+                    .toLowerCase()
+                    .contains(_searchQuery.toLowerCase()) ||
                 s.cwd.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                (s.firstMessage ?? '').toLowerCase().contains(_searchQuery.toLowerCase()))
+                (s.firstMessage ?? '')
+                    .toLowerCase()
+                    .contains(_searchQuery.toLowerCase()))
             .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(hostName),
         actions: [
+          IconButton(
+            tooltip: 'Command palette',
+            icon: const Icon(Icons.search, size: 21),
+            onPressed: () => showPiCommandPalette(
+              context,
+              ref,
+              hostId: widget.activeHostId,
+            ),
+          ),
           IconButton(
             tooltip: 'Connection status',
             icon: Semantics(
@@ -163,7 +181,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const PopupMenuItem(
                       value: 'cron', child: Text('Scheduled tasks')),
                 if (FeatureFlags.enableOffice)
-                  const PopupMenuItem(value: 'office', child: Text('Your Office')),
+                  const PopupMenuItem(
+                      value: 'office', child: Text('Your Office')),
               ],
             ),
           IconButton(
@@ -184,7 +203,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 return Row(
                   children: [
                     if (chat.isStreaming) ...[
-                      const StatusChip(label: '● streaming', variant: ChipVariant.accent),
+                      const StatusChip(
+                          label: '● streaming', variant: ChipVariant.accent),
                       const SizedBox(width: 8),
                     ],
                     if (background.isNotEmpty) ...[
@@ -195,9 +215,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       const SizedBox(width: 8),
                     ],
-                    if (chat.queue.steering.isNotEmpty || chat.queue.followUp.isNotEmpty)
+                    if (chat.queue.steering.isNotEmpty ||
+                        chat.queue.followUp.isNotEmpty)
                       StatusChip(
-                        label: 'queue ${chat.queue.steering.length + chat.queue.followUp.length}',
+                        label:
+                            'queue ${chat.queue.steering.length + chat.queue.followUp.length}',
                         variant: ChipVariant.tool,
                       ),
                   ],
@@ -207,28 +229,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (q) {
+            child: PiSearchField(
+              value: _searchQuery,
+              onChange: (q) {
                 _setSearchQuery(q);
                 if (q.isEmpty) setState(() => _searchQuery = '');
               },
-              decoration: InputDecoration(
-                hintText: 'Search sessions by name or path…',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        icon: const Icon(Icons.clear_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          if (mounted) setState(() => _searchQuery = '');
-                        },
-                      ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
+              placeholder: 'Search sessions by name or path…',
+              semanticLabel: 'Search sessions',
             ),
           ),
           if (sessions.isNotEmpty)
@@ -239,13 +247,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (currentCwd.isNotEmpty) ...[
                     StatusChip(
                       label: 'this project · $projectCount',
-                      variant: _allProjects ? ChipVariant.muted : ChipVariant.accent,
+                      variant:
+                          _allProjects ? ChipVariant.muted : ChipVariant.accent,
                       onTap: () => setState(() => _allProjects = false),
                     ),
                     const SizedBox(width: 6),
                     StatusChip(
                       label: 'all · ${sessions.length}',
-                      variant: _allProjects ? ChipVariant.accent : ChipVariant.muted,
+                      variant:
+                          _allProjects ? ChipVariant.accent : ChipVariant.muted,
                       onTap: () => setState(() => _allProjects = true),
                     ),
                   ] else
@@ -268,28 +278,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onRefresh: _syncSessions,
               child: filtered.isEmpty
                   ? _emptyState(context, scoped, sessions, connected)
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 88),
-                      itemCount: filtered.length,
-                      itemExtent: null,
-                      itemBuilder: (context, index) {
-                        final session = filtered[index];
-                        return _SessionRow(
-                          key: ValueKey(session.path.isNotEmpty ? session.path : session.id),
-                          session: session,
-                          connected: connected,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            Navigator.of(context).pushNamed(
-                              '/chat',
-                              arguments: {'hostId': widget.activeHostId, 'sessionPath': session.path},
+                  : Builder(
+                      builder: (context) {
+                        final pins = ref.watch(sessionPinsProvider);
+                        final entries = <Object>[];
+                        for (final group in groupSessions(filtered, pins)) {
+                          entries.add(group.$1);
+                          entries.addAll(group.$2);
+                        }
+                        return ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 88),
+                          itemCount: entries.length,
+                          itemBuilder: (context, index) {
+                            final entry = entries[index];
+                            if (entry is String) {
+                              return _GroupHeader(
+                                  label: entry, count: entries.length);
+                            }
+                            final session = entry as RpcSessionInfo;
+                            return _SessionRow(
+                              key: ValueKey(session.path.isNotEmpty
+                                  ? session.path
+                                  : session.id),
+                              session: session,
+                              connected: connected,
+                              pinned: pins.contains(session.path),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                Navigator.of(context).pushNamed(
+                                  '/chat',
+                                  arguments: {
+                                    'hostId': widget.activeHostId,
+                                    'sessionPath': session.path
+                                  },
+                                );
+                              },
+                              onRename: () => _renameSession(session),
+                              onDelete: () => _confirmDelete(session),
+                              onStop: () => ref
+                                  .read(sessionControllerProvider(
+                                          widget.activeHostId)
+                                      .notifier)
+                                  .abortSession(session.path),
+                              onTogglePin: () => ref
+                                  .read(sessionPinsProvider.notifier)
+                                  .toggle(session.path),
+                              onBranches: session.parentSessionPath != null
+                                  ? () => _showBranches(session)
+                                  : null,
                             );
                           },
-                          onRename: () => _renameSession(session),
-                          onDelete: () => _confirmDelete(session),
-                          onStop: () => ref
-                              .read(sessionControllerProvider(widget.activeHostId).notifier)
-                              .abortSession(session.path),
                         );
                       },
                     ),
@@ -301,7 +339,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         label: 'New session',
         child: FloatingActionButton(
           onPressed: () async {
-            final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
+            final controller = ref
+                .read(sessionControllerProvider(widget.activeHostId).notifier);
             try {
               await controller.newSession();
             } catch (_) {
@@ -362,8 +401,87 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   static void _noop() {}
 
+  /// Branch navigation without a new RPC: siblings share the same parent
+  /// session path (desktop's session tree, flattened for a phone).
+  Future<void> _showBranches(RpcSessionInfo session) async {
+    final all = ref.read(sessionsListProvider);
+    final parentPath = session.parentSessionPath;
+    final family = all
+        .where((s) =>
+            s.path == parentPath ||
+            s.path == session.path ||
+            (parentPath != null && s.parentSessionPath == parentPath))
+        .toList();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Row(
+                children: [
+                  Text('Branches',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: PiColors.text)),
+                  const Spacer(),
+                  Text('${family.length}',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: PiFonts.mono,
+                          color: PiColors.textFaint)),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: PiColors.border),
+            for (final branch in family)
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  branch.path == session.path
+                      ? Icons.radio_button_checked
+                      : Icons.call_split,
+                  size: 16,
+                  color: branch.path == session.path
+                      ? PiColors.accent
+                      : PiColors.textMuted,
+                ),
+                title: Text(
+                  branch.name?.isNotEmpty == true
+                      ? branch.name!
+                      : branch.path.split('/').last,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+                subtitle: Text(
+                  branch.path == parentPath ? 'parent session' : 'branch',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: PiFonts.mono,
+                      color: PiColors.textMuted),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).pushNamed('/chat', arguments: {
+                    'hostId': widget.activeHostId,
+                    'sessionPath': branch.path,
+                  });
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _renameSession(RpcSessionInfo session) async {
-    final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
+    final controller =
+        ref.read(sessionControllerProvider(widget.activeHostId).notifier);
     final nameController = TextEditingController(text: session.name ?? '');
     final confirmed = await showDialog<bool>(
       context: context,
@@ -375,8 +493,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           decoration: const InputDecoration(hintText: 'Session name'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Rename')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Rename')),
         ],
       ),
     );
@@ -410,14 +532,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _confirmDelete(RpcSessionInfo session) async {
-    final controller = ref.read(sessionControllerProvider(widget.activeHostId).notifier);
+    final controller =
+        ref.read(sessionControllerProvider(widget.activeHostId).notifier);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete session?'),
-        content: Text('Remove "${session.name?.isNotEmpty == true ? session.name : session.id}" from the list?'),
+        content: Text(
+            'Remove "${session.name?.isNotEmpty == true ? session.name : session.id}" from the list?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: PiColors.error),
@@ -447,20 +573,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [StatusDot(type: connected ? StatusDotType.live : StatusDotType.idle, size: 8)]),
+              Row(children: [
+                StatusDot(
+                    type: connected ? StatusDotType.live : StatusDotType.idle,
+                    size: 8)
+              ]),
               const SizedBox(height: 8),
               Text(
                 connected ? 'Connected' : conn.connection.state.name,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
-              Text(url, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono', color: PiColors.textMuted)),
+              Text(url,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: PiFonts.mono,
+                      color: PiColors.textMuted)),
               if (conn.connection.errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     conn.connection.errorMessage!,
-                    style: const TextStyle(fontSize: 13, color: PiColors.error),
+                    style: TextStyle(fontSize: 13, color: PiColors.error),
                   ),
                 ),
             ],
@@ -480,10 +615,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Background Sessions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text('Background Sessions',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               if (sessions.isEmpty)
-                const Text('No background sessions', style: TextStyle(fontSize: 13, color: PiColors.textMuted))
+                Text('No background sessions',
+                    style: TextStyle(fontSize: 13, color: PiColors.textMuted))
               else
                 for (final s in sessions)
                   _BgSessionRow(
@@ -494,14 +631,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       Navigator.pop(ctx);
                       Navigator.of(context).pushNamed(
                         '/chat',
-                        arguments: {'hostId': widget.activeHostId, 'sessionPath': s.sessionPath as String?},
+                        arguments: {
+                          'hostId': widget.activeHostId,
+                          'sessionPath': s.sessionPath as String?
+                        },
                       );
                     },
                     onAbort: () {
                       ref
-                          .read(sessionControllerProvider(widget.activeHostId).notifier)
+                          .read(sessionControllerProvider(widget.activeHostId)
+                              .notifier)
                           .abortSession(s.path);
-                      ref.read(backgroundSessionsProvider.notifier).remove(s.path);
+                      ref
+                          .read(backgroundSessionsProvider.notifier)
+                          .remove(s.path);
                       Navigator.pop(ctx);
                     },
                   ),
@@ -513,22 +656,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+/// Desktop date/project section header (mono micro label + hairline).
+class _GroupHeader extends StatelessWidget {
+  final String label;
+  final int count;
+  const _GroupHeader({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontFamily: PiFonts.mono,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+              color: PiColors.textFaint,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Container(height: 1, color: PiColors.border)),
+        ],
+      ),
+    );
+  }
+}
+
 class _SessionRow extends StatelessWidget {
   final RpcSessionInfo session;
   final bool connected;
+  final bool pinned;
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onDelete;
   final VoidCallback onStop;
+  final VoidCallback onTogglePin;
+  final VoidCallback? onBranches;
 
   const _SessionRow({
     super.key,
     required this.session,
     required this.connected,
+    required this.pinned,
     required this.onTap,
     required this.onRename,
     required this.onDelete,
     required this.onStop,
+    required this.onTogglePin,
+    this.onBranches,
   });
 
   @override
@@ -541,18 +720,29 @@ class _SessionRow extends StatelessWidget {
     final modified = DateTime.tryParse(session.modified) ?? DateTime.now();
     return ListTile(
       key: ValueKey(session.path),
+      leading: pinned
+          ? Icon(Icons.push_pin, size: 14, color: PiColors.accent)
+          : null,
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(path, style: const TextStyle(fontSize: 11, fontFamily: 'JetBrains Mono', color: PiColors.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(path,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: PiFonts.mono,
+                  color: PiColors.textMuted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
           Row(
             children: [
-              Text(_relativeTime(modified), style: const TextStyle(fontSize: 11, color: PiColors.textMuted)),
+              Text(_relativeTime(modified),
+                  style: TextStyle(fontSize: 11, color: PiColors.textMuted)),
               const SizedBox(width: 12),
-              Text('$msgCount messages', style: const TextStyle(fontSize: 11, color: PiColors.textMuted)),
+              Text('$msgCount messages',
+                  style: TextStyle(fontSize: 11, color: PiColors.textMuted)),
               if (session.parentSessionPath != null) ...[
                 const SizedBox(width: 8),
                 const StatusChip(label: 'child', variant: ChipVariant.tool),
@@ -561,7 +751,7 @@ class _SessionRow extends StatelessWidget {
           ),
         ],
       ),
-      trailing: const Icon(Icons.chevron_right, size: 20, color: PiColors.textFaint),
+      trailing: Icon(Icons.chevron_right, size: 20, color: PiColors.textFaint),
       onTap: onTap,
       onLongPress: () async {
         final action = await showModalBottomSheet<String>(
@@ -570,15 +760,39 @@ class _SessionRow extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Rename'), onTap: () => Navigator.pop(ctx, 'rename')),
-                ListTile(leading: const Icon(Icons.stop_circle_outlined), title: const Text('Stop'), onTap: () => Navigator.pop(ctx, 'stop')),
-                ListTile(leading: const Icon(Icons.delete_outline, color: PiColors.error), title: const Text('Delete', style: TextStyle(color: PiColors.error)), onTap: () => Navigator.pop(ctx, 'delete')),
+                ListTile(
+                    leading:
+                        Icon(pinned ? Icons.push_pin_outlined : Icons.push_pin),
+                    title: Text(pinned ? 'Unpin' : 'Pin to top'),
+                    onTap: () => Navigator.pop(ctx, 'pin')),
+                if (onBranches != null)
+                  ListTile(
+                      leading: const Icon(Icons.account_tree_outlined),
+                      title: const Text('Branches'),
+                      onTap: () => Navigator.pop(ctx, 'branches')),
+                ListTile(
+                    leading: const Icon(Icons.edit_outlined),
+                    title: const Text('Rename'),
+                    onTap: () => Navigator.pop(ctx, 'rename')),
+                ListTile(
+                    leading: const Icon(Icons.stop_circle_outlined),
+                    title: const Text('Stop'),
+                    onTap: () => Navigator.pop(ctx, 'stop')),
+                ListTile(
+                    leading: Icon(Icons.delete_outline, color: PiColors.error),
+                    title:
+                        Text('Delete', style: TextStyle(color: PiColors.error)),
+                    onTap: () => Navigator.pop(ctx, 'delete')),
               ],
             ),
           ),
         );
         if (!context.mounted) return;
         switch (action) {
+          case 'pin':
+            onTogglePin();
+          case 'branches':
+            onBranches?.call();
           case 'rename':
             onRename();
           case 'stop':
@@ -623,9 +837,14 @@ class _BgSessionRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          StatusDot(type: running ? StatusDotType.live : StatusDotType.idle, size: 6),
+          StatusDot(
+              type: running ? StatusDotType.live : StatusDotType.idle, size: 6),
           const SizedBox(width: 8),
-          Expanded(child: Text(cwd, style: const TextStyle(fontSize: 13, fontFamily: 'JetBrains Mono'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(
+              child: Text(cwd,
+                  style: TextStyle(fontSize: 13, fontFamily: PiFonts.mono),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis)),
           StatusChip(label: '$pending pending', variant: ChipVariant.muted),
           const SizedBox(width: 8),
           TextButton(onPressed: onOpen, child: const Text('Open')),

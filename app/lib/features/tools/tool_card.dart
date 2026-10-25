@@ -1,6 +1,8 @@
 // lib/features/tools/tool_card.dart
 library;
+
 import 'dart:async';
+
 /// Tool card renderers — map toolName → card (doc 06 §4.3).
 /// Bash, Read, Edit (with diff), Write, Grep/Find/Ls, generic.
 
@@ -70,7 +72,9 @@ class _ToolCardState extends State<ToolCard> {
 
   ToolCardStatus get _status {
     if (widget.isError) return ToolCardStatus.error;
-    if (widget.isComplete || widget.result != null) return ToolCardStatus.success;
+    if (widget.isComplete || widget.result != null) {
+      return ToolCardStatus.success;
+    }
     return ToolCardStatus.running;
   }
 
@@ -127,7 +131,10 @@ class _ToolCardState extends State<ToolCard> {
                 ? PiColors.error.withValues(alpha: 0.10)
                 : c.surfaceRaised.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: widget.isError ? PiColors.error.withValues(alpha: 0.3) : c.border),
+            border: Border.all(
+                color: widget.isError
+                    ? PiColors.error.withValues(alpha: 0.3)
+                    : c.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,37 +147,50 @@ class _ToolCardState extends State<ToolCard> {
                   Expanded(
                     child: Text(
                       widget.toolName,
-                      style: const TextStyle(fontSize: 11.5, fontFamily: 'JetBrains Mono', fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontFamily: PiFonts.mono,
+                          fontWeight: FontWeight.w500),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       statusLabel,
-                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: statusColor),
+                      style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor),
                     ),
                   ),
                   const SizedBox(width: 6),
                   if (_summary != null) ...[
                     StatusChip(
                       label: _summary!,
-                      variant: widget.isError ? ChipVariant.error : ChipVariant.success,
+                      variant: widget.isError
+                          ? ChipVariant.error
+                          : ChipVariant.success,
                     ),
                     const SizedBox(width: 6),
                   ],
                   if (_isRunning)
                     Text(
                       _formatElapsed(_stopwatch.elapsed),
-                      style: const TextStyle(fontSize: 10, fontFamily: 'JetBrains Mono', color: PiColors.textMuted),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: PiFonts.mono,
+                          color: PiColors.textMuted),
                     ),
                   const SizedBox(width: 4),
-                  Icon(_expanded ? Icons.expand_less : Icons.expand_more, size: 16, color: c.textFaint),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16, color: c.textFaint),
                 ],
               ),
               if (_expanded) ...[
@@ -181,12 +201,14 @@ class _ToolCardState extends State<ToolCard> {
                     TextButton.icon(
                       onPressed: () => _copy(_argsText),
                       icon: const Icon(Icons.copy_all_rounded, size: 14),
-                      label: const Text('Copy args', style: TextStyle(fontSize: 11)),
+                      label: const Text('Copy args',
+                          style: TextStyle(fontSize: 11)),
                     ),
                     TextButton.icon(
                       onPressed: () => _copy(_resultText),
                       icon: const Icon(Icons.copy_rounded, size: 14),
-                      label: const Text('Copy result', style: TextStyle(fontSize: 11)),
+                      label: const Text('Copy result',
+                          style: TextStyle(fontSize: 11)),
                     ),
                   ],
                 ),
@@ -204,7 +226,8 @@ class _ToolCardState extends State<ToolCard> {
     );
   }
 
-  String get _argsText => const JsonEncoder.withIndent('  ').convert(widget.args);
+  String get _argsText =>
+      const JsonEncoder.withIndent('  ').convert(widget.args);
 
   String get _resultText {
     if (widget.result == null) return '';
@@ -272,12 +295,14 @@ class _ToolCardState extends State<ToolCard> {
   }
 
   Widget _buildDetail(PiPalette c) {
-    const mono = TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: PiColors.text);
+    final mono =
+        TextStyle(fontSize: 12, fontFamily: PiFonts.mono, color: PiColors.text);
 
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0A0C), // detail pane stays dark (desktop parity)
+        color:
+            const Color(0xFF0A0A0C), // detail pane stays dark (desktop parity)
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: PiColors.border),
       ),
@@ -292,7 +317,10 @@ class _ToolCardState extends State<ToolCard> {
   }
 
   List<Widget> _detailChildren(TextStyle mono) {
-    const labelStyle = TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: PiColors.textSecondary);
+    final labelStyle = TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: PiColors.textSecondary);
 
     switch (_type) {
       case ToolCardType.bash:
@@ -301,32 +329,41 @@ class _ToolCardState extends State<ToolCard> {
         final lines = stdout?.split('\n') ?? const <String>[];
         final bounded = lines.length > 40 ? lines.take(40).toList() : lines;
         return [
-          const Text('Command', style: labelStyle),
+          Text('Command', style: labelStyle),
           const SizedBox(height: 2),
           Text(widget.args['command'] as String? ?? '', style: mono),
           if (stdout != null && stdout.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const Text('Output', style: labelStyle),
+            Text('Output', style: labelStyle),
             const SizedBox(height: 2),
-            for (final line in bounded) Text(line, style: mono.copyWith(color: PiColors.textSecondary)),
+            for (final line in bounded)
+              Text(line, style: mono.copyWith(color: PiColors.textSecondary)),
             if (lines.length > 40)
-              Text('… ${lines.length - 40} more lines', style: const TextStyle(fontSize: 11, color: PiColors.textFaint)),
+              Text('… ${lines.length - 40} more lines',
+                  style: TextStyle(fontSize: 11, color: PiColors.textFaint)),
           ],
         ];
       case ToolCardType.edit:
         final diff = _diffText;
         if (widget.isError) {
-          return [const Text('Tool execution failed', style: TextStyle(color: PiColors.error, fontSize: 12))];
+          return [
+            Text('Tool execution failed',
+                style: TextStyle(color: PiColors.error, fontSize: 12))
+          ];
         }
         if (diff == null || diff.isEmpty) {
-          return [const Text('No changes', style: TextStyle(fontSize: 12, color: PiColors.textMuted))];
+          return [
+            Text('No changes',
+                style: TextStyle(fontSize: 12, color: PiColors.textMuted))
+          ];
         }
         final lines = diff.split('\n');
         final bounded = lines.length > 40 ? lines.take(40).toList() : lines;
         return [
           for (final line in bounded) DiffRow(line: line),
           if (lines.length > 40)
-            Text('… ${lines.length - 40} more lines', style: const TextStyle(fontSize: 11, color: PiColors.textFaint)),
+            Text('… ${lines.length - 40} more lines',
+                style: TextStyle(fontSize: 11, color: PiColors.textFaint)),
         ];
       case ToolCardType.read:
       case ToolCardType.write:
@@ -335,7 +372,7 @@ class _ToolCardState extends State<ToolCard> {
         final r = _resultMap;
         final matches = r?['matches'];
         return [
-          const Text('Query', style: labelStyle),
+          Text('Query', style: labelStyle),
           const SizedBox(height: 2),
           Text(
             (widget.args['pattern'] ?? widget.args['path'] ?? '').toString(),
@@ -343,11 +380,15 @@ class _ToolCardState extends State<ToolCard> {
           ),
           if (matches is List) ...[
             const SizedBox(height: 4),
-            Text('${matches.length} results', style: const TextStyle(fontSize: 12, color: PiColors.success)),
+            Text('${matches.length} results',
+                style: TextStyle(fontSize: 12, color: PiColors.success)),
           ],
         ];
       case ToolCardType.task:
-        return [const Text('Task graph — full view in a later milestone', style: TextStyle(fontSize: 12, color: PiColors.textMuted))];
+        return [
+          Text('Task graph — full view in a later milestone',
+              style: TextStyle(fontSize: 12, color: PiColors.textMuted))
+        ];
       case ToolCardType.unknown:
         return [
           SelectableText(
@@ -409,13 +450,21 @@ class DiffRow extends StatelessWidget {
             width: 14,
             child: Text(
               marker,
-              style: TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: markerColor, height: 1.4),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: PiFonts.mono,
+                  color: markerColor,
+                  height: 1.4),
             ),
           ),
           Expanded(
             child: Text(
               line.length > 1 ? line.substring(1) : line,
-              style: TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono', color: markerColor, height: 1.4),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: PiFonts.mono,
+                  color: markerColor,
+                  height: 1.4),
             ),
           ),
         ],

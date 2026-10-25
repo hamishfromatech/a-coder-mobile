@@ -1,15 +1,19 @@
 // lib/design/components/status_dot.dart
 library;
+
 /// 4–8px dot: accent (live, pulse), success (done), error.
 /// Used in chips, session list rows, background sessions indicator.
 import 'package:flutter/material.dart';
 import '../theme.dart';
+
 enum StatusDotType { live, done, error, idle }
+
 class StatusDot extends StatelessWidget {
   final StatusDotType type;
   final double size; // 4–8px
   const StatusDot({super.key, this.type = StatusDotType.idle, this.size = 8});
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     final color = switch (type) {
       StatusDotType.live => PiColors.accent,
       StatusDotType.done => PiColors.success,

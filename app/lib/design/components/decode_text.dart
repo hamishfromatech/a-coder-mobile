@@ -28,13 +28,17 @@ class DecodeText extends StatefulWidget {
   });
 
   final String text;
+
   /// Leading character count that stays legible at all times.
   final int prefix;
+
   /// Run the decode. When false, renders the plain resolved text (freezes the
   /// word during the exit choreography).
   final bool active;
+
   /// Replay after the hold, or resolve once and stop.
   final bool loop;
+
   /// Blinking cursor square after the text.
   final bool cursor;
   final TextStyle? style;
@@ -116,15 +120,18 @@ class _DecodeTextState extends State<DecodeText> {
     final out = StringBuffer();
     for (var i = 0; i < tail.length; i++) {
       final ch = tail[i];
-      out.write(ch == ' ' || i < resolvedCount ? ch : decodeScrambleChars[_random.nextInt(decodeScrambleChars.length)]);
+      out.write(ch == ' ' || i < resolvedCount
+          ? ch
+          : decodeScrambleChars[_random.nextInt(decodeScrambleChars.length)]);
     }
     return out.toString();
   }
 
   @override
   Widget build(BuildContext context) {
-    final staticPrefix =
-        widget.text.length > widget.prefix ? widget.text.substring(0, widget.prefix) : widget.text;
+    final staticPrefix = widget.text.length > widget.prefix
+        ? widget.text.substring(0, widget.prefix)
+        : widget.text;
     final baseStyle = (widget.style ?? const TextStyle()).copyWith(
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -133,7 +140,10 @@ class _DecodeTextState extends State<DecodeText> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text.rich(TextSpan(text: '$staticPrefix$_tail', style: baseStyle)),
-        if (widget.cursor) ...[const SizedBox(width: 4), const _BlinkingCursor()],
+        if (widget.cursor) ...[
+          const SizedBox(width: 4),
+          const _BlinkingCursor()
+        ],
       ],
     );
   }

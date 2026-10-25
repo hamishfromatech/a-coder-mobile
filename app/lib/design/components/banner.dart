@@ -1,9 +1,11 @@
 // lib/design/components/banner.dart
 library;
+
 /// Full-width strip above composer for connection/compaction/retry states.
 /// Shows state icon + message + optional action button.
 import 'package:flutter/material.dart';
 import '../theme.dart';
+
 enum BannerType {
   reconnecting, // "Reconnecting… attempt N"
   disconnected, // "Disconnected — tap to retry"
@@ -12,6 +14,7 @@ enum BannerType {
   retrying, // "Retrying (attempt N/M)…"
   info, // Generic info
 }
+
 class ConnectionBanner extends StatelessWidget {
   final BannerType type;
   final String message;
@@ -30,12 +33,30 @@ class ConnectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PiColors.of(context);
     final (icon, color) = switch (type) {
-      BannerType.reconnecting => (const Icon(Icons.sync_problem_rounded, size: 16), PiColors.warning),
-      BannerType.disconnected => (const Icon(Icons.wifi_off_rounded, size: 16), PiColors.error),
-      BannerType.engineRestarting => (const Icon(Icons.restart_alt_rounded, size: 16), PiColors.accent),
-      BannerType.compaction => (const Icon(Icons.compress_rounded, size: 16), PiColors.accent),
-      BannerType.retrying => (const Icon(Icons.refresh_rounded, size: 16), PiColors.warning),
-      BannerType.info => (const Icon(Icons.info_outline_rounded, size: 16), c.textSecondary),
+      BannerType.reconnecting => (
+          const Icon(Icons.sync_problem_rounded, size: 16),
+          PiColors.warning
+        ),
+      BannerType.disconnected => (
+          const Icon(Icons.wifi_off_rounded, size: 16),
+          PiColors.error
+        ),
+      BannerType.engineRestarting => (
+          const Icon(Icons.restart_alt_rounded, size: 16),
+          PiColors.accent
+        ),
+      BannerType.compaction => (
+          const Icon(Icons.compress_rounded, size: 16),
+          PiColors.accent
+        ),
+      BannerType.retrying => (
+          const Icon(Icons.refresh_rounded, size: 16),
+          PiColors.warning
+        ),
+      BannerType.info => (
+          const Icon(Icons.info_outline_rounded, size: 16),
+          c.textSecondary
+        ),
     };
     return Container(
       width: double.infinity,
@@ -53,18 +74,26 @@ class ConnectionBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(message, style: TextStyle(fontSize: 12, color: c.textSecondary)),
+                Text(message,
+                    style: TextStyle(fontSize: 12, color: c.textSecondary)),
                 if (attemptText != null || countdown != null)
                   Row(
                     children: [
                       if (attemptText != null) ...[
-                        Text(attemptText!, style: TextStyle(fontSize: 10, fontFamily: 'JetBrains Mono', color: c.textMuted)),
+                        Text(attemptText!,
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: PiFonts.mono,
+                                color: c.textMuted)),
                         if (countdown != null) const SizedBox(width: 8),
                       ],
                       if (countdown != null)
                         Text(
                           _formatDuration(countdown!),
-                          style: TextStyle(fontSize: 10, fontFamily: 'JetBrains Mono', color: c.textMuted),
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: PiFonts.mono,
+                              color: c.textMuted),
                         ),
                     ],
                   ),
@@ -85,6 +114,7 @@ class ConnectionBanner extends StatelessWidget {
       ),
     );
   }
+
   String _formatDuration(Duration d) {
     if (d.inSeconds < 60) return '${d.inSeconds}s';
     return '${d.inMinutes}m ${d.inSeconds % 60}s';

@@ -1,9 +1,11 @@
 // lib/design/components/empty_state.dart
 library;
+
 /// Standardized empty/error/loading states (doc 09 §4).
 /// EmptyState, ErrorState, LoadingList — used across all screens.
 import 'package:flutter/material.dart';
 import '../theme.dart';
+
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -18,7 +20,8 @@ class EmptyState extends StatelessWidget {
     this.action,
     this.actionLabel,
   });
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -27,9 +30,15 @@ class EmptyState extends StatelessWidget {
           children: [
             Icon(icon, size: 48, color: PiColors.textFaint),
             const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: PiColors.textSecondary)),
+            Text(title,
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: PiColors.textSecondary)),
             const SizedBox(height: 4),
-            Text(hint, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: PiColors.textMuted)),
+            Text(hint,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: PiColors.textMuted)),
             if (action != null && actionLabel != null) ...[
               const SizedBox(height: 16),
               ElevatedButton(
@@ -43,20 +52,24 @@ class EmptyState extends StatelessWidget {
     );
   }
 }
+
 class ErrorState extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
   const ErrorState({super.key, required this.message, required this.onRetry});
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: PiColors.error),
+            Icon(Icons.error_outline_rounded, size: 48, color: PiColors.error),
             const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: PiColors.text)),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: PiColors.text)),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: onRetry,
@@ -68,11 +81,13 @@ class ErrorState extends StatelessWidget {
     );
   }
 }
+
 /// Shimmer loading rows matching final layout heights.
 class LoadingList extends StatelessWidget {
   final int itemCount;
   const LoadingList({super.key, this.itemCount = 10});
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return ListView.builder(
       reverse: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -81,26 +96,35 @@ class LoadingList extends StatelessWidget {
     );
   }
 }
+
 class _ShimmerRow extends StatefulWidget {
   final bool isLast;
   const _ShimmerRow(this.isLast);
-  @override State<_ShimmerRow> createState() => _ShimmerRowState();
+  @override
+  State<_ShimmerRow> createState() => _ShimmerRowState();
 }
-class _ShimmerRowState extends State<_ShimmerRow> with SingleTickerProviderStateMixin {
+
+class _ShimmerRowState extends State<_ShimmerRow>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200));
     _animation = Tween<double>(begin: 0.4, end: 0.8).animate(_controller);
     _controller.repeat();
   }
-  @override void dispose() {
+
+  @override
+  void dispose() {
     _controller.dispose();
     super.dispose();
   }
-  @override Widget build(BuildContext context) {
+
+  @override
+  Widget build(BuildContext context) {
     final c = PiColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

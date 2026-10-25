@@ -90,10 +90,12 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
     // a dropped socket / reconnect must NOT cover the chat — users should
     // still be able to type drafts and recover instead of staring at a modal.
     // An auth/server error surfaces through the home screen's banner instead.
-    final hasFatalError =
-        info.state == conn.ConnectionState.disconnected && (info.errorMessage?.isNotEmpty ?? false);
-    final connecting =
-        !_coldBootDone && !ready && !hasFatalError && info.state != conn.ConnectionState.shuttingDown;
+    final hasFatalError = info.state == conn.ConnectionState.disconnected &&
+        (info.errorMessage?.isNotEmpty ?? false);
+    final connecting = !_coldBootDone &&
+        !ready &&
+        !hasFatalError &&
+        info.state != conn.ConnectionState.shuttingDown;
 
     _connectingNow = connecting;
     if (!connecting) _seconds = 0;
@@ -157,8 +159,8 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                       active: _phase == _Phase.live && connecting && !reduced,
                       cursor: true,
                       text: 'CONNECTING',
-                      style: const TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                      style: TextStyle(
+                        fontFamily: PiFonts.mono,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 12 * 0.4,
@@ -177,7 +179,7 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                                 ? 'retrying in ${info.nextRetryIn.inSeconds}s'
                                 : 'retrying…',
                             style: TextStyle(
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: PiFonts.mono,
                               fontSize: 10,
                               letterSpacing: 1.6,
                               color: palette.textMuted,
@@ -190,7 +192,7 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                           child: Text(
                             'loading your session…',
                             style: TextStyle(
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: PiFonts.mono,
                               fontSize: 10,
                               letterSpacing: 1.6,
                               color: palette.textMuted,
@@ -203,7 +205,7 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                           child: Text(
                             'waiting for the desktop engine…',
                             style: TextStyle(
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: PiFonts.mono,
                               fontSize: 10,
                               letterSpacing: 1.6,
                               color: palette.textMuted,
@@ -219,7 +221,7 @@ class _ConnectingOverlayState extends ConsumerState<ConnectingOverlay> {
                             child: Text(
                               info.errorMessage!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 11, color: PiColors.error),
                             ),
                           ),

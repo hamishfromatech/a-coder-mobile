@@ -73,7 +73,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(
-      find.text('No scheduled tasks — create one from the desktop or the CLI'),
+      find.text('No scheduled tasks yet'),
       findsOneWidget,
     );
   });

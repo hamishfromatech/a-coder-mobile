@@ -27,11 +27,11 @@ class PiType {
 
   static TextStyle get bodyStyle =>
       const TextStyle(fontSize: body, height: 1.5);
-  static TextStyle get captionStyle => const TextStyle(
-      fontSize: caption, height: 1.4, color: PiColors.textMuted);
-  static TextStyle get monoMicro => const TextStyle(
+  static TextStyle get captionStyle =>
+      TextStyle(fontSize: caption, height: 1.4, color: PiColors.textMuted);
+  static TextStyle get monoMicro => TextStyle(
         fontSize: micro,
-        fontFamily: 'JetBrains Mono',
+        fontFamily: PiFonts.mono,
         letterSpacing: 0.6,
         color: PiColors.textMuted,
       );
@@ -51,7 +51,8 @@ class PiRadius {
 List<BoxShadow> get piOverlayShadow => const [
       BoxShadow(color: Color(0x0A000000), blurRadius: 1, offset: Offset(0, 1)),
       BoxShadow(color: Color(0x29000000), blurRadius: 12, offset: Offset(0, 4)),
-      BoxShadow(color: Color(0x47000000), blurRadius: 48, offset: Offset(0, 16)),
+      BoxShadow(
+          color: Color(0x47000000), blurRadius: 48, offset: Offset(0, 16)),
     ];
 
 /// Desktop `.pi-glass`: translucent raised surface + hairline.
