@@ -1,5 +1,6 @@
 // test/core/connection/connection_state_test.dart
 library;
+
 /// Unit tests for the connection state machine (doc 08 §4).
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,18 +10,28 @@ import 'package:acoder_mobile/core/connection/connection_state.dart';
 void main() {
   group('ConnectionInfo', () {
     test('defaults to disconnected', () {
-      expect(const ConnectionInfo().state, equals(ConnectionState.disconnected));
+      expect(
+          const ConnectionInfo().state, equals(ConnectionState.disconnected));
     });
 
     test('isConnected is true only for ready state', () {
-      expect(const ConnectionInfo(state: ConnectionState.ready).isConnected, isTrue);
-      expect(const ConnectionInfo(state: ConnectionState.connecting).isConnected, isFalse);
-      expect(const ConnectionInfo(state: ConnectionState.disconnected).isConnected, isFalse);
+      expect(const ConnectionInfo(state: ConnectionState.ready).isConnected,
+          isTrue);
+      expect(
+          const ConnectionInfo(state: ConnectionState.connecting).isConnected,
+          isFalse);
+      expect(
+          const ConnectionInfo(state: ConnectionState.disconnected).isConnected,
+          isFalse);
     });
 
     test('isDisconnected works', () {
-      expect(const ConnectionInfo(state: ConnectionState.disconnected).isDisconnected, isTrue);
-      expect(const ConnectionInfo(state: ConnectionState.ready).isDisconnected, isFalse);
+      expect(
+          const ConnectionInfo(state: ConnectionState.disconnected)
+              .isDisconnected,
+          isTrue);
+      expect(const ConnectionInfo(state: ConnectionState.ready).isDisconnected,
+          isFalse);
     });
 
     test('copyWith creates new instance with updated fields', () {
@@ -47,7 +58,8 @@ void main() {
     });
 
     test('isResyncing flag works', () {
-      const syncing = ConnectionInfo(state: ConnectionState.ready, isResyncing: true);
+      const syncing =
+          ConnectionInfo(state: ConnectionState.ready, isResyncing: true);
       expect(syncing.isResyncing, isTrue);
       final normal = syncing.copyWith(isResyncing: false);
       expect(normal.isResyncing, isFalse);
@@ -57,12 +69,17 @@ void main() {
   group('ConnectionState enum', () {
     test('has all expected values', () {
       expect(ConnectionState.values.length, equals(6));
-      expect(ConnectionState.values.contains(ConnectionState.disconnected), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.connecting), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.authenticating), isTrue);
+      expect(ConnectionState.values.contains(ConnectionState.disconnected),
+          isTrue);
+      expect(
+          ConnectionState.values.contains(ConnectionState.connecting), isTrue);
+      expect(ConnectionState.values.contains(ConnectionState.authenticating),
+          isTrue);
       expect(ConnectionState.values.contains(ConnectionState.ready), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.reconnecting), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.shuttingDown), isTrue);
+      expect(ConnectionState.values.contains(ConnectionState.reconnecting),
+          isTrue);
+      expect(ConnectionState.values.contains(ConnectionState.shuttingDown),
+          isTrue);
     });
   });
 
@@ -97,7 +114,9 @@ void main() {
   });
 
   group('resync sequence', () {
-    test('on ready after reconnect: get_state → get_messages → get_sessions_status', () {});
+    test(
+        'on ready after reconnect: get_state → get_messages → get_sessions_status',
+        () {});
     test('shows "reconnected — resyncing" banner during resync', () {});
     test('clears banner after successful resync', () {});
 

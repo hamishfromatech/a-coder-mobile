@@ -44,6 +44,43 @@ class CronRunsNotifier extends StateNotifier<List<responses.CronRun>> {
   CronRunsNotifier() : super(const []);
   void update(List<responses.CronRun> runs) => state = runs;
   void clear() => state = const [];
+
+  /// Apply a live `cron_run` event (started → insert, finished → replace).
+  void upsert(responses.CronRun run) {
+    final next = [...state];
+    final index = next.indexWhere((r) => r.id == run.id);
+    if (index >= 0) {
+      next[index] = run;
+    } else {
+      next.add(run);
+    }
+    next.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    state = next;
+  }
+}
+
+/// Machine-wide run history (`cron_runs` without a job id) — the Runs view.
+final allCronRunsProvider =
+    StateNotifierProvider<AllCronRunsNotifier, List<responses.CronRun>>((ref) {
+  return AllCronRunsNotifier();
+});
+
+class AllCronRunsNotifier extends StateNotifier<List<responses.CronRun>> {
+  AllCronRunsNotifier() : super(const []);
+  void update(List<responses.CronRun> runs) => state = runs;
+  void clear() => state = const [];
+
+  void upsert(responses.CronRun run) {
+    final next = [...state];
+    final index = next.indexWhere((r) => r.id == run.id);
+    if (index >= 0) {
+      next[index] = run;
+    } else {
+      next.insert(0, run);
+    }
+    next.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    state = next;
+  }
 }
 
 /// Selected job for the detail pane (null = list view).

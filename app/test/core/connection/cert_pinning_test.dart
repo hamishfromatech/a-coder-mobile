@@ -7,8 +7,7 @@ import 'package:acoder_mobile/core/connection/cert_pinning.dart';
 import 'package:acoder_mobile/core/connection/host_registry.dart';
 import 'package:acoder_mobile/features/pairing/screens/pairing_screen.dart';
 
-const _pin =
-    '7d2bc28bb71748f97037f7856d4ff715016b69784bcd9919689d60578406a0da';
+const _pin = '7d2bc28bb71748f97037f7856d4ff715016b69784bcd9919689d60578406a0da';
 
 void main() {
   group('fingerprint helpers', () {

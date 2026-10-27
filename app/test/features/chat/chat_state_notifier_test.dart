@@ -1,5 +1,6 @@
 // test/features/chat/chat_state_notifier_test.dart
 library;
+
 /// Unit tests for the Riverpod chat-state wiring (M3): events routed through
 /// ChatStateNotifier produce the same states the pure router produces, plus
 /// response-driven transcript loading and approval removal.
@@ -60,7 +61,10 @@ void main() {
   test('updateFromStateResponse fills session fields', () {
     final notifier = container.read(chatStateProvider.notifier);
     notifier.updateFromStateResponse(const responses.SessionStateResponse(
-      model: responses.StateModelRef(provider: 'anthropic', id: 'claude-3.5-sonnet', name: 'Claude 3.5 Sonnet'),
+      model: responses.StateModelRef(
+          provider: 'anthropic',
+          id: 'claude-3.5-sonnet',
+          name: 'Claude 3.5 Sonnet'),
       thinkingLevel: 'medium',
       permissionMode: 'plan',
       planMode: true,
@@ -113,8 +117,15 @@ void main() {
 
   test('selectors expose the same objects as the core state', () {
     final notifier = container.read(chatStateProvider.notifier);
-    notifier.applyEvent('tool_execution_start', {'toolCallId': 't1', 'toolName': 'bash', 'args': {'command': 'npm test'}});
-    notifier.applyEvent('queue_update', {'steering': ['a'], 'followUp': []});
+    notifier.applyEvent('tool_execution_start', {
+      'toolCallId': 't1',
+      'toolName': 'bash',
+      'args': {'command': 'npm test'}
+    });
+    notifier.applyEvent('queue_update', {
+      'steering': ['a'],
+      'followUp': []
+    });
 
     final er.ChatState core = container.read(chatStateProvider);
     expect(container.read(toolCardsProvider), same(core.toolCards));
@@ -137,7 +148,8 @@ void main() {
   test('reset clears everything', () {
     final notifier = container.read(chatStateProvider.notifier);
     notifier.applyEvent('agent_start', {});
-    notifier.applyEvent('tool_execution_start', {'toolCallId': 't1', 'toolName': 'bash', 'args': {}});
+    notifier.applyEvent('tool_execution_start',
+        {'toolCallId': 't1', 'toolName': 'bash', 'args': {}});
     notifier.reset();
     final state = container.read(chatStateProvider);
     expect(state.isStreaming, isFalse);

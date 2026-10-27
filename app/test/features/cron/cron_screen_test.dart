@@ -37,7 +37,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionControllerProvider('h1').overrideWith((ref) => _FakeSessionController(ref, 'h1')),
+          sessionControllerProvider('h1')
+              .overrideWith((ref) => _FakeSessionController(ref, 'h1')),
           cronJobsProvider.overrideWith((ref) {
             final n = CronJobsNotifier();
             n.update(jobs);
@@ -61,7 +62,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionControllerProvider('h1').overrideWith((ref) => _FakeSessionController(ref, 'h1')),
+          sessionControllerProvider('h1')
+              .overrideWith((ref) => _FakeSessionController(ref, 'h1')),
           cronJobsProvider.overrideWith((ref) => CronJobsNotifier()),
         ],
         child: MaterialApp(
@@ -81,12 +83,17 @@ void main() {
   testWidgets('schedule labels render', (tester) async {
     final jobs = [
       _job(schedule: const {'kind': 'every', 'minutes': 30}),
-      _job(id: 'j2', schedule: const {'kind': 'weekly', 'days': [1, 3], 'time': '09:00'}),
+      _job(id: 'j2', schedule: const {
+        'kind': 'weekly',
+        'days': [1, 3],
+        'time': '09:00'
+      }),
     ];
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionControllerProvider('h1').overrideWith((ref) => _FakeSessionController(ref, 'h1')),
+          sessionControllerProvider('h1')
+              .overrideWith((ref) => _FakeSessionController(ref, 'h1')),
           cronJobsProvider.overrideWith((ref) {
             final n = CronJobsNotifier();
             n.update(jobs);
@@ -110,7 +117,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionControllerProvider('h1').overrideWith((ref) => _FakeSessionController(ref, 'h1')),
+          sessionControllerProvider('h1')
+              .overrideWith((ref) => _FakeSessionController(ref, 'h1')),
           cronJobsProvider.overrideWith((ref) {
             final n = CronJobsNotifier();
             n.update(jobs);
@@ -133,7 +141,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionControllerProvider('h1').overrideWith((ref) => _FakeSessionController(ref, 'h1')),
+          sessionControllerProvider('h1')
+              .overrideWith((ref) => _FakeSessionController(ref, 'h1')),
           cronJobsProvider.overrideWith((ref) {
             final n = CronJobsNotifier();
             n.update(jobs);
@@ -164,7 +173,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionControllerProvider('h1').overrideWith((ref) => _FakeSessionController(ref, 'h1')),
+          sessionControllerProvider('h1')
+              .overrideWith((ref) => _FakeSessionController(ref, 'h1')),
           cronJobsProvider.overrideWith((ref) {
             final n = CronJobsNotifier();
             n.update(jobs);
@@ -186,7 +196,6 @@ void main() {
   });
 }
 
-
 class _FakeSessionController extends SessionController {
   _FakeSessionController(super.ref, super.hostId);
   @override
@@ -194,7 +203,8 @@ class _FakeSessionController extends SessionController {
   @override
   Future<void> loadCronRuns({String? jobId}) async {}
   @override
-  Future<void> runCronNow(String jobId, {Map<String, String>? variables}) async {}
+  Future<void> runCronNow(String jobId,
+      {Map<String, String>? variables}) async {}
   @override
   Future<void> deleteCronJob(String jobId) async {}
   @override

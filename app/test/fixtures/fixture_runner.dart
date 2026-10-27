@@ -1,5 +1,6 @@
 // test/fixtures/fixture_runner.dart
 library;
+
 /// Fixture runner — parses JSONL fixtures, feeds them through the event router,
 /// asserts final UI state (snapshot of providers) and intermediate transitions.
 /// Used in M3 for golden fixture testing (doc 08 §2).
@@ -38,7 +39,8 @@ class FixtureRunner {
       if (obj == null || obj is! Map<String, dynamic>) continue;
 
       // Skip bridge control frames and responses (not events)
-      if (obj['type'] == 'bridge' || (obj['id'] != null && obj['type'] == 'response')) continue;
+      if (obj['type'] == 'bridge' ||
+          (obj['id'] != null && obj['type'] == 'response')) continue;
 
       final eventType = obj['type'] as String?;
       if (eventType != null) {

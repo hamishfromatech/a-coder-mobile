@@ -8,13 +8,18 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: MediaQuery(
-          data: MediaQueryData(textScaler: TextScaler.linear(2.0), size: Size(390, 844)),
+          data: MediaQueryData(
+              textScaler: TextScaler.linear(2.0), size: Size(390, 844)),
           child: Scaffold(
             body: SingleChildScrollView(
               child: Column(
                 children: [
-                  UserMessageBubble(text: 'A very long user message that should wrap without overflowing the viewport at double text scale.'),
-                  ThinkingBlock(thinking: 'A detailed thinking trace that wraps around under enlarged text settings.'),
+                  UserMessageBubble(
+                      text:
+                          'A very long user message that should wrap without overflowing the viewport at double text scale.'),
+                  ThinkingBlock(
+                      thinking:
+                          'A detailed thinking trace that wraps around under enlarged text settings.'),
                   UiRequestCard(
                     request: er.UiRequest(
                       id: 'u1',

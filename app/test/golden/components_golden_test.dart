@@ -66,13 +66,21 @@ void main() {
   for (final size in _sizes) {
     for (final dark in [true, false]) {
       testWidgets('status_dot_live_${_suffix(size, dark)}', (tester) async {
-        await _pump(tester, size, dark, const StatusDot(type: StatusDotType.live, size: 8));
-        await expectLater(find.byType(StatusDot), matchesGoldenFile('status_dot_live_${_suffix(size, dark)}.png'));
+        await _pump(tester, size, dark,
+            const StatusDot(type: StatusDotType.live, size: 8));
+        await expectLater(find.byType(StatusDot),
+            matchesGoldenFile('status_dot_live_${_suffix(size, dark)}.png'));
       });
 
       testWidgets('status_chip_${_suffix(size, dark)}', (tester) async {
-        await _pump(tester, size, dark, const StatusChip(label: 'model • opus', variant: ChipVariant.accent));
-        await expectLater(find.byType(StatusChip), matchesGoldenFile('status_chip_${_suffix(size, dark)}.png'));
+        await _pump(
+            tester,
+            size,
+            dark,
+            const StatusChip(
+                label: 'model • opus', variant: ChipVariant.accent));
+        await expectLater(find.byType(StatusChip),
+            matchesGoldenFile('status_chip_${_suffix(size, dark)}.png'));
       });
 
       testWidgets('banner_reconnecting_${_suffix(size, dark)}', (tester) async {
@@ -80,9 +88,15 @@ void main() {
           tester,
           size,
           dark,
-          const ConnectionBanner(type: BannerType.reconnecting, message: 'Reconnecting… attempt 3', attemptText: 'attempt 3'),
+          const ConnectionBanner(
+              type: BannerType.reconnecting,
+              message: 'Reconnecting… attempt 3',
+              attemptText: 'attempt 3'),
         );
-        await expectLater(find.byType(ConnectionBanner), matchesGoldenFile('banner_reconnecting_${_suffix(size, dark)}.png'));
+        await expectLater(
+            find.byType(ConnectionBanner),
+            matchesGoldenFile(
+                'banner_reconnecting_${_suffix(size, dark)}.png'));
       });
 
       testWidgets('empty_state_${_suffix(size, dark)}', (tester) async {
@@ -90,9 +104,13 @@ void main() {
           tester,
           size,
           dark,
-          const EmptyState(icon: Icons.inbox_outlined, title: 'No sessions yet', hint: 'Tap + to start a new session'),
+          const EmptyState(
+              icon: Icons.inbox_outlined,
+              title: 'No sessions yet',
+              hint: 'Tap + to start a new session'),
         );
-        await expectLater(find.byType(EmptyState), matchesGoldenFile('empty_state_${_suffix(size, dark)}.png'));
+        await expectLater(find.byType(EmptyState),
+            matchesGoldenFile('empty_state_${_suffix(size, dark)}.png'));
       });
 
       testWidgets('tool_card_edit_${_suffix(size, dark)}', (tester) async {
@@ -105,11 +123,14 @@ void main() {
             child: ToolCard(
               toolName: 'edit',
               args: {'path': 'src/x.ts'},
-              result: {'details': {'diff': '--- a\n+++ b\n@@ -1 +1 @@\n-foo()\n+bar()'}},
+              result: {
+                'details': {'diff': '--- a\n+++ b\n@@ -1 +1 @@\n-foo()\n+bar()'}
+              },
             ),
           ),
         );
-        await expectLater(find.byType(ToolCard), matchesGoldenFile('tool_card_edit_${_suffix(size, dark)}.png'));
+        await expectLater(find.byType(ToolCard),
+            matchesGoldenFile('tool_card_edit_${_suffix(size, dark)}.png'));
       });
 
       testWidgets('diff_lines_${_suffix(size, dark)}', (tester) async {
@@ -131,83 +152,148 @@ void main() {
           ),
         );
         // Golden targets the column's render
-        await expectLater(find.byType(Column), matchesGoldenFile('diff_lines_${_suffix(size, dark)}.png'));
+        await expectLater(find.byType(Column),
+            matchesGoldenFile('diff_lines_${_suffix(size, dark)}.png'));
       });
     }
     // Batch 3 — chat bubble / thinking / approval / queue / jump pill goldens (390x844)
-  for (final dark in [true, false]) {
-    testWidgets('user_message_bubble_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(tester, const Size(390, 844), dark, const SizedBox(width: 360, child: UserMessageBubble(text: 'Hello from user with a longish line that wraps.')));
-      await expectLater(find.byType(UserMessageBubble), matchesGoldenFile('user_message_bubble_390x844_${dark ? "dark" : "light"}.png'));
-    });
+    for (final dark in [true, false]) {
+      testWidgets('user_message_bubble_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(
+            tester,
+            const Size(390, 844),
+            dark,
+            const SizedBox(
+                width: 360,
+                child: UserMessageBubble(
+                    text: 'Hello from user with a longish line that wraps.')));
+        await expectLater(
+            find.byType(UserMessageBubble),
+            matchesGoldenFile(
+                'user_message_bubble_390x844_${dark ? "dark" : "light"}.png'));
+      });
 
-    testWidgets('assistant_message_with_code_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(
-        tester,
-        const Size(390, 844),
-        dark,
-        const SizedBox(
-          width: 360,
-          child: AssistantMessageView(
-            message: er.UiMessage(id: 'a', role: 'assistant', content: <String, dynamic>{}),
-            parts: <Map<String, dynamic>>[
-              <String, dynamic>{'type': 'text', 'text': 'Here is code:\n```dart\nvoid main() {\n  print("hi");\n}\n```'}
-            ],
-            toolCards: <String, er.ToolCardState>{},
+      testWidgets(
+          'assistant_message_with_code_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(
+          tester,
+          const Size(390, 844),
+          dark,
+          const SizedBox(
+            width: 360,
+            child: AssistantMessageView(
+              message: er.UiMessage(
+                  id: 'a', role: 'assistant', content: <String, dynamic>{}),
+              parts: <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'type': 'text',
+                  'text':
+                      'Here is code:\n```dart\nvoid main() {\n  print("hi");\n}\n```'
+                }
+              ],
+              toolCards: <String, er.ToolCardState>{},
+            ),
           ),
-        ),
-      );
-      await expectLater(find.byType(AssistantMessageView), matchesGoldenFile('assistant_message_with_code_390x844_${dark ? "dark" : "light"}.png'));
-    });
+        );
+        await expectLater(
+            find.byType(AssistantMessageView),
+            matchesGoldenFile(
+                'assistant_message_with_code_390x844_${dark ? "dark" : "light"}.png'));
+      });
 
-    testWidgets('thinking_block_collapsed_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(tester, const Size(390, 844), dark, const SizedBox(width: 360, child: ThinkingBlock(thinking: 'Working through the problem step by step.')));
-      await expectLater(find.byType(ThinkingBlock), matchesGoldenFile('thinking_block_collapsed_390x844_${dark ? "dark" : "light"}.png'));
-    });
+      testWidgets('thinking_block_collapsed_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(
+            tester,
+            const Size(390, 844),
+            dark,
+            const SizedBox(
+                width: 360,
+                child: ThinkingBlock(
+                    thinking: 'Working through the problem step by step.')));
+        await expectLater(
+            find.byType(ThinkingBlock),
+            matchesGoldenFile(
+                'thinking_block_collapsed_390x844_${dark ? "dark" : "light"}.png'));
+      });
 
-    testWidgets('thinking_block_expanded_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(tester, const Size(390, 844), dark, const SizedBox(width: 360, child: ThinkingBlock(thinking: 'Working through the problem step by step.')));
-      await tester.tap(find.byType(ThinkingBlock));
-      await tester.pump();
-      await expectLater(find.byType(ThinkingBlock), matchesGoldenFile('thinking_block_expanded_390x844_${dark ? "dark" : "light"}.png'));
-    });
+      testWidgets('thinking_block_expanded_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(
+            tester,
+            const Size(390, 844),
+            dark,
+            const SizedBox(
+                width: 360,
+                child: ThinkingBlock(
+                    thinking: 'Working through the problem step by step.')));
+        await tester.tap(find.byType(ThinkingBlock));
+        await tester.pump();
+        await expectLater(
+            find.byType(ThinkingBlock),
+            matchesGoldenFile(
+                'thinking_block_expanded_390x844_${dark ? "dark" : "light"}.png'));
+      });
 
-    testWidgets('approval_card_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(
-        tester,
-        const Size(390, 844),
-        dark,
-        const SizedBox(
-          width: 360,
-          child: UiRequestCard(
-            request: er.UiRequest(id: 'u1', method: 'confirm', kind: 'permission', toolName: 'bash', message: 'npm test', title: 'Permission'),
+      testWidgets('approval_card_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(
+          tester,
+          const Size(390, 844),
+          dark,
+          const SizedBox(
+            width: 360,
+            child: UiRequestCard(
+              request: er.UiRequest(
+                  id: 'u1',
+                  method: 'confirm',
+                  kind: 'permission',
+                  toolName: 'bash',
+                  message: 'npm test',
+                  title: 'Permission'),
+            ),
           ),
-        ),
-      );
-      await expectLater(find.byType(UiRequestCard), matchesGoldenFile('approval_card_390x844_${dark ? "dark" : "light"}.png'));
-    });
+        );
+        await expectLater(
+            find.byType(UiRequestCard),
+            matchesGoldenFile(
+                'approval_card_390x844_${dark ? "dark" : "light"}.png'));
+      });
 
-    testWidgets('queue_card_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(
-        tester,
-        const Size(390, 844),
-        dark,
-        SizedBox(
-          width: 360,
-          child: QueuedCard(
-            queue: const er.QueueState(steering: <String>['Steer this'], followUp: <String>['Follow up later']),
-            onRemove: (String kind, int index) {},
-            onRestore: () {},
+      testWidgets('queue_card_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(
+          tester,
+          const Size(390, 844),
+          dark,
+          SizedBox(
+            width: 360,
+            child: QueuedCard(
+              queue: const er.QueueState(
+                  steering: <String>['Steer this'],
+                  followUp: <String>['Follow up later']),
+              onRemove: (String kind, int index) {},
+              onRestore: () {},
+            ),
           ),
-        ),
-      );
-      await expectLater(find.byType(QueuedCard), matchesGoldenFile('queue_card_390x844_${dark ? "dark" : "light"}.png'));
-    });
+        );
+        await expectLater(
+            find.byType(QueuedCard),
+            matchesGoldenFile(
+                'queue_card_390x844_${dark ? "dark" : "light"}.png'));
+      });
 
-    testWidgets('jump_to_latest_pill_390x844_${dark ? "dark" : "light"}', (tester) async {
-      await _pump(tester, const Size(390, 844), dark, JumpToLatestPill(unreadCount: 3, onTap: () {}));
-      await expectLater(find.byType(JumpToLatestPill), matchesGoldenFile('jump_to_latest_pill_390x844_${dark ? "dark" : "light"}.png'));
-    });
+      testWidgets('jump_to_latest_pill_390x844_${dark ? "dark" : "light"}',
+          (tester) async {
+        await _pump(tester, const Size(390, 844), dark,
+            JumpToLatestPill(unreadCount: 3, onTap: () {}));
+        await expectLater(
+            find.byType(JumpToLatestPill),
+            matchesGoldenFile(
+                'jump_to_latest_pill_390x844_${dark ? "dark" : "light"}.png'));
+      });
+    }
   }
-}
 }

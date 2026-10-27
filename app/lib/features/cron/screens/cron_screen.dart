@@ -4,7 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/protocol/responses.dart' show CronJob, CronRun;
+import '../../../core/protocol/responses.dart' show CronJob;
 import '../../../design/primitives.dart';
 import '../../../design/theme.dart';
 import '../../../design/components/chip.dart';
@@ -12,7 +12,9 @@ import '../../../design/components/empty_state.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../../sessions/providers/sessions_providers.dart';
 import '../providers/cron_providers.dart';
+import '../../../design/components/kit.dart';
 import '../widgets/cron_calendar.dart';
+import '../widgets/cron_run_tile.dart';
 import '../widgets/cron_editor.dart';
 import '../../chat/providers/chat_providers.dart';
 
@@ -24,9 +26,13 @@ class CronScreen extends ConsumerStatefulWidget {
   ConsumerState<CronScreen> createState() => _CronScreenState();
 }
 
+enum _CronView { list, calendar, runs }
+
 class _CronScreenState extends ConsumerState<CronScreen> {
   bool _loading = true;
-  bool _calendar = false;
+  bool _runsLoading = false;
+  _CronView _view = _CronView.list;
+  bool _runsErrorsOnly = false;
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? _selectedDay;
 
@@ -62,69 +68,92 @@ class _CronScreenState extends ConsumerState<CronScreen> {
     ref.watch(sessionControllerProvider(widget.hostId));
     final jobs = ref.watch(cronJobsProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scheduled tasks'),
-        actions: [
-          IconButton(
-            tooltip: _calendar ? 'Show list' : 'Show calendar',
-            icon: Icon(
-                _calendar ? Icons.view_list_outlined : Icons.calendar_month),
-            onPressed: () => setState(() => _calendar = !_calendar),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Scheduled tasks')),
       body: RefreshIndicator(
-        onRefresh: _refresh,
+        onRefresh: _refreshAll,
         child: _loading && jobs.isEmpty
             ? _skeleton(context)
-            : jobs.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      EmptyState(
+            : ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 96),
+                children: [
+                  _ActivityCard(hostId: widget.hostId, jobs: jobs),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+                    child: Row(
+                      children: [
+                        PiSegmentedControl<_CronView>(
+                          value: _view,
+                          options: const [
+                            PiSegment(_CronView.list, 'routines'),
+                            PiSegment(_CronView.calendar, 'calendar'),
+                            PiSegment(_CronView.runs, 'runs'),
+                          ],
+                          onChanged: _setView,
+                        ),
+                        const Spacer(),
+                        if (_view == _CronView.runs && _runsLoading)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_view == _CronView.runs)
+                    ..._runsChildren(context)
+                  else if (_view == _CronView.calendar) ...[
+                    _MonthHeader(
+                      month: _month,
+                      onPrevious: () => setState(() {
+                        _month = DateTime(_month.year, _month.month - 1);
+                        _selectedDay = null;
+                      }),
+                      onNext: () => setState(() {
+                        _month = DateTime(_month.year, _month.month + 1);
+                        _selectedDay = null;
+                      }),
+                    ),
+                    CronCalendar(
+                      jobs: jobs,
+                      month: _month,
+                      selectedDay: _selectedDay,
+                      onSelectDay: (day) => setState(() => _selectedDay = day),
+                      onOpenDay: (_) {},
+                    ),
+                    if (jobs.isEmpty)
+                      const EmptyState(
                         icon: Icons.schedule_outlined,
                         title: 'No scheduled tasks yet',
                         hint: '',
                       ),
-                    ],
-                  )
-                : ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 96),
-                    children: [
-                      _ActivityCard(hostId: widget.hostId, jobs: jobs),
-                      if (_calendar) ...[
-                        _MonthHeader(
-                          month: _month,
-                          onPrevious: () => setState(() {
-                            _month = DateTime(_month.year, _month.month - 1);
-                            _selectedDay = null;
-                          }),
-                          onNext: () => setState(() {
-                            _month = DateTime(_month.year, _month.month + 1);
-                            _selectedDay = null;
-                          }),
-                        ),
-                        CronCalendar(
-                          jobs: jobs,
-                          month: _month,
-                          selectedDay: _selectedDay,
-                          onSelectDay: (day) =>
-                              setState(() => _selectedDay = day),
-                          onOpenDay: (_) {},
-                        ),
-                      ],
-                      for (final job in _visibleJobs(jobs))
-                        _CronJobTile(
-                          key: ValueKey(job.id),
-                          job: job,
-                          hostId: widget.hostId,
-                          onToggle: (v) => _toggle(job, v),
-                          onTap: () => _openDetail(job),
-                        ),
-                    ],
-                  ),
+                    for (final job in _visibleJobs(jobs))
+                      _CronJobTile(
+                        key: ValueKey(job.id),
+                        job: job,
+                        hostId: widget.hostId,
+                        onToggle: (v) => _toggle(job, v),
+                        onTap: () => _openDetail(job),
+                      ),
+                  ] else ...[
+                    if (jobs.isEmpty)
+                      const EmptyState(
+                        icon: Icons.schedule_outlined,
+                        title: 'No scheduled tasks yet',
+                        hint: '',
+                      ),
+                    for (final job in jobs)
+                      _CronJobTile(
+                        key: ValueKey(job.id),
+                        job: job,
+                        hostId: widget.hostId,
+                        onToggle: (v) => _toggle(job, v),
+                        onTap: () => _openDetail(job),
+                      ),
+                  ],
+                ],
+              ),
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'New routine',
@@ -144,9 +173,110 @@ class _CronScreenState extends ConsumerState<CronScreen> {
     if (created == true) await _refresh();
   }
 
+  Future<void> _refreshAll() async {
+    await _refresh();
+    if (_view == _CronView.runs) await _loadAllRuns();
+  }
+
+  void _setView(_CronView view) {
+    setState(() => _view = view);
+    if (view == _CronView.runs) {
+      _loadAllRuns();
+    }
+  }
+
+  Future<void> _loadAllRuns() async {
+    if (_runsLoading) return;
+    setState(() => _runsLoading = true);
+    try {
+      await ref
+          .read(sessionControllerProvider(widget.hostId).notifier)
+          .loadAllCronRuns();
+    } catch (_) {
+      // Offline: the last snapshot stays visible.
+    }
+    if (mounted) setState(() => _runsLoading = false);
+  }
+
+  List<Widget> _runsChildren(BuildContext context) {
+    final all = ref.watch(allCronRunsProvider);
+    final runs = _runsErrorsOnly
+        ? all
+            .where((r) => r.status == 'error' || r.status == 'timeout')
+            .toList()
+        : all;
+    if (all.isEmpty) {
+      return const [
+        Padding(
+          padding: EdgeInsets.only(top: 48),
+          child: EmptyState(
+            icon: Icons.history,
+            title: 'No runs recorded yet',
+            hint: 'Runs appear here the moment a routine starts.',
+          ),
+        ),
+      ];
+    }
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+        child: Row(
+          children: [
+            Text(
+              '${all.length} run${all.length == 1 ? '' : 's'}',
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: PiFonts.mono,
+                color: PiColors.textFaint,
+              ),
+            ),
+            const Spacer(),
+            PiSegmentedControl<bool>(
+              value: _runsErrorsOnly,
+              options: const [
+                PiSegment(false, 'all'),
+                PiSegment(true, 'errors'),
+              ],
+              onChanged: (v) => setState(() => _runsErrorsOnly = v),
+            ),
+          ],
+        ),
+      ),
+      if (runs.isEmpty)
+        const Padding(
+          padding: EdgeInsets.only(top: 32),
+          child: EmptyState(
+            icon: Icons.check_circle_outline,
+            title: 'No failed runs',
+            hint: 'Every recorded run finished successfully.',
+          ),
+        ),
+      for (final group in groupCronRunsByDay(runs)) ...[
+        _DayHeader(label: group.$1),
+        for (final run in group.$2)
+          CronRunTile(
+            key: ValueKey(run.id),
+            run: run,
+            showJobName: true,
+            onTap: () => showCronRunDetails(
+              context,
+              ref,
+              run: run,
+              onOpenSession: (sessionFile) {
+                Navigator.of(context).pushNamed('/chat', arguments: {
+                  'hostId': widget.hostId,
+                  'sessionPath': sessionFile,
+                });
+              },
+            ),
+          ),
+      ],
+    ];
+  }
+
   List<CronJob> _visibleJobs(List<CronJob> jobs) {
     final day = _selectedDay;
-    if (!_calendar || day == null) return jobs;
+    if (_view != _CronView.calendar || day == null) return jobs;
     return cronJobsOnDay(jobs, day);
   }
 
@@ -190,6 +320,36 @@ class _CronScreenState extends ConsumerState<CronScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Day header (run history) ────────────────────────────────────
+
+class _DayHeader extends StatelessWidget {
+  final String label;
+  const _DayHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+      child: Row(
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontFamily: PiFonts.mono,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+              color: PiColors.textFaint,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Container(height: 1, color: PiColors.border)),
+        ],
       ),
     );
   }
@@ -276,7 +436,7 @@ class _ActivityCard extends ConsumerWidget {
         jobs.where((j) => (j.lastStatus ?? '').toLowerCase() == 'error').length;
     final background = ref
         .watch(backgroundSessionsProvider)
-        .where((b) => b.status == 'needs_input')
+        .where((b) => b.status == 'needsInput')
         .length;
     if (approvals + running + failing + background == 0) {
       return const SizedBox.shrink();
@@ -700,73 +860,28 @@ class _CronDetailPageState extends ConsumerState<_CronDetailPage> {
                 else if (runs.isEmpty)
                   Text('No runs yet', style: TextStyle(color: c.textMuted))
                 else
-                  ...runs.map((r) => _RunRow(run: r)),
+                  for (final group in groupCronRunsByDay(runs)) ...[
+                    _DayHeader(label: group.$1),
+                    for (final run in group.$2)
+                      CronRunTile(
+                        key: ValueKey(run.id),
+                        run: run,
+                        onTap: () => showCronRunDetails(
+                          context,
+                          ref,
+                          run: run,
+                          onOpenSession: (sessionFile) {
+                            Navigator.of(context)
+                                .pushNamed('/chat', arguments: {
+                              'hostId': widget.hostId,
+                              'sessionPath': sessionFile,
+                            });
+                          },
+                        ),
+                      ),
+                  ],
               ],
             ),
-    );
-  }
-}
-
-class _RunRow extends StatelessWidget {
-  final CronRun run;
-  const _RunRow({required this.run});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = run.status.toLowerCase();
-    final startMs =
-        run.startedAt > 1000000000000 ? run.startedAt : run.startedAt * 1000;
-    final finishMs = run.finishedAt == null
-        ? null
-        : (run.finishedAt! > 1000000000000
-            ? run.finishedAt!
-            : run.finishedAt! * 1000);
-    final duration = finishMs != null
-        ? '${((finishMs - startMs) / 1000).toStringAsFixed(1)}s'
-        : '—';
-    final text = run.error ?? run.summary ?? '';
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                StatusChip(label: status, variant: _statusVariant(status)),
-                const SizedBox(width: 8),
-                Text(run.trigger, style: const TextStyle(fontSize: 12)),
-                const SizedBox(width: 8),
-                Text(run.delivery, style: const TextStyle(fontSize: 12)),
-                const Spacer(),
-                Text(duration, style: const TextStyle(fontSize: 12)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _relative(run.startedAt),
-              style: TextStyle(
-                  fontSize: 11, color: PiColors.of(context).textMuted),
-            ),
-            if (text.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                text,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: run.error != null
-                      ? PiColors.error
-                      : PiColors.of(context).textSecondary,
-                  fontFamily: PiFonts.mono,
-                ),
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

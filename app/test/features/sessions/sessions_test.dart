@@ -5,7 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('replace and remove sessions', () {
     final notifier = SessionsListNotifier();
-    final s1 = RpcSessionInfo(id: '1', path: '/a', cwd: '/a', created: DateTime.now().toIso8601String(), modified: DateTime.now().toIso8601String(), messageCount: 0);
+    final s1 = RpcSessionInfo(
+        id: '1',
+        path: '/a',
+        cwd: '/a',
+        created: DateTime.now().toIso8601String(),
+        modified: DateTime.now().toIso8601String(),
+        messageCount: 0);
     notifier.replaceAll([s1]);
     expect(notifier.state.length, 1);
     notifier.removeSession('/a');

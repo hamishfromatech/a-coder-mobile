@@ -61,6 +61,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final List<ComposerAttachment> _attachments = [];
   String? _draftSession; // sessionFile this draft belongs to
   Timer? _draftSaveTimer;
+  bool _hasText = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -70,6 +71,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     super.initState();
     _scrollController.addListener(_handleScroll);
     _composerController.addListener(_onDraftChanged);
+    _composerController.addListener(_onComposerTextChanged);
     // Desktop parity (open-session.ts): opening a specific session first
     // SWITCHES the engine to it, then reloads. Without the switch we would
     // fetch history for whatever session the engine currently has active.
@@ -94,6 +96,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void dispose() {
     _draftSaveTimer?.cancel();
     _scrollController.removeListener(_handleScroll);
+    _composerController.removeListener(_onDraftChanged);
+    _composerController.removeListener(_onComposerTextChanged);
     _composerController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -455,10 +459,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
     }
 
+    final backdropOn =
+        ref.watch(settingsProvider.select((s) => s.chatBackdrop));
     return Stack(
       children: [
-        // Desktop ChatBackdrop intent: a static, very low-opacity texture
-        // behind the thread (radial accent wash, no per-frame blend).
+        // Desktop ChatBackdrop: the same filler-bg0 texture, inverted, at
+        // 2.5% opacity behind the thread (static — no per-frame blend).
+        if (backdropOn)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.025,
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.matrix(<double>[
+                    -1,
+                    0,
+                    0,
+                    0,
+                    255,
+                    0,
+                    -1,
+                    0,
+                    0,
+                    255,
+                    0,
+                    0,
+                    -1,
+                    0,
+                    255,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                  ]),
+                  child: Image.asset(
+                    'assets/images/chat-backdrop.jpg',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    filterQuality: FilterQuality.low,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // Radial accent wash from the mobile design (kept above the texture).
         Positioned.fill(
           child: IgnorePointer(
             child: DecoratedBox(
@@ -628,7 +673,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final offline = !conn.connection.isConnected;
     final commands = ref.watch(slashCommandsProvider);
     final slashSuggestions = _slashMatches(commands);
-    final canSend = _composerController.text.trim().isNotEmpty;
+    final canSend = _hasText;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
@@ -920,6 +965,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   bool get _hapticsOn => ref.read(settingsProvider).haptics;
+
+  /// The send button's enabled state is derived from the text field. Without
+  /// this listener the composer never rebuilt on typing, so Send stayed
+  /// disabled until some unrelated setState (switching Send/Queue) ran.
+  void _onComposerTextChanged() {
+    final hasText = _composerController.text.trim().isNotEmpty;
+    if (hasText != _hasText && mounted) {
+      setState(() => _hasText = hasText);
+    }
+  }
 
   /// Composer autocomplete candidates: '/' prefix, no space typed yet.
   List<Map<String, dynamic>> _slashMatches(List<Map<String, dynamic>> all) {

@@ -41,7 +41,11 @@ void main() {
           body: UserMessageBubble(
             text: 'broken',
             images: [
-              {'type': 'image', 'data': 'not-base64!!', 'mimeType': 'image/png'},
+              {
+                'type': 'image',
+                'data': 'not-base64!!',
+                'mimeType': 'image/png'
+              },
             ],
           ),
         ),

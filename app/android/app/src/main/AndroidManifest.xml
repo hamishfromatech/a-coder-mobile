@@ -3,6 +3,8 @@
          cleartext is required because the bridge serves plaintext ws:// (TLS is v0.2). -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Alerts when the agent needs input (Android 13+ runtime permission). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="A-Coder"
         android:allowBackup="false"

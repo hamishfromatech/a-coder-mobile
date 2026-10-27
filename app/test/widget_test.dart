@@ -9,7 +9,8 @@ import 'package:acoder_mobile/design/theme.dart';
 import 'package:acoder_mobile/design/components/status_dot.dart';
 
 void main() {
-  testWidgets('dark theme renders a core component correctly', (WidgetTester tester) async {
+  testWidgets('dark theme renders a core component correctly',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: PiTheme.dark,
@@ -22,7 +23,8 @@ void main() {
     expect(find.byType(StatusDot), findsOneWidget);
     // Dark-first default (doc 09): scaffold background is the dark token.
     final Material material = tester.widget<Material>(
-      find.descendant(of: find.byType(Scaffold), matching: find.byType(Material).first),
+      find.descendant(
+          of: find.byType(Scaffold), matching: find.byType(Material).first),
     );
     expect(material.color, isNotNull);
   });

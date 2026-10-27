@@ -1,0 +1,47 @@
+name: iOS build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  unsigned-ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: CocoaPods
+        working-directory: app/ios
+        run: pod install
+
+      - name: Build (no code signing)
+        working-directory: app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        working-directory: app
+        run: |
+          mkdir -p build/ios/unsigned/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/unsigned/Payload/
+          cd build/ios/unsigned
+          zip -qry ../A-Coder-unsigned.ipa Payload
+          ls -lh ../A-Coder-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: A-Coder-unsigned-ipa
+          path: app/build/ios/A-Coder-unsigned.ipa
+          if-no-files-found: error

@@ -341,6 +341,7 @@ class CronJob {
   final int? lastRunAt;
   final int? nextRunAt;
   final String? lastStatus;
+  final Map<String, dynamic>? lastTriage;
   final String? lastError;
   final bool isolated;
   final int revision;
@@ -354,6 +355,7 @@ class CronJob {
     this.lastRunAt,
     this.nextRunAt,
     this.lastStatus,
+    this.lastTriage,
     this.lastError,
     this.isolated = true,
     this.revision = 1,
@@ -370,6 +372,9 @@ class CronJob {
         lastRunAt: (json['lastRunAt'] as num?)?.toInt(),
         nextRunAt: (json['nextRunAt'] as num?)?.toInt(),
         lastStatus: json['lastStatus'] as String?,
+        lastTriage: json['lastTriage'] is Map
+            ? Map<String, dynamic>.from(json['lastTriage'] as Map)
+            : null,
         lastError: json['lastError'] as String?,
         isolated: json['isolated'] as bool? ?? true,
         revision: (json['revision'] as num?)?.toInt() ?? 1,
@@ -394,36 +399,70 @@ class CronRun {
   final String id;
   final String jobId;
   final String jobName;
-  final String trigger;
-  final String delivery;
+  final String trigger; // schedule | manual | event
+  final String delivery; // session | background
+  final String execution; // session | subagent
   final int startedAt;
   final int? finishedAt;
-  final String status;
+  final String status; // running | ok | error | timeout
   final String? error;
   final String? summary;
+  final String? sessionFile;
+  final Map<String, dynamic>? triage;
+  final Map<String, String> variables;
+  final String? model;
+  final String? modelSource;
+  final String? subagentId;
+  final String? outputFile;
+  final String? worktreePath;
+
   const CronRun({
     required this.id,
     required this.jobId,
     required this.jobName,
     required this.trigger,
     required this.delivery,
+    this.execution = 'session',
     required this.startedAt,
     this.finishedAt,
     required this.status,
     this.error,
     this.summary,
+    this.sessionFile,
+    this.triage,
+    this.variables = const {},
+    this.model,
+    this.modelSource,
+    this.subagentId,
+    this.outputFile,
+    this.worktreePath,
   });
+
   factory CronRun.fromJson(Map<String, dynamic> json) => CronRun(
         id: json['id'] as String? ?? '',
         jobId: json['jobId'] as String? ?? '',
         jobName: json['jobName'] as String? ?? '',
         trigger: json['trigger'] as String? ?? 'schedule',
         delivery: json['delivery'] as String? ?? 'session',
+        execution: json['execution'] as String? ?? 'session',
         startedAt: (json['startedAt'] as num?)?.toInt() ?? 0,
         finishedAt: (json['finishedAt'] as num?)?.toInt(),
         status: json['status'] as String? ?? 'running',
         error: json['error'] as String?,
         summary: json['summary'] as String?,
+        sessionFile: json['sessionFile'] as String?,
+        triage: json['triage'] is Map<String, dynamic>
+            ? json['triage'] as Map<String, dynamic>
+            : null,
+        variables: (json['variables'] as Map?)?.map(
+              (key, value) => MapEntry('$key', '$value'),
+            ) ??
+            const {},
+        model: json['model'] as String?,
+        modelSource: json['modelSource'] as String?,
+        subagentId: json['subagentId'] as String?,
+        outputFile: json['outputFile'] as String?,
+        worktreePath: json['worktreePath'] as String?,
       );
 }
 

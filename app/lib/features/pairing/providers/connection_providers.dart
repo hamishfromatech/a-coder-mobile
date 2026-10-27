@@ -18,6 +18,7 @@ import '../../../core/connection/connection_state.dart';
 import '../../../core/connection/host_registry.dart';
 import '../../../core/connection/rpc_client.dart';
 import '../../../core/protocol/events.dart' as proto;
+import '../../../core/notifications/notification_service.dart';
 import '../../../core/protocol/responses.dart' as responses;
 import '../../chat/providers/chat_providers.dart';
 import '../../chat/providers/event_router.dart' as er;
@@ -98,6 +99,10 @@ class SessionController extends StateNotifier<SessionControllerState> {
   /// "buffered-unsent while offline").
   final List<({String mode, String text, List<Map<String, dynamic>> images})>
       _outbox = [];
+
+  /// cron_runs responses are indistinguishable on the wire, so remember the
+  /// scope of each in-flight request (FIFO; the socket is ordered).
+  final List<bool> _cronRunsAllScope = [];
 
   SessionController(this._ref, this.hostId)
       : super(const SessionControllerState(starting: true));
@@ -207,15 +212,39 @@ class SessionController extends StateNotifier<SessionControllerState> {
           .map(proto.RuntimeSessionStatus.fromJson)
           .toList();
       _ref.read(backgroundSessionsProvider.notifier).update(list);
+      _alertBackgroundWaiting(list);
       return;
     }
     // ── M6 surfaces (flag-gated screens; data always kept in sync) ──
+    if (eventType == 'cron_run') {
+      // Live run lifecycle (started → running row, finished → outcome).
+      final run = data['run'];
+      if (run is Map<String, dynamic>) {
+        final parsed = responses.CronRun.fromJson(run);
+        _ref.read(allCronRunsProvider.notifier).upsert(parsed);
+        if (_ref.read(cronRunsProvider).any((r) => r.jobId == parsed.jobId)) {
+          _ref.read(cronRunsProvider.notifier).upsert(parsed);
+        }
+      }
+      return;
+    }
     if (eventType == 'cron_update') {
       final jobs = (data['jobs'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(responses.CronJob.fromJson)
           .toList();
       _ref.read(cronJobsProvider.notifier).update(jobs);
+      for (final job in jobs) {
+        final alert = cronAlert(job.lastStatus, job.lastTriage);
+        if (alert == null) continue;
+        unawaited(NotificationService.instance.notifyCronFailure(
+          hostId: hostId,
+          jobName: job.name,
+          jobId: job.id,
+          lastRunAt: job.lastRunAt,
+          needsAttention: alert == CronAlert.needsAttention,
+        ));
+      }
       return;
     }
     if (eventType == 'office_update') {
@@ -251,8 +280,46 @@ class SessionController extends StateNotifier<SessionControllerState> {
       return;
     }
 
+    if (eventType == 'extension_ui_request') {
+      final request = proto.ExtensionUiRequest.fromJson(data);
+      const approvalMethods = {
+        'confirm',
+        'select',
+        'question',
+        'input',
+        'editor'
+      };
+      if (request.kind == 'permission' ||
+          approvalMethods.contains(request.method)) {
+        final session = _ref.read(chatStateProvider).session;
+        unawaited(NotificationService.instance.notifyApproval(
+          hostId: hostId,
+          sessionPath: session.sessionFile.isEmpty ? null : session.sessionFile,
+          toolName: request.toolName ?? request.title,
+          requestId: request.id,
+        ));
+      }
+    } else if (eventType == 'agent_end') {
+      final session = _ref.read(chatStateProvider).session;
+      unawaited(NotificationService.instance.notifyTurnFinished(
+        hostId: hostId,
+        sessionPath: session.sessionFile.isEmpty ? null : session.sessionFile,
+        sessionName: session.sessionName,
+      ));
+    }
+
     // All other events flow through the pure router into chat state.
     _ref.read(chatStateProvider.notifier).applyEvent(eventType, data);
+  }
+
+  void _alertBackgroundWaiting(List<proto.RuntimeSessionStatus> sessions) {
+    final waiting = sessions.where((s) => s.status == 'needsInput').toList();
+    if (waiting.isEmpty) return;
+    unawaited(NotificationService.instance.notifyBackgroundWaiting(
+      hostId: hostId,
+      count: waiting.length,
+      sessionPath: waiting.first.path,
+    ));
   }
 
   void _registerResponseHandlers(RpcClient client) {
@@ -309,7 +376,21 @@ class SessionController extends StateNotifier<SessionControllerState> {
           .whereType<Map<String, dynamic>>()
           .map(responses.CronRun.fromJson)
           .toList();
-      _ref.read(cronRunsProvider.notifier).update(runs);
+      final bool allScopes;
+      if (data.containsKey('jobId')) {
+        // The engine echoes the requested scope; drop any queued guess.
+        if (_cronRunsAllScope.isNotEmpty) _cronRunsAllScope.removeAt(0);
+        allScopes = data['jobId'] == null;
+      } else {
+        allScopes = _cronRunsAllScope.isNotEmpty
+            ? _cronRunsAllScope.removeAt(0)
+            : false;
+      }
+      if (allScopes) {
+        _ref.read(allCronRunsProvider.notifier).update(runs);
+      } else {
+        _ref.read(cronRunsProvider.notifier).update(runs);
+      }
     });
 
     guarded('office_list', (data) async {
@@ -330,6 +411,7 @@ class SessionController extends StateNotifier<SessionControllerState> {
           .map(proto.RuntimeSessionStatus.fromJson)
           .toList();
       _ref.read(backgroundSessionsProvider.notifier).update(list);
+      _alertBackgroundWaiting(list);
     });
 
     guarded('list_sessions', (data) async {
@@ -409,8 +491,17 @@ class SessionController extends StateNotifier<SessionControllerState> {
 
   // ─── M6: cron ──────────────────────────────────────────────────
   Future<void> loadCronJobs() => _send('cron_list', {});
-  Future<void> loadCronRuns({String? jobId}) =>
-      _send('cron_runs', {if (jobId != null) 'jobId': jobId});
+  Future<void> loadCronRuns({String? jobId}) {
+    _cronRunsAllScope.add(jobId == null);
+    return _send('cron_runs', {if (jobId != null) 'jobId': jobId});
+  }
+
+  /// Machine-wide run history for the Runs view (newest 200).
+  Future<void> loadAllCronRuns() {
+    _cronRunsAllScope.add(true);
+    return _send('cron_runs', {'limit': 200});
+  }
+
   Future<void> runCronNow(String jobId, {Map<String, String>? variables}) =>
       _send('cron_run_now', {
         'jobId': jobId,

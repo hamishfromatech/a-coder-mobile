@@ -109,7 +109,8 @@ void main() {
     expect(query, isEmpty);
   });
 
-  testWidgets('error state shows the canonical glyph and title', (tester) async {
+  testWidgets('error state shows the canonical glyph and title',
+      (tester) async {
     await tester.pumpWidget(_host(
       const PiErrorState(
         title: 'Bridge unreachable',

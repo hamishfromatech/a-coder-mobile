@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('QR payload parsing', () {
     test('accepts valid payload', () {
-      const raw = '{"v":1,"kind":"acoder","host":"192.168.1.2","port":8787,"token":"abcdefghijklmnopqrstuvwxyz0123456789ABCDEF","name":"Mac"}';
+      const raw =
+          '{"v":1,"kind":"acoder","host":"192.168.1.2","port":8787,"token":"abcdefghijklmnopqrstuvwxyz0123456789ABCDEF","name":"Mac"}';
       final p = QrPairingPayload.parse(raw);
       expect(p, isNotNull);
       expect(p!.host, '192.168.1.2');
@@ -14,7 +15,10 @@ void main() {
 
     test('rejects garbage', () {
       expect(QrPairingPayload.parse('hello'), isNull);
-      expect(QrPairingPayload.parse('{"v":2,"kind":"acoder","host":"h","port":8787,"token":"x"}'), isNull);
+      expect(
+          QrPairingPayload.parse(
+              '{"v":2,"kind":"acoder","host":"h","port":8787,"token":"x"}'),
+          isNull);
     });
   });
 
@@ -32,10 +36,10 @@ void main() {
 
     test('accepts valid entry', () {
       expect(
-        validateManualPairingEntry(host: 'h', portText: '8787', token: 'a' * 44),
+        validateManualPairingEntry(
+            host: 'h', portText: '8787', token: 'a' * 44),
         isNull,
       );
     });
   });
 }
-

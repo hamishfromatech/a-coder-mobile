@@ -290,11 +290,45 @@ ChatState _onMessageStart(ChatState state, Map<String, dynamic> data) {
       isStreaming: true,
     );
   }
+  if (role == 'user') {
+    // The composer renders the user message optimistically at send time and
+    // the engine echoes it back. Replace that echo in place; appending here
+    // would show every message twice.
+    final text = messageText(msg).trim();
+    // FIFO: replace the *oldest* matching echo so two sends with identical
+    // text keep their order when the engine echoes them back.
+    final echoIndex = state.messages.indexWhere(
+      (m) => m.id.startsWith('local_') && messageText(m.content).trim() == text,
+    );
+    if (echoIndex != -1) {
+      final updated = [...state.messages];
+      updated[echoIndex] = UiMessage(id: id, role: role, content: msg);
+      return state.copyWith(messages: updated);
+    }
+  }
   // user / toolResult messages arrive complete.
   return state.copyWith(messages: [
     ...state.messages,
     UiMessage(id: id, role: role, content: msg)
   ]);
+}
+
+/// Plain text of a transcript message (string content or text parts).
+String messageText(Object? content) {
+  if (content is String) return content;
+  if (content is! Map) return '';
+  final raw = content['content'];
+  if (raw is String) return raw;
+  if (raw is List) {
+    final buffer = StringBuffer();
+    for (final part in raw) {
+      if (part is Map && part['type'] == 'text' && part['text'] is String) {
+        buffer.write(part['text']);
+      }
+    }
+    return buffer.toString();
+  }
+  return '';
 }
 
 ChatState _onMessageUpdate(ChatState state, Map<String, dynamic> data) {

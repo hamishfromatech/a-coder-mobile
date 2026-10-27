@@ -13,7 +13,8 @@ import 'dart:convert';
 import 'dart:io';
 
 class FakeBridgeServer {
-  FakeBridgeServer({this.token, List<Map<String, dynamic>> transcript = const []})
+  FakeBridgeServer(
+      {this.token, List<Map<String, dynamic>> transcript = const []})
       : _transcript = List<Map<String, dynamic>>.of(transcript);
 
   final String? token;
@@ -143,7 +144,11 @@ class FakeBridgeServer {
           'success': true,
         }));
       }
-      emit({'type': 'queue_update', 'steering': _steering, 'followUp': <String>[]});
+      emit({
+        'type': 'queue_update',
+        'steering': _steering,
+        'followUp': <String>[]
+      });
       return;
     }
 
@@ -158,7 +163,8 @@ class FakeBridgeServer {
     }
   }
 
-  void _autoRespond(WebSocket socket, Map<String, dynamic> obj, String id, String type) {
+  void _autoRespond(
+      WebSocket socket, Map<String, dynamic> obj, String id, String type) {
     Map<String, dynamic> data = <String, dynamic>{};
     switch (type) {
       case 'get_state':
@@ -171,7 +177,12 @@ class FakeBridgeServer {
             'maxTokens': 8192,
             'input': <String>['text'],
             'reasoning': false,
-            'cost': {'input': 0.0, 'output': 0.0, 'cacheRead': 0.0, 'cacheWrite': 0.0},
+            'cost': {
+              'input': 0.0,
+              'output': 0.0,
+              'cacheRead': 0.0,
+              'cacheWrite': 0.0
+            },
           },
           'thinkingLevel': 'low',
           'permissionMode': 'default',
@@ -216,8 +227,7 @@ class FakeBridgeServer {
         break;
       case 'get_transcript_page':
         final limit = (obj['limit'] as num?)?.toInt() ?? 80;
-        final before =
-            (obj['before'] as num?)?.toInt() ?? _transcript.length;
+        final before = (obj['before'] as num?)?.toInt() ?? _transcript.length;
         final end = before.clamp(0, _transcript.length);
         final start = (end - limit).clamp(0, end);
         data = {
@@ -243,7 +253,8 @@ class FakeBridgeServer {
     }));
   }
 
-  Future<void> _runScriptedTurn(WebSocket socket, Map<String, dynamic> prompt) async {
+  Future<void> _runScriptedTurn(
+      WebSocket socket, Map<String, dynamic> prompt) async {
     _turnInProgress = true;
     _steering.clear();
     final userText = prompt['message'] as String? ?? '';
@@ -308,7 +319,8 @@ class FakeBridgeServer {
             {'type': 'text', 'text': 'edited 1 file'},
           ],
           'details': {
-            'diff': '--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1,3 +1,3 @@\n ctx\n-foo()\n+bar()\n',
+            'diff':
+                '--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1,3 +1,3 @@\n ctx\n-foo()\n+bar()\n',
           },
           'isError': false,
         },
@@ -325,7 +337,8 @@ class FakeBridgeServer {
             {'type': 'text', 'text': 'edited 1 file'},
           ],
           'details': {
-            'diff': '--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1,3 +1,3 @@\n ctx\n-foo()\n+bar()\n',
+            'diff':
+                '--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1,3 +1,3 @@\n ctx\n-foo()\n+bar()\n',
           },
           'isError': false,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
@@ -348,7 +361,8 @@ class FakeBridgeServer {
     }
 
     // Final assistant answer (may reflect steer).
-    final suffix = _steering.isEmpty ? '' : ' (steered: ${_steering.join(', ')})';
+    final suffix =
+        _steering.isEmpty ? '' : ' (steered: ${_steering.join(', ')})';
     final finalText = userText.isEmpty
         ? 'Final answer.$suffix'
         : 'Final answer to: $userText$suffix';
@@ -385,7 +399,11 @@ class FakeBridgeServer {
       'messages': <Map<String, dynamic>>[],
       'willRetry': false,
     });
-    emit({'type': 'queue_update', 'steering': <String>[], 'followUp': <String>[]});
+    emit({
+      'type': 'queue_update',
+      'steering': <String>[],
+      'followUp': <String>[]
+    });
     _turnInProgress = false;
   }
 

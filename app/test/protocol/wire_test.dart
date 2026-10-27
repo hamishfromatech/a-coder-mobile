@@ -1,5 +1,6 @@
 // test/protocol/wire_test.dart
 library;
+
 /// Unit tests for the NDJSON wire codec (doc 08 §4).
 
 import 'package:flutter_test/flutter_test.dart';
@@ -8,21 +9,25 @@ import 'package:acoder_mobile/core/protocol/wire.dart' as wire;
 void main() {
   group('splitLines', () {
     test('splits on LF only', () {
-      expect(wire.splitLines('{"a":1}\n{"b":2}\n'), equals(['{"a":1}', '{"b":2}']));
+      expect(wire.splitLines('{"a":1}\n{"b":2}\n'),
+          equals(['{"a":1}', '{"b":2}']));
     });
 
     test('handles \\r\\n by stripping trailing \\r', () {
-      expect(wire.splitLines('{"a":1}\r\n{"b":2}\r\n'), equals(['{"a":1}', '{"b":2}']));
+      expect(wire.splitLines('{"a":1}\r\n{"b":2}\r\n'),
+          equals(['{"a":1}', '{"b":2}']));
     });
 
     test('skips empty lines', () {
-      expect(wire.splitLines('{"a":1}\n\n{"b":2}\n'), equals(['{"a":1}', '{"b":2}']));
+      expect(wire.splitLines('{"a":1}\n\n{"b":2}\n'),
+          equals(['{"a":1}', '{"b":2}']));
     });
 
     test('does NOT split on U+2028/U+2029 inside strings', () {
       // These are legal JSON string characters
       const input = '{"text":"hello\u{2028}world"}\n{"type":"next"}';
-      expect(wire.splitLines(input), equals(['{"text":"hello\u{2028}world"}', '{"type":"next"}']));
+      expect(wire.splitLines(input),
+          equals(['{"text":"hello\u{2028}world"}', '{"type":"next"}']));
     });
 
     test('handles single line without trailing newline', () {

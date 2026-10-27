@@ -22,7 +22,10 @@ void main() {
     addTearDown(notifier.dispose);
 
     notifier.loadTranscriptPage(TranscriptPageResponse(
-      entries: [_entry('e3', 'user', 'third'), _entry('e4', 'assistant', 'fourth')],
+      entries: [
+        _entry('e3', 'user', 'third'),
+        _entry('e4', 'assistant', 'fourth')
+      ],
       total: 4,
       start: 2,
       end: 4,

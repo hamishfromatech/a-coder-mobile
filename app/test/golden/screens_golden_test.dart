@@ -11,7 +11,9 @@ void main() {
   setUpAll(loadUiFonts);
   for (final size in const [Size(390, 844)]) {
     for (final dark in [true, false]) {
-      testWidgets('pairing_manual_${size.width.toInt()}x${size.height.toInt()}_${dark ? "dark" : "light"}', (tester) async {
+      testWidgets(
+          'pairing_manual_${size.width.toInt()}x${size.height.toInt()}_${dark ? "dark" : "light"}',
+          (tester) async {
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1.0;
         addTearDown(() {
@@ -34,7 +36,8 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
         await expectLater(
           find.byType(PairingScreen),
-          matchesGoldenFile('pairing_manual_${size.width.toInt()}x${size.height.toInt()}_${dark ? "dark" : "light"}.png'),
+          matchesGoldenFile(
+              'pairing_manual_${size.width.toInt()}x${size.height.toInt()}_${dark ? "dark" : "light"}.png'),
         );
       });
     }

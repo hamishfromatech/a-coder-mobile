@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/connection/host_registry.dart';
 import '../../../design/primitives.dart';
 import '../../../design/components/button.dart';
+import '../../../core/notifications/notification_service.dart';
 import '../../../design/components/kit.dart';
 import '../../../design/skins.dart';
 import '../../../design/theme.dart';
@@ -34,7 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -55,6 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           tabs: const [
             Tab(icon: Icon(Icons.computer_rounded), text: 'Machines'),
             Tab(icon: Icon(Icons.tune_rounded), text: 'Session'),
+            Tab(icon: Icon(Icons.notifications_outlined), text: 'Alerts'),
             Tab(icon: Icon(Icons.palette_rounded), text: 'Appearance'),
             Tab(icon: Icon(Icons.tips_and_updates_outlined), text: 'Advanced'),
             Tab(icon: Icon(Icons.info_outline_rounded), text: 'About'),
@@ -66,6 +68,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         children: [
           _buildMachinesTab(context),
           _buildSessionTab(context),
+          _buildAlertsTab(context),
           _buildAppearanceTab(),
           _buildAdvancedTab(context),
           _buildAboutTab(),
@@ -310,6 +313,153 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
+  /// Local alerts (desktop "attention" parity). Background delivery while the
+  /// app is suspended needs the push relay in plan/11-push-relay-spike.md.
+  Widget _buildAlertsTab(BuildContext context) {
+    final settings = ref.watch(settingsProvider);
+    final master = settings.notificationsEnabled;
+
+    Future<void> setMaster(bool value) async {
+      if (!value) {
+        await ref
+            .read(settingsProvider.notifier)
+            .setNotificationsEnabled(false);
+        return;
+      }
+      final granted = await NotificationService.instance.requestPermission();
+      await ref
+          .read(settingsProvider.notifier)
+          .setNotificationsEnabled(granted);
+      if (!granted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Notifications are blocked — enable them in system settings.')));
+      }
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _sectionLabel('ALERTS'),
+        const SizedBox(height: 4),
+        _toggleRow(
+          title: 'Notifications',
+          subtitle: 'Approvals, finished turns, failing tasks',
+          value: master,
+          enabled: true,
+          onChanged: setMaster,
+        ),
+        const Divider(height: 20),
+        _toggleRow(
+          title: 'Approvals needed',
+          subtitle: 'The agent is blocked waiting for permission',
+          value: settings.alertApprovals,
+          enabled: master,
+          onChanged: (v) =>
+              ref.read(settingsProvider.notifier).setAlertApprovals(v),
+        ),
+        _toggleRow(
+          title: 'Turn finished',
+          subtitle: 'The agent finished while you were away',
+          value: settings.alertTurnFinished,
+          enabled: master,
+          onChanged: (v) =>
+              ref.read(settingsProvider.notifier).setAlertTurnFinished(v),
+        ),
+        _toggleRow(
+          title: 'Background sessions',
+          subtitle: 'A detached session is waiting for input',
+          value: settings.alertBackgroundWaiting,
+          enabled: master,
+          onChanged: (v) =>
+              ref.read(settingsProvider.notifier).setAlertBackgroundWaiting(v),
+        ),
+        _toggleRow(
+          title: 'Scheduled task failures',
+          subtitle: 'A routine failed on its last run',
+          value: settings.alertCronFailures,
+          enabled: master,
+          onChanged: (v) =>
+              ref.read(settingsProvider.notifier).setAlertCronFailures(v),
+        ),
+        const Divider(height: 20),
+        _toggleRow(
+          title: 'Also while the app is open',
+          subtitle: 'Off by default — you can already see the screen',
+          value: settings.alertWhileForeground,
+          enabled: master,
+          onChanged: (v) =>
+              ref.read(settingsProvider.notifier).setAlertWhileForeground(v),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Alerts are raised locally while the app is running (foreground or '
+          'backgrounded with the connection alive). Being paged when the app '
+          'is fully suspended needs the push relay described in '
+          'plan/11-push-relay-spike.md.',
+          style:
+              TextStyle(fontSize: 11, height: 1.5, color: PiColors.textMuted),
+        ),
+        const SizedBox(height: 10),
+        PiButton(
+          label: 'Re-check permission',
+          variant: PiButtonVariant.outline,
+          size: PiButtonSize.sm,
+          icon: Icons.notifications_active_outlined,
+          onPressed: () async {
+            final granted =
+                await NotificationService.instance.requestPermission();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(granted
+                      ? 'Notifications are allowed.'
+                      : 'Notifications are still blocked.')));
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _toggleRow({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required bool enabled,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Opacity(
+      opacity: enabled ? 1 : 0.45,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: PiColors.text)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style:
+                          TextStyle(fontSize: 11, color: PiColors.textMuted)),
+                ],
+              ),
+            ),
+            PiSwitch(
+              value: value,
+              onChanged: enabled ? onChanged : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAdvancedTab(BuildContext context) {
     final pins = ref.watch(sessionPinsProvider);
     return ListView(
@@ -475,6 +625,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ],
               ),
               const Divider(height: 32),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Chat backdrop',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: PiColors.text)),
+                          const SizedBox(height: 2),
+                          Text('Faint texture behind the transcript',
+                              style: TextStyle(
+                                  fontSize: 11, color: PiColors.textMuted)),
+                        ],
+                      ),
+                    ),
+                    PiSwitch(
+                      value: settings.chatBackdrop,
+                      onChanged: (v) => ref
+                          .read(settingsProvider.notifier)
+                          .setChatBackdrop(v),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 24),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(

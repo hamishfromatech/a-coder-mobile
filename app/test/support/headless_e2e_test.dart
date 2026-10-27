@@ -15,7 +15,8 @@ class _Listener implements RpcClientListener {
   final void Function(String) onErr;
 
   @override
-  void onEvent(String eventType, Map<String, dynamic> data) => onEvt(eventType, data);
+  void onEvent(String eventType, Map<String, dynamic> data) =>
+      onEvt(eventType, data);
   @override
   void onBridgeFrame(proto_events.BridgeControlFrame frame) {}
   @override
@@ -31,7 +32,8 @@ void main() {
     await server.start();
     addTearDown(() async => await server.stop());
 
-    final client = RpcClient(wsUrl: 'ws://127.0.0.1:${server.port}/rpc', token: token);
+    final client =
+        RpcClient(wsUrl: 'ws://127.0.0.1:${server.port}/rpc', token: token);
     final eventTypes = <String>[];
     final done = Completer<void>();
     String? uiReqId;

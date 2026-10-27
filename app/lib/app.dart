@@ -12,6 +12,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/notifications/notification_service.dart';
 import 'design/theme.dart';
 import 'features/settings/providers/settings_providers.dart';
 import 'features/pairing/providers/connection_providers.dart';
@@ -33,6 +34,7 @@ class ACoderApp extends ConsumerStatefulWidget {
 
 class _ACoderAppState extends ConsumerState<ACoderApp>
     with WidgetsBindingObserver {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   DateTime? _lastReconnectAt;
   bool _reconnecting = false;
@@ -55,6 +57,8 @@ class _ACoderAppState extends ConsumerState<ACoderApp>
   /// App resume from background → force reconnect (guarded: no-op when healthy).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    NotificationService.instance.appInForeground =
+        state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.resumed) {
       _reconnectActive();
     }
@@ -99,8 +103,10 @@ class _ACoderAppState extends ConsumerState<ACoderApp>
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    NotificationService.instance.configure(settings);
     return MaterialApp(
       title: 'A-Coder',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: PiTheme.lightFor(settings.skin),
       darkTheme: PiTheme.darkFor(settings.skin),

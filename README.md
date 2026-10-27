@@ -37,12 +37,43 @@ cd app && flutter pub get && flutter run
 Scan the QR (or enter host/port/token on the Manual tab). Same Wi-Fi required
 unless you use a VPN/Tailscale.
 
+## iOS
+
+The iOS project is configured and its pods resolve (`ios/Podfile`,
+`ios/Podfile.lock`). A full **Xcode** installation is required to compile —
+Command Line Tools alone are not enough:
+
+```bash
+# One-time: install Xcode from the App Store, then point the toolchain at it
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+```
+
+Build targets:
+
+```bash
+./scripts/build_ios.sh simulator   # app/build/ios/iphonesimulator/Runner.app
+./scripts/build_ios.sh unsigned    # app/build/ios/unsigned.ipa (sign with Sideloadly/AltStore)
+./scripts/build_ios.sh ipa         # signed .ipa (Xcode team required)
+```
+
+To run on your own iPhone from Xcode: open `app/ios/Runner.xcworkspace`, select
+the Runner target → Signing & Capabilities, choose your personal team (a free
+Apple ID works), then Run. The bundle id is `dev.acoder.mobile.acoderMobile`.
+
+CI builds an unsigned IPA on a macOS runner:
+[`.github/workflows/ios.yml`](.github/workflows/ios.yml) (workflow_dispatch or
+push to `main`). Download the artifact and sign it with your Apple ID.
+
+Local-network access, camera (QR), photo library (attachments) and Bonjour are
+declared in `ios/Runner/Info.plist`; iOS prompts on first connect.
+
 ## Verify
 
 ```bash
 cd app
 flutter analyze     # No issues found
-flutter test        # 215 tests (unit, widget, goldens, fake-bridge E2E)
+flutter test        # 244 tests (unit, widget, goldens, fake-bridge E2E)
 ```
 
 CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
