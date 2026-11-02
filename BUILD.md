@@ -255,10 +255,9 @@ branch `main`).
   `mobile / flutter` with up-to-date branches, 1 approving review, dismiss
   stale approvals, approval of the most recent push, conversation resolution,
   linear history, no force-push and no deletion, enforced for administrators.
-  Direct pushes to `main` are therefore rejected for everyone. Only
-  `mobile / flutter` is required because it is the only check that runs on
-  `main` today; `mobile / android` and `iOS build / unsigned-ipa` are advisory
-  until the prepared commit lands and both pass (see *CI* above).
+  Direct pushes to `main` are therefore rejected for everyone. Required checks
+  are `mobile / flutter`, `mobile / android` and `iOS build / unsigned-ipa`
+  (added 2026-11-03 after both new jobs passed on `main` at `e56fed2`).
 - Public-repo Actions minutes on standard runners are free, so the macOS 10×
   private-repo multiplier no longer applies.
 - **`LICENSE` is MIT + A-Tech dual terms** (decided 2026-11-02T14:59:32Z), the
@@ -279,6 +278,6 @@ branch `main`).
    when ready.
 4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
    (**public**, `main`); CI green and branch protection enforced. The Android
-   compile job, iOS PR guard, and `LICENSE` land through a PR, because `main`
-   no longer accepts direct pushes. Add `mobile / android` and
-   `iOS build / unsigned-ipa` as required checks once both pass on `main`.
+   compile job, iOS PR guard, and `LICENSE` landed through PR #1 (squash
+   `e56fed2`), because `main` no longer accepts direct pushes. All three CI
+   checks are now required.
