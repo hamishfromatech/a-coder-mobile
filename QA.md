@@ -15,6 +15,10 @@
 - `iOS build / unsigned-ipa` (macOS, Xcode 26) — unsigned IPA. On PRs a
   `changes` gate skips the macOS build unless iOS-native, plugin/dependency, or
   Dart paths changed; a skipped job reports success, so the check never pends.
+- Branch protection on `main` requires `mobile / flutter` plus one approving
+  review, with up-to-date branches and no direct pushes. The Android and iOS
+  checks are advisory until the prepared commit lands and both pass on `main`
+  (`plan/12-repo-hosting.md` §13).
 
 ## Test matrix
 ### Unit & Widget

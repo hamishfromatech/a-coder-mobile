@@ -1,15 +1,14 @@
 # Repo hosting proposal — `mobile-app`
 
-**Status:** executed 2026-11-03 (THE-43); follow-ups prepared 2026-11-03 (THE-44)
+**Status:** executed 2026-11-03 (THE-43); branch protection enabled 2026-11-03
 **Date:** 2026-11-03
 **Owner:** Flutter Expert
 
-**Execution state:** the remote exists, `main` is pushed, CI is green. Branch
-protection / rulesets are **not** enabled because GitHub rejects both on a
-private repository on the Free plan (see §11.4 and §12.1). The Android compile
-job and the iOS PR guard are implemented locally (§12.3, §12.4); the LICENSE
-choice, the protection path, and permission to push those commits are board
-decisions (§12.5).
+**Execution state:** the remote exists and is **public**; `main` is pushed, CI is
+green, and classic branch protection is **enforced** on `main` (§13). The board
+chose public visibility on 2026-11-02T14:17:49Z, which unblocked protection.
+One prepared commit (`b37bc3a`: Android compile job + iOS PR guard) is still
+local only, and the `LICENSE` choice is still open (§12.2, §13.5).
 
 ---
 
@@ -26,6 +25,9 @@ decisions (§12.5).
 
 If the board prefers zero CI spend, the only change is D2 → public (free standard
 runners, including macOS). That is a real trade-off, quantified in §6.
+
+> **D2 was superseded** on 2026-11-02: the board chose public visibility to
+> unblock branch protection. See §13.1. Rows D1–D6 are otherwise as approved.
 
 ---
 
@@ -514,9 +516,9 @@ added as required.
 
 ### 12.5 Decisions requested from the board
 
-1. **Branch protection path** — GitHub Pro (≈ $4/month, keeps the repo private
-   and adds 3,000 included minutes) vs. make the repo public (free, but needs
-   the LICENSE first) vs. defer until release.
+1. **Branch protection path** — **resolved 2026-11-02T14:17:49Z: make the repo
+   public.** Executed 2026-11-03; see §13. The LICENSE caution attached to this
+   option was overridden, so §12.2 remains open.
 2. **LICENSE** — mirror the `a-coder-cli` MIT + A-Tech dual license vs. MIT
    only vs. proprietary/all-rights-reserved vs. defer.
 3. **Push approval** — approve pushing the THE-44 CI/doc commits to
@@ -552,3 +554,104 @@ gh api /users/hamishfromatech/settings/billing/actions
 ```
 
 The first green `android` run replaces the ~4 min estimate with a measurement.
+
+---
+
+## 13. Execution: public visibility and branch protection (2026-11-03)
+
+### 13.1 Decision
+
+The board answered the §11.4 / §12.5 protection question with **"Make the repo
+public now"** (`protection_path = public`, 2026-11-02T14:17:49Z). That overrides
+D2 (private) for now. The repo is therefore public and still unlicensed, which
+under default copyright is all-rights-reserved — see §13.5.
+
+### 13.2 Pre-flight
+
+Before the visibility switch the tracked tree and full history were scanned for
+credentials:
+
+```
+$ git ls-files | grep -Ei '\.env|secret|credential|key\.properties|\.jks$|\.keystore$|\.pem$|\.p12$|token'
+(no matches)
+$ git log --all -p | grep -Eni '(gho_|ghp_|sk-|AKIA|BEGIN .*PRIVATE KEY)'
+(no matches)
+```
+
+No secrets, keystores, or environment files are tracked in any commit.
+
+### 13.3 Actions
+
+```
+$ gh repo edit hamishfromatech/a-coder-mobile \
+    --visibility public --accept-visibility-change-consequences
+$ gh api -X PUT repos/hamishfromatech/a-coder-mobile/branches/main/protection \
+    --input protection.json
+```
+
+Protection applied to `main`:
+
+| Setting | Value |
+|---|---|
+| Required status checks | `mobile / flutter` |
+| Require branch up to date (`strict`) | yes |
+| Required approving reviews | 1 |
+| Dismiss stale approvals | yes |
+| Require approval of most recent push | yes |
+| Require conversation resolution | yes |
+| Require linear history | yes |
+| Enforce for administrators | yes |
+| Allow force pushes | no |
+| Allow branch deletion | no |
+| Signed commits | not required |
+
+`dismissal_restrictions` must be **omitted** for a user-owned repository;
+sending it returns `422 Only organization repositories can have users and team
+restrictions`. The rest of the payload is unchanged from §5.
+
+### 13.4 Verification (read back after the write)
+
+```
+$ gh repo view hamishfromatech/a-coder-mobile --json visibility,isPrivate
+{ "visibility": "PUBLIC", "isPrivate": false }
+$ gh api repos/hamishfromatech/a-coder-mobile/branches/main --jq .protected
+true
+$ gh api repos/hamishfromatech/a-coder-mobile/branches/main/protection --jq '{...}'
+checks: ["mobile / flutter"]  strict: true
+reviews: 1  stale: true  last_push: true
+enforce_admins: true  linear: true
+force_push: false  deletions: false  conversations: true
+```
+
+Local suite is unaffected by a metadata-only change:
+
+```
+cd app && flutter analyze  → No issues found! (1.5s)
+cd app && flutter test     → 267 tests, All tests passed! (7s)
+```
+
+### 13.5 Consequences and remaining work
+
+- **Public Actions minutes are free** on standard runners, so the §12.6 cost
+  question disappears for `ubuntu-latest` and `macos-26`. The 10× macOS
+  multiplier no longer applies.
+- **`main` is no longer directly pushable, including for the owner**
+  (`enforce_admins: true`). Every change now needs a branch, a PR, one human
+  approval, and a green `mobile / flutter`. That is the intended model but it
+  is a real workflow change for a single-maintainer repo.
+- **Only `mobile / flutter` is required** because it is the only check that
+  exists on `origin/main` today. `mobile / android` and
+  `iOS build / unsigned-ipa` stay advisory until `b37bc3a` lands and both pass
+  on `main`; only then should they be appended to `required_status_checks`.
+  Requiring them now would leave PRs waiting on checks that never start.
+- **`b37bc3a` (`ci: prove Android compiles and gate the iOS PR check`) is
+  still local only.** It needs board approval to push a branch and open a PR.
+  After it merges and both new jobs pass, add them as required with
+  `gh api -X PUT .../protection/required_status_checks` or the
+  `branches/main/protection` payload above.
+- **`LICENSE` is still absent** (§12.2). Public + unlicensed is legally
+  all-rights-reserved, which is workable but inconsistent with an open
+  repository. The sibling `a-coder-cli` uses MIT plus A-Tech dual-license
+  distribution terms; choosing it remains a board decision. Do this before any
+  binary distribution or outside contribution is solicited.
+- No tags, no releases, no signing secrets, and no changes in `a-coder-cli`.

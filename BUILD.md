@@ -230,7 +230,7 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 
 ## CI
 
-GitHub Actions, repository `hamishfromatech/a-coder-mobile` (private, default
+GitHub Actions, repository `hamishfromatech/a-coder-mobile` (**public**, default
 branch `main`).
 
 - `.github/workflows/mobile.yml` — `macos-26` for `flutter` (Flutter pinned
@@ -248,12 +248,20 @@ branch `main`).
   flaky; keep it small and regenerate goldens only on macOS 26.
 - All workflows have `permissions: contents: read` and concurrency
   cancel-in-progress.
-- **Branch protection is not enabled**: it requires GitHub Pro for a private
-  repo (or a public repo). See `plan/12-repo-hosting.md` §11.4 and §12.1.
-  Consequently `mobile / flutter`, `mobile / android`, and
-  `iOS build / unsigned-ipa` are advisory, not required checks yet.
-- **`LICENSE` is still absent** (all-rights-reserved). The choice is pending a
-  board decision; see `plan/12-repo-hosting.md` §12.2 and §12.5.
+- **Branch protection is enabled on `main`** (2026-11-03): required check
+  `mobile / flutter` with up-to-date branches, 1 approving review, dismiss
+  stale approvals, approval of the most recent push, conversation resolution,
+  linear history, no force-push and no deletion, enforced for administrators.
+  Direct pushes to `main` are therefore rejected for everyone. Only
+  `mobile / flutter` is required because it is the only check that runs on
+  `main` today; `mobile / android` and `iOS build / unsigned-ipa` are advisory
+  until the prepared commit lands and both pass (see
+  `plan/12-repo-hosting.md` §13).
+- Public-repo Actions minutes on standard runners are free, so the macOS 10×
+  private-repo multiplier no longer applies.
+- **`LICENSE` is still absent** (all-rights-reserved). That is a real gap now
+  that the repo is public; the choice is pending a board decision. See
+  `plan/12-repo-hosting.md` §12.2 and §13.5.
 
 ## Remaining
 
@@ -268,7 +276,7 @@ branch `main`).
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
 4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
-   (private, `main`); CI green. An Android compile job and an iOS PR guard are
-   committed locally on `main` (THE-44), pending push approval. Branch protection
-   still needs GitHub Pro or a public repo, and the LICENSE choice is pending
-   (`plan/12-repo-hosting.md` §12).
+   (**public**, `main`); CI green and branch protection enforced. The Android
+   compile job and iOS PR guard are committed locally on `main` (`b37bc3a`),
+   pending push/PR approval; add both as required checks after they pass on
+   `main`. The LICENSE choice is still pending (`plan/12-repo-hosting.md` §13).
