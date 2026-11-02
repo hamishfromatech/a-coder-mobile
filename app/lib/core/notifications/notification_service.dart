@@ -3,9 +3,9 @@
 // Scope: while the app process is alive (foreground, or backgrounded with the
 // socket still up) the client raises a local notification for approvals, turn
 // completions, background sessions that need input, and failing routines.
-// True background delivery (app suspended/killed) requires the APNs/FCM relay
-// described in plan/11-push-relay-spike.md; this service is its client-side
-// counterpart, not a replacement.
+// True background delivery (app suspended/killed) requires an APNs/FCM relay,
+// which is not implemented yet; this service is its client-side counterpart, not
+// a replacement.
 library;
 
 import 'dart:async';

@@ -52,6 +52,24 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  android:
+    # Proves the Android app compiles; nothing did before. Linux minutes are
+    # free on a public repo and the job is cheap; --debug needs no signing
+    # material, so this is the honest, cheap compile check.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          cache: true
+      - name: Pub get
+        working-directory: app
+        run: flutter pub get
+      - name: Build debug APK
+        working-directory: app
+        run: flutter build apk --debug
+
 # Optional (commented): run the bridge test suite in its own repo/job.
 # - The A-Coder bridge lives in a different repository and is not a required
 #   job for this mobile workflow.

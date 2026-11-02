@@ -8,6 +8,17 @@
 - Integration (device/emulator): `cd app && flutter test integration_test` (requires a connected device; fake server binds 127.0.0.1 inside the test process)
 - Read integration test help: `cd app && flutter test integration_test --help`
 
+## CI compile coverage
+- `mobile / flutter` (macOS, Flutter `3.47.5`) — analyze + the full test suite.
+- `mobile / android` (`ubuntu-latest`) — `flutter build apk --debug`, a compile
+  check that needs no signing material.
+- `iOS build / unsigned-ipa` (macOS, Xcode 26) — unsigned IPA. On PRs a
+  `changes` gate skips the macOS build unless iOS-native, plugin/dependency, or
+  Dart paths changed; a skipped job reports success, so the check never pends.
+- Branch protection on `main` requires `mobile / flutter` plus one approving
+  review, with up-to-date branches and no direct pushes. The Android and iOS
+  checks are advisory until the prepared commit lands and both pass on `main`.
+
 ## Test matrix
 ### Unit & Widget
 - Wire codec, event router fixtures, connection state (existing `test/`).
@@ -22,7 +33,7 @@
 - Happy path in `app/integration_test/happy_path_test.dart` against the fake
   bridge server.
 
-### Manual device matrix (plan/08 §5)
+### Manual device matrix
 | Check | iPhone (iOS 17+) | Android (13+) |
 |---|---|---|
 | QR pair | ✔ | ✔ |

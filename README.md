@@ -15,7 +15,6 @@ your phone — over your own LAN, no cloud relay.
 | Path | Description |
 |---|---|
 | [`app/`](app) | Flutter client — protocol, connection layer, chat, sessions, pairing, settings |
-| [`plan/`](plan) | Complete build plan: architecture, wire protocol, bridge spec, screens, milestones, testing, design language |
 | [`QA.md`](QA.md) | How to run every test tier, the manual device matrix, and known coverage gaps |
 | [`BUILD.md`](BUILD.md) | Current build status, verification numbers, and remaining work |
 | [`bridge/`](bridge) | Pointer only — the bridge moved into the CLI repo |
@@ -80,10 +79,14 @@ CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
 
 ## Product docs
 
-- Protocol contract — [`plan/03-protocol-spec.md`](plan/03-protocol-spec.md)
-- Bridge — [`plan/04-bridge-spec.md`](plan/04-bridge-spec.md)
-- App architecture — [`plan/05-app-architecture.md`](plan/05-app-architecture.md)
-- Screens — [`plan/06-screens-spec.md`](plan/06-screens-spec.md)
+- Protocol contract — [`app/lib/core/protocol/`](app/lib/core/protocol)
+- Bridge — `a-coder-cli serve` in `../a-coder-cli/packages/coding-agent/src/serve/`
+- App architecture — [`app/lib/`](app/lib)
+- Screens — [`app/lib/features/`](app/lib/features)
+
+The detailed build plan, protocol spec, and design notes live in the `plan/`
+folder **on the development machine only**; that folder is git-ignored and is
+not part of this repository.
 
 ## Feature set
 
@@ -105,3 +108,16 @@ the accent avatar, hairline tool cards, and flat dense lists.
   --tls-cert/--tls-key` switches to `wss://`; the QR then carries the cert's
   SHA-256 pin and the app rejects a mismatched certificate. Off-LAN access
   still belongs on a VPN/Tailscale.
+
+## License
+
+Dual-licensed by The A-Tech Corporation PTY LTD, mirroring
+[`a-coder-cli`](https://github.com/hamishfromatech/a-coder-cli):
+
+- **Free** for individuals, solo founders, and businesses with less than
+  USD $10M in total annual revenue — MIT, open source, forever.
+- **The A-Tech Corporation License** required for organizations with
+  USD $10M or more in annual revenue deploying A-Coder across departments and
+  users. Contact [The A-Tech Corporation](https://theatechcorporation.com).
+
+See [LICENSE](LICENSE) for full terms.

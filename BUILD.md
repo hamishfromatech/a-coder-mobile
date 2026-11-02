@@ -13,10 +13,11 @@ sessions, models, and settings.
 Flutter app ──WS(/rpc, Bearer)── a-coder-cli serve ──stdio NDJSON── engine (--mode rpc)
 ```
 
-- Protocol contract: [`plan/03-protocol-spec.md`](plan/03-protocol-spec.md)
-- Bridge spec: [`plan/04-bridge-spec.md`](plan/04-bridge-spec.md)
-- App architecture: [`plan/05-app-architecture.md`](plan/05-app-architecture.md)
-- Screens: [`plan/06-screens-spec.md`](plan/06-screens-spec.md)
+- Protocol contract: [`app/lib/core/protocol/`](app/lib/core/protocol)
+- Bridge: `a-coder-cli serve` in
+  `../a-coder-cli/packages/coding-agent/src/serve/`
+- App architecture: [`app/lib/`](app/lib)
+- Screens: [`app/lib/features/`](app/lib/features)
 - Test strategy + honest gap list: [`QA.md`](QA.md)
 
 ## Where things live
@@ -24,7 +25,6 @@ Flutter app ──WS(/rpc, Bearer)── a-coder-cli serve ──stdio NDJSON─
 | Path | What |
 |---|---|
 | `app/` | Flutter client (all code + tests) |
-| `plan/` | Build plan and protocol/screens/design specs |
 | `QA.md` | Test commands, device matrix, known coverage gaps |
 | `.github/workflows/mobile.yml` | CI: analyze + tests + coverage |
 | `bridge/` | **Retired.** Canonical bridge lives in the CLI repo (see `bridge/README.md`) |
@@ -32,6 +32,9 @@ Flutter app ──WS(/rpc, Bearer)── a-coder-cli serve ──stdio NDJSON─
 The bridge is now `a-coder-cli serve`:
 `../a-coder-cli/packages/coding-agent/src/serve/` with tests in
 `../a-coder-cli/packages/coding-agent/test/serve/`.
+
+The build plan and specs (`plan/`) are kept on the development machine only and
+are git-ignored; they are not part of this repository.
 
 ## Shipped
 
@@ -58,7 +61,7 @@ The bridge is now `a-coder-cli serve`:
   serves TLS; the QR carries `tls:true` + the SHA-256 `pin`; the app pins
   self-signed LAN certs and shows a TLS/pinned badge per machine. mDNS TXT
   advertises `tls=1`.
-- **Push relay**: design spike only (`plan/11-push-relay-spike.md`).
+- **Push relay**: design spike only; nothing ships yet.
 
 **M2/M3/M4 — Client core**
 
@@ -230,21 +233,37 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 
 ## CI
 
-GitHub Actions, repository `hamishfromatech/a-coder-mobile` (private, default
+GitHub Actions, repository `hamishfromatech/a-coder-mobile` (**public**, default
 branch `main`).
 
-- `.github/workflows/mobile.yml` — `macos-26`, Flutter pinned `3.47.5`:
-  `flutter analyze` + `flutter test --coverage`, uploads `lcov.info` and, on
-  failure, golden diffs (14-day retention).
+- `.github/workflows/mobile.yml` — `macos-26` for `flutter` (Flutter pinned
+  `3.47.5`): `flutter analyze` + `flutter test --coverage`, uploads `lcov.info`
+  and, on failure, golden diffs (14-day retention). A second `android` job runs
+  on `ubuntu-latest`: `flutter build apk --debug`, which proves the Android app
+  compiles without signing material.
 - `.github/workflows/ios.yml` — `macos-26` (Xcode 26 SDK is required by
-  `connectivity_plus`), builds an unsigned IPA, uploads it for 14 days.
+  `connectivity_plus`), builds an unsigned IPA, uploads it for 14 days. It now
+  also triggers on PRs without a `paths:` filter; a cheap `changes` gate on
+  `ubuntu-latest` decides whether the macOS build must run, so the check can
+  never stay pending while Dart-only PRs do not spend macOS minutes.
 - Goldens are rasteriser-sensitive. `app/test/flutter_test_config.dart`
   tolerates ≤0.05% differing pixels so macOS point updates cannot make CI
   flaky; keep it small and regenerate goldens only on macOS 26.
-- Both workflows have `permissions: contents: read` and concurrency
+- All workflows have `permissions: contents: read` and concurrency
   cancel-in-progress.
-- **Branch protection is not enabled**: it requires GitHub Pro for a private
-  repo (or a public repo). See `plan/12-repo-hosting.md` §11.4.
+- **Branch protection is enabled on `main`** (2026-11-03): required check
+  `mobile / flutter` with up-to-date branches, 1 approving review, dismiss
+  stale approvals, approval of the most recent push, conversation resolution,
+  linear history, no force-push and no deletion, enforced for administrators.
+  Direct pushes to `main` are therefore rejected for everyone. Only
+  `mobile / flutter` is required because it is the only check that runs on
+  `main` today; `mobile / android` and `iOS build / unsigned-ipa` are advisory
+  until the prepared commit lands and both pass (see *CI* above).
+- Public-repo Actions minutes on standard runners are free, so the macOS 10×
+  private-repo multiplier no longer applies.
+- **`LICENSE` is MIT + A-Tech dual terms** (decided 2026-11-02T14:59:32Z), the
+  same structure as `a-coder-cli`. `README.md` carries a short License section
+  that defers to the full text (`LICENSE` is the authoritative copy).
 
 ## Remaining
 
@@ -253,11 +272,13 @@ branch `main`).
    configured. `app/integration_test/happy_path_test.dart` compiles and runs
    against the in-process fake bridge once a device is attached. The manual
    matrix in `QA.md` is unexecuted (including a TLS pairing pass).
-2. **Push relay implementation** — design is in `plan/11-push-relay-spike.md`;
-   nothing ships yet.
+2. **Push relay implementation** — design is a local-only spike; nothing ships
+   yet.
 3. **Bridge branch** — `wss://` and hardening live on
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
 4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
-   (private, `main`); CI green. Branch protection still needs GitHub Pro or a
-   public repo (`plan/12-repo-hosting.md` §11.4).
+   (**public**, `main`); CI green and branch protection enforced. The Android
+   compile job, iOS PR guard, and `LICENSE` land through a PR, because `main`
+   no longer accepts direct pushes. Add `mobile / android` and
+   `iOS build / unsigned-ipa` as required checks once both pass on `main`.
