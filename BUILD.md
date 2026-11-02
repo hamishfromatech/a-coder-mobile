@@ -230,8 +230,21 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 
 ## CI
 
-`.github/workflows/mobile.yml` runs `flutter analyze` + `flutter test
---coverage` on Ubuntu and uploads `lcov.info`.
+GitHub Actions, repository `hamishfromatech/a-coder-mobile` (private, default
+branch `main`).
+
+- `.github/workflows/mobile.yml` — `macos-26`, Flutter pinned `3.47.5`:
+  `flutter analyze` + `flutter test --coverage`, uploads `lcov.info` and, on
+  failure, golden diffs (14-day retention).
+- `.github/workflows/ios.yml` — `macos-26` (Xcode 26 SDK is required by
+  `connectivity_plus`), builds an unsigned IPA, uploads it for 14 days.
+- Goldens are rasteriser-sensitive. `app/test/flutter_test_config.dart`
+  tolerates ≤0.05% differing pixels so macOS point updates cannot make CI
+  flaky; keep it small and regenerate goldens only on macOS 26.
+- Both workflows have `permissions: contents: read` and concurrency
+  cancel-in-progress.
+- **Branch protection is not enabled**: it requires GitHub Pro for a private
+  repo (or a public repo). See `plan/12-repo-hosting.md` §11.4.
 
 ## Remaining
 
@@ -245,5 +258,6 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 3. **Bridge branch** — `wss://` and hardening live on
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
-4. **Repo hosting** — `mobile-app` is a local git repo; push it so
-   `.github/workflows/mobile.yml` actually runs.
+4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
+   (private, `main`); CI green. Branch protection still needs GitHub Pro or a
+   public repo (`plan/12-repo-hosting.md` §11.4).

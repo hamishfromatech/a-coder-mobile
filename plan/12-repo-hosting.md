@@ -1,10 +1,13 @@
 # Repo hosting proposal — `mobile-app`
 
-**Status:** proposal, awaiting board decision (THE-43)
+**Status:** executed 2026-11-03 (THE-43) — one blocked step: branch protection
 **Date:** 2026-11-03
 **Owner:** Flutter Expert
-**Nothing in this document has been executed.** No remote was created, nothing was
-pushed, no tags exist.
+
+**Execution state:** the remote exists, `main` is pushed, CI is green. Branch
+protection / rulesets are **not** enabled because GitHub rejects both on a
+private repository on the Free plan (see §11.4). Everything else in this plan
+has been executed.
 
 ---
 
@@ -358,3 +361,79 @@ publication, any push to `wici-ai/inferssd`, and any change inside the
 - [x] Rollout steps after approval — §8
 - [x] No remote created, no push, no tag — verified: `git remote -v` empty,
       `git tag -l` empty
+
+---
+
+## 11. Execution log (2026-11-03)
+
+Executed after the board accepted the decision card on 2026-11-02T13:44:30Z.
+
+### 11.1 Local migration
+
+- Hygiene commit `2ae69ad`: added `/android/build/` to `app/.gitignore` and
+  `git rm --cached` the 132 KB Gradle report.
+- Branch renamed `master` → `main`.
+- History rewritten with `git filter-branch --index-filter` over `--all`
+  (`git-filter-repo` is not installed on this machine). Pre-rewrite bundle kept
+  at `../mobile-app-pre-rewrite-20261103T024515.bundle`. Verified: the report
+  appears in **0** commits, all 37 commits preserved, `.git` 8.2 MB → 3.8 MB.
+- Workflow commit `efc7cec`: `main` trigger, `contents: read`, Flutter pinned
+  `3.47.5`, `macos-26`, `concurrency` cancel-in-progress, 14-day artifact
+  retention.
+
+### 11.2 First CI run — both jobs failed (expected risk, `efc7cec`)
+
+| Run | Result | Cause |
+|---|---|---|
+| [41455822486](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/41455822486) mobile | 202 passed, 65 failed | All failures 1–7 px antialiasing diffs: baselines were made on macOS 26.5.1, `macos-15` rasterises differently |
+| [41455822498](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/41455822498) iOS | build failed | `connectivity_plus 7.3.1` uses `NWPath.isUltraConstrained`, an Xcode 26 SDK API; `macos-15` ships Xcode 16.4 |
+
+### 11.3 Fix forward (`21ebbae`)
+
+- Both jobs moved to `macos-26` (Xcode 26.6 default).
+- Added `app/test/flutter_test_config.dart`: a `LocalFileComparator` subclass
+  allowing ≤0.05% differing pixels (≈165 px on 390x844). Measured jitter was
+  1–7 px (≤0.002%); real regressions are orders of magnitude larger.
+- Local verification after the change: `flutter analyze` clean, 267/267 tests
+  pass.
+
+Green runs:
+
+| Run | Result | Wall time |
+|---|---|---|
+| [41456404544](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/41456404544) mobile | analyze + 267 tests + coverage | 3m7s |
+| [41456404535](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/41456404535) iOS (push) | unsigned IPA, 11.5 MB | 3m10s |
+| [41456941456](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/41456941456) iOS (`workflow_dispatch`) | artifact downloaded and unzipped: `Payload/Runner.app` | 2m3s |
+
+Measured cost is below the §6.5 estimate (3 min vs 5–8 for mobile, 3 vs 8–12
+for iOS).
+
+### 11.4 Blocked: branch protection
+
+```
+$ gh api -X PUT repos/.../branches/main/protection …
+403 Upgrade to GitHub Pro or make this repository public to enable this feature.
+$ gh api -X POST repos/.../rulesets …
+403 Upgrade to GitHub Pro or make this repository public to enable this feature.
+```
+
+GitHub does not offer branch protection or rulesets for private repositories on
+the Free plan. The repo-level merge policy **was** applied: squash-only, merge
+and rebase commits disabled, delete branch on merge. Required checks, review
+requirements, linear history and force-push/deletion blocks remain unenforced.
+
+Options (board decision):
+
+1. **GitHub Pro** (~$4/month) — keeps the repo private and enables protection.
+2. **Make the repo public** — enables protection for free, but D2 deferred that
+   until a release and a `LICENSE`. Public + unlicensed means all rights
+   reserved.
+
+Do not treat the current `main` as protected: a direct push is possible today.
+
+### 11.5 Not done
+
+- `LICENSE` — deferred to the visibility decision above.
+- Android compile job (§6.3) — recommended, not part of D1–D6.
+- Making `unsigned-ipa` required (§6.4) — needs the guard-step pattern first.
+- No tags, no releases, no signing secrets, no changes to `a-coder-cli`.
