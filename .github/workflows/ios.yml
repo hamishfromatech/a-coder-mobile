@@ -17,7 +17,9 @@ concurrency:
 
 jobs:
   unsigned-ipa:
-    runs-on: macos-15
+    # Xcode 26 SDK is required: connectivity_plus 7.3.1 uses
+    # NWPath.isUltraConstrained, which is absent from Xcode 16 (macos-15).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 

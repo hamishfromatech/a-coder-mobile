@@ -16,12 +16,13 @@ jobs:
   flutter:
     # macOS keeps golden-image rendering deterministic (same fonts/rasteriser
     # the baselines were generated with). Ubuntu golden diffs are unreliable.
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          # Pinned: golden images are rasteriser-sensitive.
+          # Pinned: golden images are rasteriser-sensitive, and the baselines
+          # were generated on macOS 26 with this exact SDK.
           flutter-version: 3.47.5
           cache: true
       - name: Pub get
