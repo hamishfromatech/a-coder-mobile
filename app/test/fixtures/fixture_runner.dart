@@ -40,7 +40,9 @@ class FixtureRunner {
 
       // Skip bridge control frames and responses (not events)
       if (obj['type'] == 'bridge' ||
-          (obj['id'] != null && obj['type'] == 'response')) continue;
+          (obj['id'] != null && obj['type'] == 'response')) {
+        continue;
+      }
 
       final eventType = obj['type'] as String?;
       if (eventType != null) {

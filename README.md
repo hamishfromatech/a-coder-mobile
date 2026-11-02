@@ -73,7 +73,7 @@ declared in `ios/Runner/Info.plist`; iOS prompts on first connect.
 ```bash
 cd app
 flutter analyze     # No issues found
-flutter test        # 244 tests (unit, widget, goldens, fake-bridge E2E)
+flutter test        # 267 tests (unit, widget, goldens, fake-bridge E2E)
 ```
 
 CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).

@@ -1,6 +1,6 @@
 # A-Coder Mobile — Build Status
 
-_Last updated: 2026-10-25_
+_Last updated: 2026-11-03_
 
 ## Product
 
@@ -104,14 +104,126 @@ its color tokens:
 - **Goldens** now load Roboto, JetBrains Mono and Material Icons from the SDK /
   bundled assets, so they verify real glyphs instead of Ahem boxes.
 
+## Toolchain
+
+Recorded 2026-11-03 on the build machine (macOS 26.5.1, build 25F80,
+darwin-arm64).
+
+| Tool | Version | Location |
+|---|---|---|
+| Flutter | 3.47.5, channel `stable`, framework `6a19cca564` (2026-09-17) | `/Users/hamishfromatech/develop/flutter` |
+| Dart | 3.13.4 | bundled with Flutter |
+| DevTools | 2.60.0 | bundled with Flutter |
+| CocoaPods | 1.16.2 | system |
+| Android SDK | 36.0.0 (platform android-36, build-tools 36.0.0) | `/opt/homebrew/share/android-commandlinetools` |
+| JDK | OpenJDK 17.0.20.1 (Homebrew) | via `JAVA_HOME` |
+| Xcode | **absent** — only Command Line Tools 16.4.0.0.1 | `/Library/Developer/CommandLineTools` |
+
+`flutter`/`dart` are on `PATH` persistently via `~/.zprofile`
+(`export PATH="$HOME/develop/flutter/bin:$PATH"`). Flutter 3.47.5 clears the
+`flutter: '>=3.24.0'` constraint in `app/pubspec.yaml`.
+
+`flutter doctor -v` (trimmed to the parts that carry information):
+
+```
+[✓] Flutter (Channel stable, 3.47.5, on macOS 26.5.1 25F80 darwin-arm64, locale en-US)
+    • Flutter version 3.47.5 on channel stable at /Users/hamishfromatech/develop/flutter
+    • Framework revision 6a19cca564 (7 weeks ago), 2026-09-17 14:13:22 -0400
+    • Engine revision af7e796e16
+    • Dart version 3.13.4
+    • DevTools version 2.60.0
+
+[!] Android toolchain - develop for Android devices (Android SDK version 36.0.0)
+    • Android SDK at /opt/homebrew/share/android-commandlinetools
+    • Platform android-36, build-tools 36.0.0
+    • Java version OpenJDK Runtime Environment Homebrew (build 17.0.20.1+0)
+    ! Some Android licenses not accepted. To resolve this, run: flutter doctor --android-licenses
+
+[!] Xcode - develop for iOS and macOS
+    ✗ Xcode installation is incomplete; a full installation is necessary for iOS and macOS development.
+      Download at: https://developer.apple.com/xcode/
+      Or install Xcode via the App Store.
+      Once installed, run:
+        sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+        sudo xcodebuild -runFirstLaunch
+    • CocoaPods version 1.16.2
+
+[✓] Chrome - develop for the web
+    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+[✓] Connected device (2 available)
+    • macOS (desktop) • macos  • darwin-arm64
+    • Chrome (web)     • chrome • web-javascript
+
+[✓] Network resources
+
+! Doctor found issues in 2 categories.
+```
+
+### Xcode blocker (unresolved — needs a human)
+
+Full Xcode is not installed, and installing it needs App Store /
+developer.apple.com access plus `sudo`, so it cannot be done from an agent run.
+Exact state of the gate:
+
+```
+$ xcodebuild -version
+xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance
+
+$ xcode-select -p
+/Library/Developer/CommandLineTools
+
+$ xcrun simctl list runtimes
+xcrun: error: unable to find utility "simctl", not a developer tool or in PATH
+```
+
+Human steps, in order:
+
+1. Install Xcode (App Store, or the `.xip` from developer.apple.com).
+2. `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`
+3. `sudo xcodebuild -runFirstLaunch`
+4. `sudo xcodebuild -license accept` if the license prompt appears.
+
+Until step 1 happens there is no `xcodebuild -version`, no iOS simulator, no
+`flutter run -d ios`, no `pod install` in `app/ios`, and the Xcode signing flow
+in `README.md` cannot be exercised. Analyze, `flutter test`, the web build and
+the macOS desktop target are unaffected — the Dart toolchain does not need
+Xcode. CI builds the unsigned IPA on a macOS runner instead
+(`.github/workflows/ios.yml`), so iOS artifact production does not depend on
+this machine.
+
 ## Verification (current)
+
+Measured at HEAD `279f08f` on 2026-11-03:
 
 ```bash
 cd app
-flutter pub get
-flutter analyze     # No issues found
-flutter test        # 215 passing
+flutter pub get     # Got dependencies!
+flutter analyze     # No issues found! (ran in 1.2s)
+flutter test        # 267 passing, 0 failing, 0 skipped, ~10 s
 ```
+
+`flutter test` prints two `MissingPluginException(No implementation found for
+method stop on channel dev.steenbakker.mobile_scanner/scanner/method)` lines
+while the pairing screens tear down. That is logged noise, not a failure —
+every test still reports `success`.
+
+### Test-count reconciliation
+
+The three counts in this repo are historical, not contradictory. Each was
+re-measured by extracting that commit with `git archive` and running
+`flutter test` in it:
+
+| Source | Count | What it measured |
+|---|---|---|
+| `BUILD.md`, before this update | 215 | the tree when this file was written, 2026-10-25; that same day's commits `230df99` and `81e282d` already measured 217 |
+| `README.md`, before this update | 244 | commit `1ac4bbd` (desktop parity), 2026-10-26 — 244 confirmed |
+| HEAD `279f08f` | **267** | current — 267 confirmed |
+
+`279f08f` closed the 244 → 267 gap (alerts, backdrop, cron run history):
+`cron_alert_test`, `notification_service_test`, `cron_run_history_test`, plus
+new `composer_send`, `user_echo` and `splash` cases. Goldens are the bulk of
+the suite — 86 of the 267.
 
 Release APKs are built at `app/build/app/outputs/flutter-apk/`
 (`app-arm64-v8a-release.apk` ≈ 31 MB).
@@ -123,8 +235,9 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 
 ## Remaining
 
-1. **Device/E2E validation** — no emulator or simulator is available in this
-   environment; `app/integration_test/happy_path_test.dart` compiles and runs
+1. **Device/E2E validation** — no simulator is available because full Xcode is
+   not installed (see *Xcode blocker* above), and no Android emulator is
+   configured. `app/integration_test/happy_path_test.dart` compiles and runs
    against the in-process fake bridge once a device is attached. The manual
    matrix in `QA.md` is unexecuted (including a TLS pairing pass).
 2. **Push relay implementation** — design is in `plan/11-push-relay-spike.md`;
