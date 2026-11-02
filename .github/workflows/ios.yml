@@ -8,6 +8,13 @@ on:
       - "app/**"
       - ".github/workflows/ios.yml"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unsigned-ipa:
     runs-on: macos-15
@@ -16,7 +23,8 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned: golden images are rasteriser-sensitive.
+          flutter-version: 3.47.5
           cache: true
 
       - name: Flutter dependencies
@@ -45,3 +53,4 @@ jobs:
           name: A-Coder-unsigned-ipa
           path: app/build/ios/A-Coder-unsigned.ipa
           if-no-files-found: error
+          retention-days: 14

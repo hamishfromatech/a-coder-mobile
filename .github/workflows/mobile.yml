@@ -2,19 +2,27 @@ name: mobile
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   flutter:
     # macOS keeps golden-image rendering deterministic (same fonts/rasteriser
     # the baselines were generated with). Ubuntu golden diffs are unreliable.
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned: golden images are rasteriser-sensitive.
+          flutter-version: 3.47.5
           cache: true
       - name: Pub get
         run: |
@@ -33,6 +41,7 @@ jobs:
         with:
           name: lcov.info
           path: app/coverage/lcov.info
+          retention-days: 14
       - name: Upload golden failure diffs
         if: failure()
         uses: actions/upload-artifact@v4
@@ -40,6 +49,7 @@ jobs:
           name: golden-failures
           path: app/test/golden/failures
           if-no-files-found: ignore
+          retention-days: 14
 
 # Optional (commented): run the bridge test suite in its own repo/job.
 # - The A-Coder bridge lives in a different repository and is not a required
