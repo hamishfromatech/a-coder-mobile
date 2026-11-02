@@ -4,7 +4,7 @@ Flutter mobile client that pairs with a desktop bridge (`a-coder-cli serve`)
 to remotely control and monitor the A-Coder AI coding agent — pair once, then
 watch and drive your coding agent from anywhere on your LAN.
 
-## Feature status (vs `plan/07-milestones.md`)
+## Feature status
 
 - ✅ M0–M2: bridge (`a-coder-cli serve`), discovery/pairing (QR + manual +
   LAN discovery), connection layer with resync/backoff/auth handling

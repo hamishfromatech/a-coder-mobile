@@ -314,7 +314,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   /// Local alerts (desktop "attention" parity). Background delivery while the
-  /// app is suspended needs the push relay in plan/11-push-relay-spike.md.
+  /// app is suspended needs the push relay, which is not implemented yet.
   Widget _buildAlertsTab(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final master = settings.notificationsEnabled;
@@ -395,8 +395,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         Text(
           'Alerts are raised locally while the app is running (foreground or '
           'backgrounded with the connection alive). Being paged when the app '
-          'is fully suspended needs the push relay described in '
-          'plan/11-push-relay-spike.md.',
+          'is fully suspended needs a push relay, which is not implemented yet.',
           style:
               TextStyle(fontSize: 11, height: 1.5, color: PiColors.textMuted),
         ),

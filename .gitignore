@@ -5,6 +5,9 @@ app/.flutter-plugins-dependencies
 bridge/node_modules/
 bridge/dist/
 
+# Local-only planning docs (kept on the development machine, never committed)
+/plan/
+
 # OS / IDE
 **/.DS_Store
 .idea/

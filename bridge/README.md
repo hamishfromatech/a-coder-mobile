@@ -15,5 +15,5 @@ cd ../a-coder-cli/packages/coding-agent && npm run build
 a-coder-cli serve --port 8787   # prints QR + pairing token
 ```
 
-The protocol and bridge specs remain in
-`../plan/03-protocol-spec.md` and `../plan/04-bridge-spec.md`.
+The protocol and bridge specs live in the local-only `plan/` folder on the
+development machine (git-ignored, not part of this repository).

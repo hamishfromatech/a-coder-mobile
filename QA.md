@@ -17,8 +17,7 @@
   Dart paths changed; a skipped job reports success, so the check never pends.
 - Branch protection on `main` requires `mobile / flutter` plus one approving
   review, with up-to-date branches and no direct pushes. The Android and iOS
-  checks are advisory until the prepared commit lands and both pass on `main`
-  (`plan/12-repo-hosting.md` §13).
+  checks are advisory until the prepared commit lands and both pass on `main`.
 
 ## Test matrix
 ### Unit & Widget
@@ -34,7 +33,7 @@
 - Happy path in `app/integration_test/happy_path_test.dart` against the fake
   bridge server.
 
-### Manual device matrix (plan/08 §5)
+### Manual device matrix
 | Check | iPhone (iOS 17+) | Android (13+) |
 |---|---|---|
 | QR pair | ✔ | ✔ |

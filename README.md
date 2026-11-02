@@ -15,7 +15,6 @@ your phone — over your own LAN, no cloud relay.
 | Path | Description |
 |---|---|
 | [`app/`](app) | Flutter client — protocol, connection layer, chat, sessions, pairing, settings |
-| [`plan/`](plan) | Complete build plan: architecture, wire protocol, bridge spec, screens, milestones, testing, design language |
 | [`QA.md`](QA.md) | How to run every test tier, the manual device matrix, and known coverage gaps |
 | [`BUILD.md`](BUILD.md) | Current build status, verification numbers, and remaining work |
 | [`bridge/`](bridge) | Pointer only — the bridge moved into the CLI repo |
@@ -80,10 +79,14 @@ CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
 
 ## Product docs
 
-- Protocol contract — [`plan/03-protocol-spec.md`](plan/03-protocol-spec.md)
-- Bridge — [`plan/04-bridge-spec.md`](plan/04-bridge-spec.md)
-- App architecture — [`plan/05-app-architecture.md`](plan/05-app-architecture.md)
-- Screens — [`plan/06-screens-spec.md`](plan/06-screens-spec.md)
+- Protocol contract — [`app/lib/core/protocol/`](app/lib/core/protocol)
+- Bridge — `a-coder-cli serve` in `../a-coder-cli/packages/coding-agent/src/serve/`
+- App architecture — [`app/lib/`](app/lib)
+- Screens — [`app/lib/features/`](app/lib/features)
+
+The detailed build plan, protocol spec, and design notes live in the `plan/`
+folder **on the development machine only**; that folder is git-ignored and is
+not part of this repository.
 
 ## Feature set
 
