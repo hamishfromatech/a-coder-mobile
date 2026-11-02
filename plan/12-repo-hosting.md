@@ -1,14 +1,16 @@
 # Repo hosting proposal — `mobile-app`
 
-**Status:** executed 2026-11-03 (THE-43); branch protection enabled 2026-11-03
+**Status:** executed 2026-11-03 (THE-43); branch protection enabled 2026-11-03;
+`LICENSE` and CI follow-ups land via PR
 **Date:** 2026-11-03
 **Owner:** Flutter Expert
 
 **Execution state:** the remote exists and is **public**; `main` is pushed, CI is
 green, and classic branch protection is **enforced** on `main` (§13). The board
 chose public visibility on 2026-11-02T14:17:49Z, which unblocked protection.
-One prepared commit (`b37bc3a`: Android compile job + iOS PR guard) is still
-local only, and the `LICENSE` choice is still open (§12.2, §13.5).
+On 2026-11-02T14:59:32Z the board approved pushing the THE-44 CI/docs commits
+through a pull request and chose **MIT + A-Tech dual terms** for `LICENSE`
+(§13.6).
 
 ---
 
@@ -469,14 +471,18 @@ were applied; `main` remains directly pushable. The repo-level merge policy is
 still squash-only, merge/rebase disabled, delete-branch-on-merge. Enabling the
 §5 settings needs a board decision (§12.5).
 
-### 12.2 LICENSE — pending board decision
+### 12.2 LICENSE — decided: MIT + A-Tech dual terms
 
-`LICENSE` is still absent. Private + unlicensed is all-rights-reserved, which is
-the correct default while the product is unreleased, but it must be resolved
-before any public switch or binary distribution. The sibling `a-coder-cli` repo
-uses MIT plus A-Tech dual-license distribution terms; mirroring that is the
-consistent option. The choice is a board decision (§12.5) and was deliberately
-not made unilaterally.
+**Resolved 2026-11-02T14:59:32Z:** the board chose **MIT + A-Tech dual terms**,
+the same structure as the sibling `a-coder-cli` repo. The file now exists and is
+committed on the follow-up branch (§13.6); `README.md` gained a short License
+section that defers to the full text.
+
+The dual terms are not new drafting: the MIT grant plus the two-tier A-Tech
+distribution notice are mirrored from `a-coder-cli`, with the copyright holder
+as The A-Tech Corporation PTY LTD (this repository has no inherited upstream
+copyright). Third-party Dart/Flutter packages keep their own licenses, and the
+A-Tech notice says so explicitly.
 
 ### 12.3 Android compile job — added
 
@@ -517,13 +523,11 @@ added as required.
 ### 12.5 Decisions requested from the board
 
 1. **Branch protection path** — **resolved 2026-11-02T14:17:49Z: make the repo
-   public.** Executed 2026-11-03; see §13. The LICENSE caution attached to this
-   option was overridden, so §12.2 remains open.
-2. **LICENSE** — mirror the `a-coder-cli` MIT + A-Tech dual license vs. MIT
-   only vs. proprietary/all-rights-reserved vs. defer.
-3. **Push approval** — approve pushing the THE-44 CI/doc commits to
-   `origin/main` (ordinary push; no tag, release, signing secret, or
-   force-push).
+   public.** Executed 2026-11-03; see §13.
+2. **LICENSE** — **resolved 2026-11-02T14:59:32Z: MIT + A-Tech dual terms.**
+   See §12.2 and §13.6.
+3. **Push approval** — **resolved 2026-11-02T14:59:32Z: push a branch and open a
+   PR.** Nothing merged; the PR needs a human approval on GitHub (§13.6).
 
 ### 12.6 Measured timings and revised cost
 
@@ -644,14 +648,12 @@ cd app && flutter test     → 267 tests, All tests passed! (7s)
   `iOS build / unsigned-ipa` stay advisory until `b37bc3a` lands and both pass
   on `main`; only then should they be appended to `required_status_checks`.
   Requiring them now would leave PRs waiting on checks that never start.
-- **`b37bc3a` (`ci: prove Android compiles and gate the iOS PR check`) is
-  still local only.** It needs board approval to push a branch and open a PR.
-  After it merges and both new jobs pass, add them as required with
-  `gh api -X PUT .../protection/required_status_checks` or the
+- **`b37bc3a` (`ci: prove Android compiles and gate the iOS PR check`) and
+  `98924f6` (docs) are local only and now travel on branch
+  `the-44-ci-and-docs` as a PR** (§13.6). `main` no longer accepts direct
+  pushes. After the PR merges and both new jobs pass on `main`, add them as
+  required with `gh api -X PUT .../protection/required_status_checks` or the
   `branches/main/protection` payload above.
-- **`LICENSE` is still absent** (§12.2). Public + unlicensed is legally
-  all-rights-reserved, which is workable but inconsistent with an open
-  repository. The sibling `a-coder-cli` uses MIT plus A-Tech dual-license
-  distribution terms; choosing it remains a board decision. Do this before any
-  binary distribution or outside contribution is solicited.
+- **`LICENSE` is now MIT + A-Tech dual terms** (§12.2), on the same PR. The
+  public repo is therefore no longer all-rights-reserved.
 - No tags, no releases, no signing secrets, and no changes in `a-coder-cli`.

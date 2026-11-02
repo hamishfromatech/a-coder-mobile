@@ -259,9 +259,9 @@ branch `main`).
   `plan/12-repo-hosting.md` §13).
 - Public-repo Actions minutes on standard runners are free, so the macOS 10×
   private-repo multiplier no longer applies.
-- **`LICENSE` is still absent** (all-rights-reserved). That is a real gap now
-  that the repo is public; the choice is pending a board decision. See
-  `plan/12-repo-hosting.md` §12.2 and §13.5.
+- **`LICENSE` is MIT + A-Tech dual terms** (decided 2026-11-02T14:59:32Z), the
+  same structure as `a-coder-cli`. `README.md` carries a short License section
+  that defers to the full text. See `plan/12-repo-hosting.md` §12.2 and §13.5.
 
 ## Remaining
 
@@ -277,6 +277,7 @@ branch `main`).
    when ready.
 4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
    (**public**, `main`); CI green and branch protection enforced. The Android
-   compile job and iOS PR guard are committed locally on `main` (`b37bc3a`),
-   pending push/PR approval; add both as required checks after they pass on
-   `main`. The LICENSE choice is still pending (`plan/12-repo-hosting.md` §13).
+   compile job, iOS PR guard, and `LICENSE` land through a PR, because `main`
+   no longer accepts direct pushes. Add `mobile / android` and
+   `iOS build / unsigned-ipa` as required checks once both pass on `main`
+   (`plan/12-repo-hosting.md` §13).

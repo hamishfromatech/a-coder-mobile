@@ -105,3 +105,16 @@ the accent avatar, hairline tool cards, and flat dense lists.
   --tls-cert/--tls-key` switches to `wss://`; the QR then carries the cert's
   SHA-256 pin and the app rejects a mismatched certificate. Off-LAN access
   still belongs on a VPN/Tailscale.
+
+## License
+
+Dual-licensed by The A-Tech Corporation PTY LTD, mirroring
+[`a-coder-cli`](https://github.com/hamishfromatech/a-coder-cli):
+
+- **Free** for individuals, solo founders, and businesses with less than
+  USD $10M in total annual revenue — MIT, open source, forever.
+- **The A-Tech Corporation License** required for organizations with
+  USD $10M or more in annual revenue deploying A-Coder across departments and
+  users. Contact [The A-Tech Corporation](https://theatechcorporation.com).
+
+See [LICENSE](LICENSE) for full terms.

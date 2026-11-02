@@ -53,8 +53,8 @@ jobs:
           retention-days: 14
 
   android:
-    # Proves the Android app compiles; nothing did before. Linux minutes bill
-    # at 1x (macOS is 10x on a private repo) and --debug needs no signing
+    # Proves the Android app compiles; nothing did before. Linux minutes are
+    # free on a public repo and the job is cheap; --debug needs no signing
     # material, so this is the honest, cheap compile check.
     runs-on: ubuntu-latest
     steps:
