@@ -1,13 +1,15 @@
 # Repo hosting proposal — `mobile-app`
 
-**Status:** executed 2026-11-03 (THE-43) — one blocked step: branch protection
+**Status:** executed 2026-11-03 (THE-43); follow-ups prepared 2026-11-03 (THE-44)
 **Date:** 2026-11-03
 **Owner:** Flutter Expert
 
 **Execution state:** the remote exists, `main` is pushed, CI is green. Branch
 protection / rulesets are **not** enabled because GitHub rejects both on a
-private repository on the Free plan (see §11.4). Everything else in this plan
-has been executed.
+private repository on the Free plan (see §11.4 and §12.1). The Android compile
+job and the iOS PR guard are implemented locally (§12.3, §12.4); the LICENSE
+choice, the protection path, and permission to push those commits are board
+decisions (§12.5).
 
 ---
 
@@ -198,6 +200,9 @@ baselines are rasteriser/font sensitive, and Ubuntu reproduces them unreliably.
 
 ### 6.3 New job — Android (recommended, cheap)
 
+> **Implemented in THE-44** — see §12.3. It is not required yet; that needs
+> branch protection, which the Free private plan still blocks.
+
 There is currently **no CI proof that the Android app compiles**; release APKs
 are only ever built by hand. Add a third job to `mobile.yml`:
 
@@ -216,6 +221,9 @@ android:
 Linux. Make it required once it has passed on `main`.
 
 ### 6.4 Making the iOS job PR-visible (optional, later)
+
+> **Implemented in THE-44** — see §12.4. It cannot be marked required until
+> branch protection is available (§12.1).
 
 To make `iOS build / unsigned-ipa` required on PRs, add a `pull_request` trigger
 and a **guard step** that always reports success when no iOS-relevant path
@@ -437,3 +445,110 @@ Do not treat the current `main` as protected: a direct push is possible today.
 - Android compile job (§6.3) — recommended, not part of D1–D6.
 - Making `unsigned-ipa` required (§6.4) — needs the guard-step pattern first.
 - No tags, no releases, no signing secrets, no changes to `a-coder-cli`.
+
+---
+
+## 12. Follow-up execution (THE-44, 2026-11-03)
+
+### 12.1 Branch protection — still blocked by the plan
+
+Re-verified on 2026-11-03:
+
+```
+$ gh api repos/hamishfromatech/a-coder-mobile/branches/main/protection
+403 Upgrade to GitHub Pro or make this repository public to enable this feature.
+$ gh api repos/hamishfromatech/a-coder-mobile/rulesets
+403 Upgrade to GitHub Pro or make this repository public to enable this feature.
+```
+
+Nothing changed: the owner is still on GitHub Free and the repo is private, so
+neither branch protection nor rulesets can be enabled. No protection settings
+were applied; `main` remains directly pushable. The repo-level merge policy is
+still squash-only, merge/rebase disabled, delete-branch-on-merge. Enabling the
+§5 settings needs a board decision (§12.5).
+
+### 12.2 LICENSE — pending board decision
+
+`LICENSE` is still absent. Private + unlicensed is all-rights-reserved, which is
+the correct default while the product is unreleased, but it must be resolved
+before any public switch or binary distribution. The sibling `a-coder-cli` repo
+uses MIT plus A-Tech dual-license distribution terms; mirroring that is the
+consistent option. The choice is a board decision (§12.5) and was deliberately
+not made unilaterally.
+
+### 12.3 Android compile job — added
+
+Implemented locally (THE-44 commit, pending push approval, §12.5).
+`.github/workflows/mobile.yml` now has an `android` job:
+
+- `runs-on: ubuntu-latest` — Linux minutes bill 1× (macOS bills 10× on a
+  private repo).
+- Flutter pinned `3.47.5`, `cache: true`.
+- `cd app && flutter pub get && flutter build apk --debug`.
+
+`--debug` needs no signing material, so this is a real compile check without
+touching the release-signing gate. Local proof: `flutter build apk --debug`
+succeeded on 2026-11-03 (§12.6); the CI run supplies the runner proof once the
+commit is pushed.
+
+Do not require it until it has passed on `main`. With protection unavailable
+(§12.1), the "required" half cannot be configured yet.
+
+### 12.4 iOS required check — guard added
+
+Implemented locally (THE-44 commit, pending push approval, §12.5).
+`.github/workflows/ios.yml` now:
+
+- triggers on `pull_request` to `main` **without** a `paths:` filter, so the
+  check can never stay pending;
+- runs a cheap `changes` gate on `ubuntu-latest` that diffs the PR base/head for
+  `app/ios`, `app/pubspec.yaml`, `app/pubspec.lock`, `app/lib`, and the workflow
+  file, and always concludes;
+- runs `unsigned-ipa` only when the gate reports `ios=true`. A job skipped by an
+  `if` reports "Success" to GitHub, so the required check is satisfied without
+  spending macOS minutes on Dart-only PRs.
+
+The `push` trigger keeps its `paths:` filter and `workflow_dispatch` always
+builds. Once branch protection is available, `iOS build / unsigned-ipa` can be
+added as required.
+
+### 12.5 Decisions requested from the board
+
+1. **Branch protection path** — GitHub Pro (≈ $4/month, keeps the repo private
+   and adds 3,000 included minutes) vs. make the repo public (free, but needs
+   the LICENSE first) vs. defer until release.
+2. **LICENSE** — mirror the `a-coder-cli` MIT + A-Tech dual license vs. MIT
+   only vs. proprietary/all-rights-reserved vs. defer.
+3. **Push approval** — approve pushing the THE-44 CI/doc commits to
+   `origin/main` (ordinary push; no tag, release, signing secret, or
+   force-push).
+
+### 12.6 Measured timings and revised cost
+
+Real GitHub-hosted job durations (not estimates):
+
+| Job | Run | Duration |
+|---|---|---|
+| `mobile / flutter` | 41456404544 | 3 m 03 s |
+| `mobile / flutter` | 41457354803 | 1 m 21 s |
+| `iOS build / unsigned-ipa` | 41456404535 | 3 m 03 s |
+| `iOS build / unsigned-ipa` (dispatch) | 41456941456 | 1 m 58 s |
+
+§6.5 assumed 5–8 min (mobile) and 8–12 min (iOS). Measured is ~2–3 min each, so
+the illustrative 10-PR + 10-push month is far cheaper than the earlier
+$18–20/month figure:
+
+- macOS: 10 PRs × 3 min + 10 pushes × (3 min flutter + 3 min iOS) = 90 raw
+  minutes → **900 billed minutes** at the 10× multiplier.
+- Linux (`android`): ~20 × 4 min ≈ **80 billed minutes** at 1×.
+
+≈ 980 billed minutes/month — inside the 2,000-minute Free allowance, i.e. ≈ $0
+at this schedule. The billing page remains authoritative. The Actions billing
+API needs the `user` OAuth scope, which the current CLI token does not have:
+
+```
+gh auth refresh -h github.com -s user   # human, interactive
+gh api /users/hamishfromatech/settings/billing/actions
+```
+
+The first green `android` run replaces the ~4 min estimate with a measurement.

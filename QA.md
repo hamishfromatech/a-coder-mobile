@@ -8,6 +8,14 @@
 - Integration (device/emulator): `cd app && flutter test integration_test` (requires a connected device; fake server binds 127.0.0.1 inside the test process)
 - Read integration test help: `cd app && flutter test integration_test --help`
 
+## CI compile coverage
+- `mobile / flutter` (macOS, Flutter `3.47.5`) — analyze + the full test suite.
+- `mobile / android` (`ubuntu-latest`) — `flutter build apk --debug`, a compile
+  check that needs no signing material.
+- `iOS build / unsigned-ipa` (macOS, Xcode 26) — unsigned IPA. On PRs a
+  `changes` gate skips the macOS build unless iOS-native, plugin/dependency, or
+  Dart paths changed; a skipped job reports success, so the check never pends.
+
 ## Test matrix
 ### Unit & Widget
 - Wire codec, event router fixtures, connection state (existing `test/`).

@@ -5,8 +5,22 @@ on:
   push:
     branches: [main]
     paths:
-      - "app/**"
+      - "app/ios/**"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "app/lib/**"
       - ".github/workflows/ios.yml"
+  pull_request:
+    branches: [main]
+    # Deliberately no `paths:` filter. `iOS build / unsigned-ipa` is a required
+    # check on PRs, and a path-filtered workflow that never starts leaves that
+    # check pending forever — which blocks the merge. The `changes` gate below
+    # always runs and reports success, then decides whether the macOS build is
+    # actually needed. A job that is skipped reports "Success" to GitHub, so the
+    # required check is satisfied without spending macOS minutes.
+    #
+    # Path set to invalidate on: native iOS code, plugin/dependency surface,
+    # Dart code, and this workflow.
 
 permissions:
   contents: read
@@ -16,7 +30,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    # Cheap Ubuntu gate so the required `unsigned-ipa` check can never stay
+    # pending. It runs on every trigger and always concludes.
+    runs-on: ubuntu-latest
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the PR base/head SHAs are both present for diffing.
+          fetch-depth: 0
+
+      - name: Detect iOS-relevant changes
+        id: filter
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Pushes are already path-filtered above; dispatches are explicit.
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
+              app/ios app/pubspec.yaml app/pubspec.lock app/lib \
+              .github/workflows/ios.yml; then
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+          fi
+
   unsigned-ipa:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
     # Xcode 26 SDK is required: connectivity_plus 7.3.1 uses
     # NWPath.isUltraConstrained, which is absent from Xcode 16 (macos-15).
     runs-on: macos-26

@@ -233,18 +233,27 @@ Release APKs are built at `app/build/app/outputs/flutter-apk/`
 GitHub Actions, repository `hamishfromatech/a-coder-mobile` (private, default
 branch `main`).
 
-- `.github/workflows/mobile.yml` — `macos-26`, Flutter pinned `3.47.5`:
-  `flutter analyze` + `flutter test --coverage`, uploads `lcov.info` and, on
-  failure, golden diffs (14-day retention).
+- `.github/workflows/mobile.yml` — `macos-26` for `flutter` (Flutter pinned
+  `3.47.5`): `flutter analyze` + `flutter test --coverage`, uploads `lcov.info`
+  and, on failure, golden diffs (14-day retention). A second `android` job runs
+  on `ubuntu-latest`: `flutter build apk --debug`, which proves the Android app
+  compiles without signing material.
 - `.github/workflows/ios.yml` — `macos-26` (Xcode 26 SDK is required by
-  `connectivity_plus`), builds an unsigned IPA, uploads it for 14 days.
+  `connectivity_plus`), builds an unsigned IPA, uploads it for 14 days. It now
+  also triggers on PRs without a `paths:` filter; a cheap `changes` gate on
+  `ubuntu-latest` decides whether the macOS build must run, so the check can
+  never stay pending while Dart-only PRs do not spend macOS minutes.
 - Goldens are rasteriser-sensitive. `app/test/flutter_test_config.dart`
   tolerates ≤0.05% differing pixels so macOS point updates cannot make CI
   flaky; keep it small and regenerate goldens only on macOS 26.
-- Both workflows have `permissions: contents: read` and concurrency
+- All workflows have `permissions: contents: read` and concurrency
   cancel-in-progress.
 - **Branch protection is not enabled**: it requires GitHub Pro for a private
-  repo (or a public repo). See `plan/12-repo-hosting.md` §11.4.
+  repo (or a public repo). See `plan/12-repo-hosting.md` §11.4 and §12.1.
+  Consequently `mobile / flutter`, `mobile / android`, and
+  `iOS build / unsigned-ipa` are advisory, not required checks yet.
+- **`LICENSE` is still absent** (all-rights-reserved). The choice is pending a
+  board decision; see `plan/12-repo-hosting.md` §12.2 and §12.5.
 
 ## Remaining
 
@@ -259,5 +268,7 @@ branch `main`).
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
 4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
-   (private, `main`); CI green. Branch protection still needs GitHub Pro or a
-   public repo (`plan/12-repo-hosting.md` §11.4).
+   (private, `main`); CI green. An Android compile job and an iOS PR guard are
+   committed locally on `main` (THE-44), pending push approval. Branch protection
+   still needs GitHub Pro or a public repo, and the LICENSE choice is pending
+   (`plan/12-repo-hosting.md` §12).
