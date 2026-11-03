@@ -33,10 +33,30 @@
 - Happy path in `app/integration_test/happy_path_test.dart` against the fake
   bridge server.
 
+### Bridge (CLI `serve`) checks
+Recorded 2026-11-03 against CLI merge `dad9a9dbc` (source `0ccc0f288`,
+`feat/desktop-unified-release`):
+
+- `cd packages/coding-agent && npm test -- test/serve` — 11 files passed,
+  1 skipped; 55 tests passed, 4 skipped.
+- `npx tsgo --noEmit` — clean; `biome check` on the changed `src/serve` files —
+  clean.
+- TLS wiring smoke (`node src/cli.ts serve --bind 127.0.0.1 --port 8799
+  --no-auth --no-announce --tls-cert test/serve/fixtures/tls-cert.pem
+  --tls-key test/serve/fixtures/tls-key.pem`): banner printed `wss://` + the
+  SHA-256 pin, `https://…/health` returned 200, a `wss://` client connected,
+  spawned the engine, and answered `{"type":"get_state"}`.
+- App side: `cd app && flutter analyze` — no issues; `flutter test` —
+  267 tests passed.
+
+Still manual: pairing the Flutter app on a physical device over `wss://` and
+completing one turn (below).
+
 ### Manual device matrix
 | Check | iPhone (iOS 17+) | Android (13+) |
 |---|---|---|
 | QR pair | ✔ | ✔ |
+| TLS (`wss://`) pair with pinned cert | pending | pending |
 | Discovery list | ✔ (local network prompt) | ✔ |
 | Streaming 10-min turn, screen off/on | resync ok | resync ok |
 | Wi-Fi ↔ cellular switch | reconnect | reconnect |
