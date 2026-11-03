@@ -118,7 +118,9 @@ darwin-arm64).
 | Dart | 3.13.4 | bundled with Flutter |
 | DevTools | 2.60.0 | bundled with Flutter |
 | CocoaPods | 1.16.2 | system |
-| Android SDK | 36.0.0 (platform android-36, build-tools 36.0.0) | `/opt/homebrew/share/android-commandlinetools` |
+| Android SDK | 36.0.0 (platforms android-35 + android-36, build-tools 36.0.0) | `/opt/homebrew/share/android-commandlinetools` |
+| Android emulator | 37.2.13.0 (build 16740729) | `/opt/homebrew/share/android-commandlinetools/emulator` |
+| Android AVD | `acoder_pixel_api35` — Pixel 7, Android 15 (API 35), arm64-v8a | `~/.android/avd/` |
 | JDK | OpenJDK 17.0.20.1 (Homebrew) | via `JAVA_HOME` |
 | Xcode | **absent** — only Command Line Tools 16.4.0.0.1 | `/Library/Developer/CommandLineTools` |
 
@@ -136,11 +138,12 @@ darwin-arm64).
     • Dart version 3.13.4
     • DevTools version 2.60.0
 
-[!] Android toolchain - develop for Android devices (Android SDK version 36.0.0)
+[✓] Android toolchain - develop for Android devices (Android SDK version 36.0.0)
     • Android SDK at /opt/homebrew/share/android-commandlinetools
+    • Emulator version 37.2.13.0
     • Platform android-36, build-tools 36.0.0
     • Java version OpenJDK Runtime Environment Homebrew (build 17.0.20.1+0)
-    ! Some Android licenses not accepted. To resolve this, run: flutter doctor --android-licenses
+    • All Android licenses accepted.
 
 [!] Xcode - develop for iOS and macOS
     ✗ Xcode installation is incomplete; a full installation is necessary for iOS and macOS development.
@@ -197,19 +200,43 @@ this machine.
 
 ## Verification (current)
 
-Measured at HEAD `279f08f` on 2026-11-03:
+Measured on 2026-11-03 at `361f747`:
 
 ```bash
 cd app
 flutter pub get     # Got dependencies!
-flutter analyze     # No issues found! (ran in 1.2s)
-flutter test        # 267 passing, 0 failing, 0 skipped, ~10 s
+flutter analyze     # No issues found! (ran in 2.1s)
+flutter test        # 267 passing, 0 failing, 0 skipped, ~8 s
 ```
 
 `flutter test` prints two `MissingPluginException(No implementation found for
 method stop on channel dev.steenbakker.mobile_scanner/scanner/method)` lines
 while the pairing screens tear down. That is logged noise, not a failure —
 every test still reports `success`.
+
+### Android emulator validation (2026-11-03)
+
+Android toolchain is now complete on this machine: SDK 36 with `emulator`
+37.2.13, a Pixel 7 / Android 15 (API 35) arm64-v8a AVD, and all licences
+accepted. Setup commands are in [`QA.md`](QA.md#android-emulator-setup-2026-11-03).
+
+```bash
+flutter devices
+# … sdk gphone64 arm64 (mobile) • emulator-5554 • android-arm64 • Android 15 (API 35) (emulator)
+
+cd app && flutter test integration_test -d emulator-5554
+# Built build/app/outputs/flutter-apk/app-debug.apk
+# 00:41 +1: happy path: prompt -> tool approval -> steer -> final answer
+# 00:41 +1: All tests passed!
+```
+
+The integration suite passes on the emulator. The manual matrix in `QA.md` was
+executed as far as the emulator allows: **1 pass** (token persisted across app
+restart), **2 fails** (kill/restore bridge does not auto-resync and the offline
+Retry button is a no-op; background 5 min → foreground lands on the Pairing
+screen), and **7 not run** because they need a camera QR, mDNS through the
+emulator NAT, a cellular radio, or a live model turn. The per-row evidence and
+follow-ups are recorded in `QA.md`.
 
 ### Test-count reconciliation
 
@@ -266,11 +293,13 @@ branch `main`).
 
 ## Remaining
 
-1. **Device/E2E validation** — no simulator is available because full Xcode is
-   not installed (see *Xcode blocker* above), and no Android emulator is
-   configured. `app/integration_test/happy_path_test.dart` compiles and runs
-   against the in-process fake bridge once a device is attached. The manual
-   matrix in `QA.md` is unexecuted (including a TLS pairing pass).
+1. **Device/E2E validation** — Android is now set up and the integration suite
+   passes on the emulator (see *Android emulator validation* above). Two matrix
+   rows failed on the emulator and need fixes before the matrix can be called
+   green: the offline home's Retry button is a no-op, and the app does not
+   resync after the bridge returns or after a long background. iOS still has no
+   simulator because full Xcode is not installed (see *Xcode blocker* above),
+   and the QR/discovery/cellular/live-turn rows still need a physical device.
 2. **Push relay implementation** — design is a local-only spike; nothing ships
    yet.
 3. **Bridge branch** — `wss://` and hardening live on

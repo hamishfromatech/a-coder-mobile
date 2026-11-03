@@ -5,8 +5,37 @@
 - Full suite: `cd app && flutter test`
 - Analyze: `cd app && flutter analyze`
 - Regenerate goldens: `cd app && flutter test --update-goldens test/golden`
-- Integration (device/emulator): `cd app && flutter test integration_test` (requires a connected device; fake server binds 127.0.0.1 inside the test process)
+- Integration (device/emulator): `cd app && flutter test integration_test -d emulator-5554` (requires a connected device; fake server binds 127.0.0.1 inside the test process)
 - Read integration test help: `cd app && flutter test integration_test --help`
+
+### Android emulator setup (2026-11-03)
+
+```bash
+export ANDROID_SDK_ROOT=/opt/homebrew/share/android-commandlinetools
+export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$PATH"
+
+# One-time: emulator package + Android 15 (API 35) arm64 system image
+sdkmanager "emulator" "system-images;android-35;google_apis;arm64-v8a"
+avdmanager create avd -n acoder_pixel_api35 \
+  -k "system-images;android-35;google_apis;arm64-v8a" -d pixel_7 --force
+
+# Boot headless. The default 2 GB heap crashed twice during long E2E runs;
+# 4 GB was stable for boots and test installs.
+emulator -avd acoder_pixel_api35 -no-window -no-audio -no-boot-anim -no-snapshot \
+  -memory 4096 -gpu swiftshader_indirect &
+until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 5; done
+flutter devices   # sdk gphone64 arm64 • emulator-5554 • Android 15 (API 35)
+```
+
+Pair without the QR camera using the debug seed (the emulator reaches the host
+loopback as `10.0.2.2`):
+
+```bash
+flutter run -d emulator-5554 \
+  --dart-define=SEED_HOST_IP=10.0.2.2 \
+  --dart-define=SEED_HOST_PORT=8787 \
+  --dart-define=SEED_HOST_TOKEN=<token printed by `a-coder-cli serve`>
+```
 
 ## CI compile coverage
 - `mobile / flutter` (macOS, Flutter `3.47.5`) — analyze + the full test suite.
@@ -52,20 +81,35 @@ Recorded 2026-11-03 against CLI merge `dad9a9dbc` (source `0ccc0f288`,
 Still manual: pairing the Flutter app on a physical device over `wss://` and
 completing one turn (below).
 
-### Manual device matrix
-| Check | iPhone (iOS 17+) | Android (13+) |
+### Manual device matrix — Android (executed 2026-11-03)
+
+Run against app `1.0.0+1` (debug, arm64), **Android 15 / API 35**, Pixel 7 AVD
+`acoder_pixel_api35`, bridge `a-coder-cli serve` 0.80.193 on the host. iOS is
+still unexecuted — it is blocked on full Xcode (THE-38).
+
+| Check | Result | Evidence / reason |
 |---|---|---|
-| QR pair | ✔ | ✔ |
-| TLS (`wss://`) pair with pinned cert | pending | pending |
-| Discovery list | ✔ (local network prompt) | ✔ |
-| Streaming 10-min turn, screen off/on | resync ok | resync ok |
-| Wi-Fi ↔ cellular switch | reconnect | reconnect |
-| Kill/restore bridge | banner → resync | banner → resync |
-| Approval card w/ 20s timeout | renders + answers | renders + answers |
-| 2MB bash output tool card | no frame loss | no frame loss |
-| Background 5min → foreground | resync < 2s | resync < 2s |
-| Token persisted (app restart, no re-pair) | Keychain | Keystore |
-| Rotate token → old client 401 | ✔ | ✔ |
+| QR pair | not run | The emulator has no camera for the terminal QR; pairing was exercised through the manual-entry path and the `SEED_HOST_*` debug seed. The scanner itself is covered by widget goldens only. |
+| TLS (`wss://`) pair with pinned cert | not run | Same as above; needs a real camera or a manual-entry pass. |
+| Discovery list | not run | The emulator's NAT does not forward the host's mDNS (`_a-coder._tcp`), so the list cannot populate from this AVD. Needs a physical device on the LAN. |
+| Streaming 10-min turn, screen off/on | not run | Needs a live model turn against the bridge; no provider was configured for this run. |
+| Wi-Fi ↔ cellular switch | not run | The AVD has no cellular radio; airplane/Wi-Fi toggles do not exercise the reconnect-on-network-change row. |
+| Kill/restore bridge | **FAIL** | Killing the bridge renders the offline state (red dot, "Offline — reconnect to load sessions"). After the bridge restarted the app did **not** reconnect within 55 s, and the **Retry button is a no-op** — `onRetry: _noop` at `lib/features/sessions/screens/home_screen.dart:366`. |
+| Approval card w/ 20s timeout | not run | Needs a live permission-gated tool call from a real engine turn. |
+| 2 MB bash output tool card | not run | Same — needs a live engine turn emitting 2 MB of tool output. |
+| Background 5min → foreground | **FAIL** | After 5 minutes backgrounded the app returned to the **Pairing screen**, not a resynced home; reproduced after a cold emulator restart too. The emulator also died twice during this session (2 GB heap), so re-run on the 4 GB profile and a physical device before treating this as purely an app defect. |
+| Token persisted (app restart, no re-pair) | **PASS** | `adb shell am force-stop` + relaunch reconnected to the same host with no re-pairing; the token survived in Android Keystore. |
+| Rotate token → old client 401 | not run | Not reached — the emulator crashed before this row could be executed. |
+
+**Follow-ups from the two failures** (not fixed here; this task is validation):
+
+1. `ErrorState.onRetry` on the offline home is wired to `_noop`, so the user has
+   no manual recovery path. Wire it to a forced reconnect/resync.
+2. Auto-resync after the bridge returns did not resume within a minute even
+   though the backoff chain in `ConnectionManager._scheduleReconnect` is
+   unbounded on paper. Needs a device-side debug pass.
+3. Background → foreground landed on the Pairing screen instead of resyncing;
+   confirm on the 4 GB emulator profile and on a physical device.
 
 ## Known gaps requiring app/lib hooks (not implemented here)
 - Injectable transport / secure-storage seam: full pairing→home→chat driving in
