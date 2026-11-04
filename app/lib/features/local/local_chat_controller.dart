@@ -12,6 +12,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:llamadart/llamadart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_model_store.dart';
 
@@ -48,6 +49,7 @@ class LocalChatState {
   final bool generating;
   final bool speaking;
   final bool autoSpeak;
+  final String speechLanguage;
   final double? progress;
   final String? error;
 
@@ -61,6 +63,7 @@ class LocalChatState {
     this.generating = false,
     this.speaking = false,
     this.autoSpeak = true,
+    this.speechLanguage = 'en',
     this.progress,
     this.error,
   });
@@ -75,6 +78,7 @@ class LocalChatState {
     bool? generating,
     bool? speaking,
     bool? autoSpeak,
+    String? speechLanguage,
     Object? progress = _unset,
     Object? error = _unset,
   }) {
@@ -88,6 +92,7 @@ class LocalChatState {
       generating: generating ?? this.generating,
       speaking: speaking ?? this.speaking,
       autoSpeak: autoSpeak ?? this.autoSpeak,
+      speechLanguage: speechLanguage ?? this.speechLanguage,
       progress: identical(progress, _unset)
           ? this.progress
           : (progress as num?)?.toDouble(),
@@ -128,11 +133,18 @@ class LocalChatController extends StateNotifier<LocalChatState> {
   bool _cancelDownload = false;
   LocalModelSpec get spec => _spec;
 
+  static const _speechLanguageKey = 'local-tts-language';
+
   static const _systemPrompt = '''
 You are A-Coder's on-device assistant. You run entirely on the user's phone.
 Be concise, practical and honest. If you are unsure, say so.''';
 
   Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    final language = prefs.getString(_speechLanguageKey);
+    if (mounted && language != null && language.isNotEmpty) {
+      state = state.copyWith(speechLanguage: language);
+    }
     final path = await _store.existingPath(_spec);
     final projector = _spec.hasProjector
         ? await _store.existingPath(_spec, projector: true)
@@ -475,6 +487,12 @@ Be concise, practical and honest. If you are unsure, say so.''';
     }
   }
 
+  Future<void> setSpeechLanguage(String language) async {
+    state = state.copyWith(speechLanguage: language);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_speechLanguageKey, language);
+  }
+
   void toggleAutoSpeak() {
     final next = !state.autoSpeak;
     state = state.copyWith(autoSpeak: next);
@@ -496,7 +514,10 @@ Be concise, practical and honest. If you are unsure, say so.''';
       }
       if (mounted) state = state.copyWith(speaking: true);
       final result = await _ttsEngine!.synthesizeOnce(
-        TextToSpeechRequest(text: text, language: 'en'),
+        TextToSpeechRequest(
+          text: text,
+          language: state.speechLanguage,
+        ),
       );
       final wav = result.toWavBytes();
       _audioPlayer ??= AudioPlayer();

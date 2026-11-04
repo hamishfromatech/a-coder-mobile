@@ -39,6 +39,73 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
   int _recordSeconds = 0;
   String? _pendingImagePath;
 
+  static const _speechLanguages = <(String, String)>[
+    ('en', 'English'),
+    ('en-gb', 'English (UK)'),
+    ('es', 'Spanish'),
+    ('fr', 'French'),
+    ('de', 'German'),
+    ('it', 'Italian'),
+    ('pt', 'Portuguese'),
+    ('nl', 'Dutch'),
+    ('da', 'Danish'),
+    ('sv', 'Swedish'),
+    ('fi', 'Finnish'),
+    ('pl', 'Polish'),
+    ('el', 'Greek'),
+    ('he', 'Hebrew'),
+    ('ar', 'Arabic'),
+    ('tr', 'Turkish'),
+    ('ja', 'Japanese'),
+    ('ko', 'Korean'),
+    ('zh', 'Chinese'),
+  ];
+
+  String _languageLabel(String code) {
+    for (final entry in _speechLanguages) {
+      if (entry.$1 == code) return entry.$2;
+    }
+    return code;
+  }
+
+  Future<void> _showLanguageSheet(
+    BuildContext context,
+    LocalChatState state,
+  ) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+                child: Text(
+                  'Speak replies in',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+              for (final entry in _speechLanguages)
+                ListTile(
+                  title: Text(entry.$2),
+                  trailing: state.speechLanguage == entry.$1
+                      ? Icon(Icons.check, color: PiColors.accent)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, entry.$1),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    await ref
+        .read(localChatControllerProvider(widget.spec.id).notifier)
+        .setSpeechLanguage(selected);
+  }
+
   @override
   void dispose() {
     _composer.dispose();
@@ -808,6 +875,16 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                               ? '/local/voice'
                               : '/local/omni';
                       Navigator.of(context).pushNamed(route);
+                    },
+                  ),
+                if (widget.spec.supportsAudio)
+                  ListTile(
+                    leading: const Icon(Icons.translate),
+                    title: const Text('Speech language'),
+                    subtitle: Text(_languageLabel(state.speechLanguage)),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showLanguageSheet(context, state);
                     },
                   ),
                 if (state.modelLoaded)

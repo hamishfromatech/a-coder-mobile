@@ -56,6 +56,34 @@ class _LocalModelsScreenState extends ConsumerState<LocalModelsScreen> {
     if (mounted) await _refresh();
   }
 
+  Future<void> _deleteModel(LocalModelSpec spec) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete ${spec.name}?'),
+        content: Text(
+          'This removes ${spec.displaySize}'
+          '${spec.hasProjector ? ' + ${spec.displayProjectorSize}' : ''} '
+          'from this phone. You can import or download it again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: PiColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await ref.read(localModelStoreProvider).delete(spec);
+    if (mounted) await _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = PiColors.of(context);
@@ -109,6 +137,9 @@ class _LocalModelsScreenState extends ConsumerState<LocalModelsScreen> {
               installed: _installed[spec.id] ?? false,
               loading: _loading,
               onTap: () => _open(spec),
+              onDelete: (_installed[spec.id] ?? false)
+                  ? () => _deleteModel(spec)
+                  : null,
             ),
             const SizedBox(height: 10),
           ],
@@ -132,6 +163,7 @@ class _ModelCard extends StatelessWidget {
     required this.installed,
     required this.loading,
     required this.onTap,
+    this.onDelete,
   });
 
   final LocalModelSpec spec;
@@ -139,6 +171,7 @@ class _ModelCard extends StatelessWidget {
   final bool installed;
   final bool loading;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +275,15 @@ class _ModelCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
+              if (installed && onDelete != null)
+                IconButton(
+                  tooltip: 'Delete model',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDelete,
+                  icon:
+                      Icon(Icons.delete_outline, size: 18, color: c.textMuted),
+                ),
               Icon(
                 installed ? Icons.play_arrow_rounded : Icons.chevron_right,
                 color: installed ? c.accent : c.textMuted,

@@ -83,6 +83,7 @@ CI: [`.github/workflows/mobile.yml`](.github/workflows/mobile.yml).
 - Bridge — `a-coder-cli serve` in `../a-coder-cli/packages/coding-agent/src/serve/`
 - App architecture — [`app/lib/`](app/lib)
 - Screens — [`app/lib/features/`](app/lib/features)
+- On-device models — [`docs/on-device.md`](docs/on-device.md)
 
 The detailed build plan, protocol spec, and design notes live in the `plan/`
 folder **on the development machine only**; that folder is git-ignored and is
@@ -93,6 +94,9 @@ not part of this repository.
 Chat (streaming, tools, approvals, queue, rewind, paged history, images),
 sessions, models, pairing (QR/manual/discovery), settings, **Scheduled tasks**
 and **Your Office** surfaces, and **`wss://` with certificate pinning**.
+
+Offline **On-device modes** run LFM3 text, voice and Omni models locally
+without the desktop bridge. See [`docs/on-device.md`](docs/on-device.md).
 
 The visual language mirrors the desktop app (`desktop-app/DESIGN.md`): the same
 13/11 px type scale, glass composer and user bubble, flat assistant rows with
