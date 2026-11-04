@@ -3,7 +3,10 @@
 // Model files are deliberately not bundled in the APK. They are imported from
 // local storage or downloaded once, then memory-mapped by llama.cpp.
 
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
@@ -140,11 +143,22 @@ class LocalModelStore {
     final temp = File('${destination.path}.part');
     if (await temp.exists()) await temp.delete();
 
-    final client = HttpClient();
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 25);
     try {
       final request = await client.getUrl(Uri.parse(spec.url));
+      request.followRedirects = true;
+      request.maxRedirects = 5;
       request.headers.set(HttpHeaders.userAgentHeader, 'A-Coder-Mobile/1.0');
-      final response = await request.close();
+      request.headers.set(HttpHeaders.acceptHeader, 'application/octet-stream');
+      onProgress?.call(null);
+      final response = await request
+          .close()
+          .timeout(const Duration(seconds: 40));
+      debugPrint(
+        '[local] download HTTP ${response.statusCode} '
+        'len=${response.contentLength} url=${response.redirects.isEmpty ? spec.url : response.redirects.last.location}',
+      );
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException(
           'Model download failed: HTTP ${response.statusCode}',
@@ -156,7 +170,7 @@ class LocalModelStore {
       var lastProgress = -1.0;
       final sink = temp.openWrite();
       try {
-        await for (final chunk in response) {
+        await for (final chunk in response.timeout(const Duration(seconds: 60))) {
           if (isCancelled?.call() ?? false) {
             throw const LocalModelDownloadCancelled();
           }
@@ -180,7 +194,8 @@ class LocalModelStore {
       await temp.rename(destination.path);
       onProgress?.call(1);
       return destination.path;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[local] download error: $e\n$st');
       if (await temp.exists()) await temp.delete();
       rethrow;
     } finally {

@@ -64,6 +64,14 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           next.generating) {
         _scrollToBottom();
       }
+      if (next.error != null && next.error != previous?.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(next.error!)),
+          );
+        });
+      }
     });
 
     return Scaffold(
@@ -92,27 +100,37 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          if (state.error != null)
-            Container(
-              width: double.infinity,
-              color: PiColors.error.withValues(alpha: 0.12),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Text(
-                state.error!,
-                style: TextStyle(fontSize: 11, color: PiColors.error),
+          Column(
+            children: [
+              if (state.error != null)
+                Container(
+                  width: double.infinity,
+                  color: PiColors.error.withValues(alpha: 0.12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Text(
+                    state.error!,
+                    style: TextStyle(fontSize: 11, color: PiColors.error),
+                  ),
+                ),
+              Expanded(
+                child: state.loadingModel
+                    ? _buildLoading(context)
+                    : !state.modelReady
+                        ? _buildSetup(context, state)
+                        : !state.modelLoaded
+                            ? _buildReady(context, state)
+                            : _buildChat(context, state),
               ),
-            ),
-          Expanded(
-            child: state.loadingModel
-                ? _buildLoading(context)
-                : !state.modelReady
-                    ? _buildSetup(context, state)
-                    : !state.modelLoaded
-                        ? _buildReady(context, state)
-                        : _buildChat(context, state),
+            ],
           ),
+          if (state.downloading || state.importing)
+            _BusyOverlay(
+              state: state,
+              onCancel: state.downloading ? controller.cancelDownload : null,
+            ),
         ],
       ),
     );
@@ -489,6 +507,73 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _BusyOverlay extends StatelessWidget {
+  const _BusyOverlay({required this.state, this.onCancel});
+
+  final LocalChatState state;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PiColors.of(context);
+    final percent = state.progress == null
+        ? null
+        : (state.progress! * 100).round();
+    final label = state.importing
+        ? 'Importing model…'
+        : percent == null
+            ? 'Starting download…'
+            : 'Downloading model $percent%';
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black54,
+        child: Center(
+          child: Container(
+            width: 300,
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: BorderRadius.circular(PiRadius.xl),
+              border: Border.all(color: c.borderStrong),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.downloading_rounded, size: 34, color: c.accent),
+                const SizedBox(height: 12),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                LinearProgressIndicator(value: state.progress),
+                const SizedBox(height: 10),
+                Text(
+                  state.importing
+                      ? 'Copying the GGUF into app storage. Keep this screen open.'
+                      : 'About 1.1 GB. Keep this screen open on a good connection.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: c.textSecondary),
+                ),
+                if (onCancel != null) ...[
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: onCancel,
+                    child: const Text('Cancel download'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

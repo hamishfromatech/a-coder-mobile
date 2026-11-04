@@ -6,6 +6,8 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:llamadart/llamadart.dart';
@@ -148,10 +150,11 @@ Be concise, practical and honest. If you are unsure, say so.''';
   Future<void> downloadModel() async {
     if (state.importing || state.downloading) return;
     _cancelDownload = false;
+    debugPrint('[local] download start ${_spec.url}');
     state = state.copyWith(
       downloading: true,
       error: null,
-      progress: 0,
+      progress: null,
     );
     try {
       await _store.downloadModel(
@@ -163,19 +166,22 @@ Be concise, practical and honest. If you are unsure, say so.''';
         isCancelled: () => _cancelDownload,
       );
       if (!mounted) return;
+      debugPrint('[local] download complete');
       state = state.copyWith(
         downloading: false,
         modelReady: true,
         progress: 1,
       );
     } on LocalModelDownloadCancelled {
+      debugPrint('[local] download cancelled');
       if (!mounted) return;
       state = state.copyWith(
         downloading: false,
         progress: null,
         error: null,
       );
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[local] download failed: $e\n$st');
       if (!mounted) return;
       state = state.copyWith(
         downloading: false,
@@ -186,6 +192,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
   }
 
   void cancelDownload() {
+    debugPrint('[local] download cancel requested');
     _cancelDownload = true;
   }
 
