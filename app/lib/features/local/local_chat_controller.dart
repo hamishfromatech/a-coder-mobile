@@ -358,6 +358,18 @@ Be concise, practical and honest. If you are unsure, say so.''';
     );
   }
 
+  /// Sends an image turn to LFM3-Omni. Audio and text use the same engine.
+  Future<void> sendImage(String path) async {
+    if (path.isEmpty || state.generating) return;
+    await _generate(
+      [
+        LlamaImageContent(path: path),
+        const LlamaTextContent('Answer the request about this image.'),
+      ],
+      userText: '🖼 Image',
+    );
+  }
+
   Future<void> _generate(
     List<LlamaContentPart> parts, {
     required String userText,

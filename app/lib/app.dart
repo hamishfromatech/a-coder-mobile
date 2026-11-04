@@ -167,6 +167,10 @@ class _ACoderAppState extends ConsumerState<ACoderApp>
           case '/local':
             return MaterialPageRoute<void>(
                 settings: settings, builder: (_) => const LocalChatScreen(spec: LocalModelCatalog.text));
+          case '/local/omni':
+            return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) => const LocalChatScreen(spec: LocalModelCatalog.omni));
           case '/local/voice':
             return MaterialPageRoute<void>(
                 settings: settings,

@@ -24,6 +24,8 @@ class LocalModelSpec {
   final String? projectorFileName;
   final String? projectorUrl;
   final int projectorBytes;
+  final bool supportsAudio;
+  final bool supportsVision;
 
   const LocalModelSpec({
     required this.id,
@@ -36,6 +38,8 @@ class LocalModelSpec {
     this.projectorFileName,
     this.projectorUrl,
     this.projectorBytes = 0,
+    this.supportsAudio = false,
+    this.supportsVision = false,
   });
 
   bool get hasProjector => projectorFileName != null;
@@ -82,9 +86,29 @@ class LocalModelCatalog {
     projectorUrl:
         'https://huggingface.co/LiquidAI/LFM3-Audio-2B-GGUF/resolve/main/mmproj-LFM3-Audio-2B-Q4_K_M.gguf',
     projectorBytes: 172000000,
+    supportsAudio: true,
   );
 
-  static const List<LocalModelSpec> all = [text, voice];
+  /// Multimodal model: text, images, video and audio input; text or speech
+  /// output. The current Dart binding supports image/audio; video is native-only.
+  static const LocalModelSpec omni = LocalModelSpec(
+    id: 'lfm3-omni-2b-q4km',
+    name: 'LFM3-Omni-2B',
+    fileName: 'LFM3-Omni-2B-Q4_K_M.gguf',
+    quantization: 'Q4_K_M',
+    url:
+        'https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF/resolve/main/LFM3-Omni-2B-Q4_K_M.gguf',
+    approxBytes: 1100000000,
+    license: 'LFM Open License v1.0',
+    projectorFileName: 'mmproj-LFM3-Omni-2B-Q4_K_M.gguf',
+    projectorUrl:
+        'https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF/resolve/main/mmproj-LFM3-Omni-2B-Q4_K_M.gguf',
+    projectorBytes: 290000000,
+    supportsAudio: true,
+    supportsVision: true,
+  );
+
+  static const List<LocalModelSpec> all = [text, voice, omni];
 
   static LocalModelSpec? byId(String id) {
     for (final spec in all) {

@@ -5,6 +5,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -74,6 +75,19 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
       _recording = true;
       _recordPath = path;
     });
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 88,
+      maxWidth: 1600,
+    );
+    if (picked == null) return;
+    await ref
+        .read(localChatControllerProvider(widget.spec.id).notifier)
+        .sendImage(picked.path);
+    _scrollToBottom();
   }
 
   Future<void> _stopRecording() async {
@@ -305,6 +319,14 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                   style: TextStyle(fontSize: 11, color: c.accent),
                 ),
               ],
+              if (spec.supportsVision) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Attach a photo with the image button. Video input is not '
+                  'wired into this Flutter runtime yet.',
+                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 'Keep at least 2 GB free. 6–8 GB RAM recommended. '
@@ -513,7 +535,15 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                     ),
                   ),
                 ),
-                if (widget.spec.hasProjector) ...[
+                if (widget.spec.supportsVision) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Attach image',
+                    onPressed: state.generating ? null : _pickImage,
+                    icon: const Icon(Icons.image_outlined),
+                  ),
+                ],
+                if (widget.spec.supportsAudio) ...[
                   const SizedBox(width: 4),
                   IconButton(
                     tooltip: _recording ? 'Send voice' : 'Record voice',
@@ -577,27 +607,35 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                   style: TextStyle(fontSize: 11, color: c.textMuted),
                 ),
                 const SizedBox(height: 12),
-                ListTile(
-                  leading: Icon(
-                    widget.spec.hasProjector ? Icons.chat_outlined : Icons.mic_none,
+                for (final other in LocalModelCatalog.all.where(
+                  (candidate) => candidate.id != widget.spec.id,
+                ))
+                  ListTile(
+                    leading: Icon(
+                      other.supportsVision
+                          ? Icons.auto_awesome
+                          : other.supportsAudio
+                              ? Icons.mic_none
+                              : Icons.chat_outlined,
+                    ),
+                    title: Text('Switch to ${other.name}'),
+                    subtitle: Text(
+                      other.supportsVision
+                          ? 'Text + images + voice + speech output'
+                          : other.supportsAudio
+                              ? 'Speech input and LFM3 speech output'
+                              : 'Smaller text-only model',
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      final route = other.id == LocalModelCatalog.text.id
+                          ? '/local'
+                          : other.id == LocalModelCatalog.voice.id
+                              ? '/local/voice'
+                              : '/local/omni';
+                      Navigator.of(context).pushNamed(route);
+                    },
                   ),
-                  title: Text(
-                    widget.spec.hasProjector
-                        ? 'Switch to text (LFM3-1.7B)'
-                        : 'Voice mode (LFM3-Audio)',
-                  ),
-                  subtitle: Text(
-                    widget.spec.hasProjector
-                        ? 'Smaller text-only model'
-                        : 'Speech input, LFM3 audio model',
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    Navigator.of(context).pushNamed(
-                      widget.spec.hasProjector ? '/local' : '/local/voice',
-                    );
-                  },
-                ),
                 if (state.modelLoaded)
                   ListTile(
                     leading: const Icon(Icons.eject_outlined),
