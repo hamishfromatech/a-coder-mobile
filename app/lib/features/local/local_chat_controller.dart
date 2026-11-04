@@ -72,7 +72,7 @@ class LocalChatState {
       generating: generating ?? this.generating,
       progress: identical(progress, _unset)
           ? this.progress
-          : progress as double?,
+          : (progress as num?)?.toDouble(),
       error: identical(error, _unset) ? this.error : error as String?,
     );
   }
@@ -120,7 +120,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
     state = state.copyWith(
       importing: true,
       error: null,
-      progress: 0,
+      progress: 0.0,
     );
     try {
       await _store.importModel(
@@ -135,7 +135,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
       state = state.copyWith(
         importing: false,
         modelReady: true,
-        progress: 1,
+        progress: 1.0,
       );
     } catch (e) {
       if (!mounted) return;
@@ -170,7 +170,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
       state = state.copyWith(
         downloading: false,
         modelReady: true,
-        progress: 1,
+        progress: 1.0,
       );
     } on LocalModelDownloadCancelled {
       debugPrint('[local] download cancelled');
