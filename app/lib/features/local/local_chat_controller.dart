@@ -366,15 +366,24 @@ Be concise, practical and honest. If you are unsure, say so.''';
   }
 
   /// Sends an image turn to LFM3-Omni. Audio and text use the same engine.
-  Future<void> sendImage(String path) async {
+  Future<void> sendImage(String path, {String? prompt}) async {
     if (path.isEmpty || state.generating) return;
+    final instruction = prompt?.trim() ?? '';
     await _generate(
       [
         LlamaImageContent(path: path),
-        const LlamaTextContent('Answer the request about this image.'),
+        LlamaTextContent(
+          instruction.isEmpty ? 'Describe this image in detail.' : instruction,
+        ),
       ],
-      userText: '🖼 Image',
+      userText: instruction.isEmpty ? '🖼 Image' : instruction,
     );
+  }
+
+  /// Replays an answer through LFM3 speech output, even if auto-speak is off.
+  Future<void> speakMessage(String text) async {
+    await _stopSpeech();
+    await _speak(text);
   }
 
   Future<void> _generate(
@@ -485,6 +494,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
         debugPrint('[local] TTS unsupported: ${caps.unsupportedReason}');
         return;
       }
+      if (mounted) state = state.copyWith(speaking: true);
       final result = await _ttsEngine!.synthesizeOnce(
         TextToSpeechRequest(text: text, language: 'en'),
       );

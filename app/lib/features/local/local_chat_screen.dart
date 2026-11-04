@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -36,6 +37,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
   String? _recordPath;
   Timer? _recordTimer;
   int _recordSeconds = 0;
+  String? _pendingImagePath;
 
   @override
   void dispose() {
@@ -125,10 +127,12 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
       maxWidth: 1600,
     );
     if (picked == null) return;
-    await ref
-        .read(localChatControllerProvider(widget.spec.id).notifier)
-        .sendImage(picked.path);
+    setState(() => _pendingImagePath = picked.path);
     _scrollToBottom(force: true);
+  }
+
+  void _removePendingImage() {
+    setState(() => _pendingImagePath = null);
   }
 
   Future<void> _stopRecording() async {
@@ -171,6 +175,16 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   void _send() {
     final text = _composer.text.trim();
+    final imagePath = _pendingImagePath;
+    if (imagePath != null) {
+      _composer.clear();
+      setState(() => _pendingImagePath = null);
+      ref
+          .read(localChatControllerProvider(widget.spec.id).notifier)
+          .sendImage(imagePath, prompt: text);
+      _scrollToBottom(force: true);
+      return;
+    }
     if (text.isEmpty) return;
     _composer.clear();
     ref.read(localChatControllerProvider(widget.spec.id).notifier).send(text);
@@ -566,6 +580,14 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                       message: message,
                       streaming: state.generating &&
                           index == state.messages.length - 1,
+                      canSpeak: widget.spec.supportsAudio &&
+                          !state.generating &&
+                          message.role == LocalChatRole.assistant &&
+                          message.text.isNotEmpty,
+                      onSpeak: () => ref
+                          .read(localChatControllerProvider(widget.spec.id)
+                              .notifier)
+                          .speakMessage(message.text),
                     );
                   },
                 ),
@@ -608,74 +630,116 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
               color: c.surface,
               border: Border(top: BorderSide(color: c.border)),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _composer,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) {
-                      if (!state.generating) _send();
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Message LFM3…',
-                      isDense: true,
-                      filled: true,
-                      fillColor: c.surfaceRaised,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 11),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(PiRadius.lg),
-                        borderSide: BorderSide(color: c.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(PiRadius.lg),
-                        borderSide: BorderSide(color: c.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(PiRadius.lg),
-                        borderSide: BorderSide(color: c.accent),
-                      ),
+                if (_pendingImagePath != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(PiRadius.md),
+                          child: Image.file(
+                            File(_pendingImagePath!),
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Image attached — add a caption or send',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove image',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _removePendingImage,
+                          icon: const Icon(Icons.close, size: 17),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                if (widget.spec.supportsVision) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    tooltip: 'Attach image',
-                    onPressed: state.generating ? null : _pickImage,
-                    icon: const Icon(Icons.image_outlined),
-                  ),
-                ],
-                if (widget.spec.supportsAudio) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    tooltip: _recording ? 'Send voice' : 'Record voice',
-                    onPressed:
-                        state.generating ? null : () => _toggleRecording(),
-                    icon: Icon(
-                      _recording ? Icons.stop_circle : Icons.mic_none,
-                      color: _recording ? PiColors.error : null,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _composer,
+                        minLines: 1,
+                        maxLines: 5,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) {
+                          if (!state.generating) _send();
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Message LFM3…',
+                          isDense: true,
+                          filled: true,
+                          fillColor: c.surfaceRaised,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 11),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(PiRadius.lg),
+                            borderSide: BorderSide(color: c.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(PiRadius.lg),
+                            borderSide: BorderSide(color: c.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(PiRadius.lg),
+                            borderSide: BorderSide(color: c.accent),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-                const SizedBox(width: 4),
-                IconButton.filled(
-                  tooltip: state.generating ? 'Stop' : 'Send',
-                  onPressed: state.generating || _recording
-                      ? (state.generating
-                          ? () => ref
-                              .read(localChatControllerProvider(widget.spec.id)
-                                  .notifier)
-                              .stop()
-                          : null)
-                      : _send,
-                  icon: Icon(
-                    state.generating ? Icons.stop_rounded : Icons.arrow_upward,
-                  ),
+                    if (widget.spec.supportsVision) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Attach image',
+                        onPressed: state.generating ? null : _pickImage,
+                        icon: const Icon(Icons.image_outlined),
+                      ),
+                    ],
+                    if (widget.spec.supportsAudio) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: _recording ? 'Send voice' : 'Record voice',
+                        onPressed:
+                            state.generating ? null : () => _toggleRecording(),
+                        icon: Icon(
+                          _recording ? Icons.stop_circle : Icons.mic_none,
+                          color: _recording ? PiColors.error : null,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    IconButton.filled(
+                      tooltip: state.generating ? 'Stop' : 'Send',
+                      onPressed: state.generating || _recording
+                          ? (state.generating
+                              ? () => ref
+                                  .read(localChatControllerProvider(
+                                          widget.spec.id)
+                                      .notifier)
+                                  .stop()
+                              : null)
+                          : _send,
+                      icon: Icon(
+                        state.generating
+                            ? Icons.stop_rounded
+                            : Icons.arrow_upward,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -865,10 +929,17 @@ class _BusyOverlay extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, this.streaming = false});
+  const _MessageBubble({
+    required this.message,
+    this.streaming = false,
+    this.canSpeak = false,
+    this.onSpeak,
+  });
 
   final LocalChatMessage message;
   final bool streaming;
+  final bool canSpeak;
+  final VoidCallback? onSpeak;
 
   @override
   Widget build(BuildContext context) {
@@ -921,8 +992,93 @@ class _MessageBubble extends StatelessWidget {
                     )
                   else
                     _LocalMarkdown(data: message.text),
+                  if (canSpeak && message.text.isNotEmpty && onSpeak != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        tooltip: 'Play answer again',
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.only(top: 4),
+                        iconSize: 16,
+                        onPressed: onSpeak,
+                        icon:
+                            Icon(Icons.volume_up_outlined, color: c.textMuted),
+                      ),
+                    ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _LocalCodeBlock extends MarkdownElementBuilder {
+  _LocalCodeBlock();
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final code = element.textContent.trimRight();
+    if (code.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0C),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: PiColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(9, 3, 3, 0),
+            child: Row(
+              children: [
+                Text(
+                  'code',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontFamily: PiFonts.mono,
+                    color: PiColors.textFaint,
+                  ),
+                ),
+                const Spacer(),
+                Builder(
+                  builder: (context) => IconButton(
+                    tooltip: 'Copy code',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 14,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 26, minHeight: 26),
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: code));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Code copied')),
+                        );
+                      }
+                    },
+                    icon: Icon(Icons.copy, color: PiColors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(10, 2, 10, 9),
+            child: SelectableText(
+              code,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                fontFamily: PiFonts.mono,
+                color: PiColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1013,6 +1169,7 @@ class _LocalMarkdown extends StatelessWidget {
       data: data,
       selectable: true,
       softLineBreak: true,
+      builders: {'pre': _LocalCodeBlock()},
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(fontSize: 13, height: 1.5, color: c.text),
         h1: TextStyle(
