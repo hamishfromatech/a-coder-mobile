@@ -1,6 +1,9 @@
 // On-device chat screen. LFM3 runs locally through llama.cpp; no bridge or
 // cloud connection is used here.
 
+import 'dart:async';
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -31,11 +34,14 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
   AudioRecorder? _recorder;
   bool _recording = false;
   String? _recordPath;
+  Timer? _recordTimer;
+  int _recordSeconds = 0;
 
   @override
   void dispose() {
     _composer.dispose();
     _scroll.dispose();
+    _recordTimer?.cancel();
     _recorder?.dispose();
     super.dispose();
   }
@@ -74,7 +80,42 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
       _recorder = recorder;
       _recording = true;
       _recordPath = path;
+      _recordSeconds = 0;
     });
+    _recordTimer?.cancel();
+    _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _recordSeconds++);
+    });
+  }
+
+  Future<void> _discardRecording() async {
+    _recordTimer?.cancel();
+    _recordTimer = null;
+    final recorder = _recorder;
+    _recorder = null;
+    final path = _recordPath;
+    _recordPath = null;
+    try {
+      await recorder?.stop();
+    } catch (_) {}
+    await recorder?.dispose();
+    if (path != null) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _recording = false;
+      _recordSeconds = 0;
+    });
+  }
+
+  String get _recordLabel {
+    final minutes = (_recordSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_recordSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   Future<void> _pickImage() async {
@@ -87,10 +128,12 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
     await ref
         .read(localChatControllerProvider(widget.spec.id).notifier)
         .sendImage(picked.path);
-    _scrollToBottom();
+    _scrollToBottom(force: true);
   }
 
   Future<void> _stopRecording() async {
+    _recordTimer?.cancel();
+    _recordTimer = null;
     final recorder = _recorder;
     _recorder = null;
     String? path;
@@ -108,7 +151,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
       await ref
           .read(localChatControllerProvider(widget.spec.id).notifier)
           .sendAudio(file);
-      _scrollToBottom();
+      _scrollToBottom(force: true);
     }
   }
 
@@ -131,12 +174,16 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
     if (text.isEmpty) return;
     _composer.clear();
     ref.read(localChatControllerProvider(widget.spec.id).notifier).send(text);
-    _scrollToBottom();
+    _scrollToBottom(force: true);
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
+      if (!force &&
+          _scroll.position.pixels < _scroll.position.maxScrollExtent - 140) {
+        return;
+      }
       _scroll.animateTo(
         _scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 220),
@@ -147,7 +194,8 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(localChatControllerProvider(widget.spec.id).notifier);
+    final controller =
+        ref.read(localChatControllerProvider(widget.spec.id).notifier);
     final state = ref.watch(localChatControllerProvider(widget.spec.id));
     ref.listen(localChatControllerProvider(widget.spec.id), (previous, next) {
       if (previous?.messages.length != next.messages.length ||
@@ -164,72 +212,95 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('On-device'),
-            Text(
-              '${widget.spec.name} · offline',
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
-            ),
-          ],
-        ),
-        actions: [
-          if (state.modelLoaded)
-            IconButton(
-              tooltip: 'New chat',
-              icon: const Icon(Icons.add_comment_outlined),
-              onPressed: controller.newChat,
-            ),
-          if (state.speaking)
-            IconButton(
-              tooltip: 'Stop speaking',
-              icon: const Icon(Icons.volume_off),
-              onPressed: () => ref
-                  .read(localChatControllerProvider(widget.spec.id).notifier)
-                  .stop(),
-            ),
-          IconButton(
-            tooltip: 'Model',
-            icon: const Icon(Icons.memory),
-            onPressed: () => _showModelSheet(context, state),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Column(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) return;
+        unawaited(
+          ref
+              .read(localChatControllerProvider(widget.spec.id).notifier)
+              .unloadModel(),
+        );
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (state.error != null)
-                Container(
-                  width: double.infinity,
-                  color: PiColors.error.withValues(alpha: 0.12),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  child: Text(
-                    state.error!,
-                    style: TextStyle(fontSize: 11, color: PiColors.error),
-                  ),
-                ),
-              Expanded(
-                child: state.loadingModel
-                    ? _buildLoading(context)
-                    : !state.modelReady
-                        ? _buildSetup(context, state)
-                        : !state.modelLoaded
-                            ? _buildReady(context, state)
-                            : _buildChat(context, state),
+              const Text('On-device'),
+              Text(
+                '${widget.spec.name} · offline',
+                style:
+                    const TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
               ),
             ],
           ),
-          if (state.downloading || state.importing)
-            _BusyOverlay(
-              state: state,
-              onCancel: state.downloading ? controller.cancelDownload : null,
+          actions: [
+            if (state.modelLoaded)
+              IconButton(
+                tooltip: 'New chat',
+                icon: const Icon(Icons.add_comment_outlined),
+                onPressed: controller.newChat,
+              ),
+            if (widget.spec.supportsAudio && !state.speaking)
+              IconButton(
+                tooltip:
+                    state.autoSpeak ? 'Mute spoken replies' : 'Speak replies',
+                icon: Icon(state.autoSpeak
+                    ? Icons.volume_up_outlined
+                    : Icons.volume_off_outlined),
+                onPressed: () => ref
+                    .read(localChatControllerProvider(widget.spec.id).notifier)
+                    .toggleAutoSpeak(),
+              ),
+            if (state.speaking)
+              IconButton(
+                tooltip: 'Stop speaking',
+                icon: const Icon(Icons.stop_circle_outlined),
+                onPressed: () => ref
+                    .read(localChatControllerProvider(widget.spec.id).notifier)
+                    .stop(),
+              ),
+            IconButton(
+              tooltip: 'Model',
+              icon: const Icon(Icons.memory),
+              onPressed: () => _showModelSheet(context, state),
             ),
-        ],
+          ],
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                if (state.error != null)
+                  Container(
+                    width: double.infinity,
+                    color: PiColors.error.withValues(alpha: 0.12),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Text(
+                      state.error!,
+                      style: TextStyle(fontSize: 11, color: PiColors.error),
+                    ),
+                  ),
+                Expanded(
+                  child: state.loadingModel
+                      ? _buildLoading(context)
+                      : !state.modelReady
+                          ? _buildSetup(context, state)
+                          : !state.modelLoaded
+                              ? _buildReady(context, state)
+                              : _buildChat(context, state),
+                ),
+              ],
+            ),
+            if (state.downloading || state.importing)
+              _BusyOverlay(
+                state: state,
+                onCancel: state.downloading ? controller.cancelDownload : null,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -254,7 +325,8 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   Widget _buildSetup(BuildContext context, LocalChatState state) {
     final c = PiColors.of(context);
-    final spec = ref.read(localChatControllerProvider(widget.spec.id).notifier).spec;
+    final spec =
+        ref.read(localChatControllerProvider(widget.spec.id).notifier).spec;
     final busy = state.importing || state.downloading;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
@@ -327,6 +399,13 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                   style: TextStyle(fontSize: 11, color: c.textMuted),
                 ),
               ],
+              if (spec.hasProjector) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Import opens two pickers: the main GGUF first, then the mmproj.',
+                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 'Keep at least 2 GB free. 6–8 GB RAM recommended. '
@@ -348,8 +427,9 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           ),
           if (state.downloading)
             TextButton(
-              onPressed: () =>
-                  ref.read(localChatControllerProvider(widget.spec.id).notifier).cancelDownload(),
+              onPressed: () => ref
+                  .read(localChatControllerProvider(widget.spec.id).notifier)
+                  .cancelDownload(),
               child: const Text('Cancel download'),
             ),
         ],
@@ -406,7 +486,8 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   Widget _buildReady(BuildContext context, LocalChatState state) {
     final c = PiColors.of(context);
-    final spec = ref.read(localChatControllerProvider(widget.spec.id).notifier).spec;
+    final spec =
+        ref.read(localChatControllerProvider(widget.spec.id).notifier).spec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -433,8 +514,10 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
               size: PiButtonSize.lg,
               onPressed: state.loadingModel
                   ? null
-                  : () =>
-                      ref.read(localChatControllerProvider(widget.spec.id).notifier).loadModel(),
+                  : () => ref
+                      .read(
+                          localChatControllerProvider(widget.spec.id).notifier)
+                      .loadModel(),
             ),
           ],
         ),
@@ -466,8 +549,8 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                         Text(
                           'Runs on this phone. Nothing is sent anywhere.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 12, color: c.textSecondary),
+                          style:
+                              TextStyle(fontSize: 12, color: c.textSecondary),
                         ),
                       ],
                     ),
@@ -479,7 +562,11 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                   itemCount: state.messages.length,
                   itemBuilder: (context, index) {
                     final message = state.messages[index];
-                    return _MessageBubble(message: message);
+                    return _MessageBubble(
+                      message: message,
+                      streaming: state.generating &&
+                          index == state.messages.length - 1,
+                    );
                   },
                 ),
         ),
@@ -487,10 +574,30 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           Container(
             width: double.infinity,
             color: PiColors.error.withValues(alpha: 0.12),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            child: Text(
-              'Recording… tap the mic to send',
-              style: TextStyle(fontSize: 11, color: PiColors.error),
+            padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+            child: Row(
+              children: [
+                Icon(Icons.fiber_manual_record,
+                    size: 10, color: PiColors.error),
+                const SizedBox(width: 7),
+                Text(
+                  'Recording  $_recordLabel',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: PiColors.error,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: _discardRecording,
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: _stopRecording,
+                  child: const Text('Send'),
+                ),
+              ],
             ),
           ),
         SafeArea(
@@ -582,7 +689,8 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
     BuildContext context,
     LocalChatState state,
   ) async {
-    final controller = ref.read(localChatControllerProvider(widget.spec.id).notifier);
+    final controller =
+        ref.read(localChatControllerProvider(widget.spec.id).notifier);
     final spec = controller.spec;
     final c = PiColors.of(context);
     await showModalBottomSheet<void>(
@@ -626,10 +734,12 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                               ? 'Speech input and LFM3 speech output'
                               : 'Smaller text-only model',
                     ),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(sheetContext);
+                      await controller.unloadModel();
+                      if (!context.mounted) return;
                       final route = other.id == LocalModelCatalog.text.id
-                          ? '/local'
+                          ? '/local/text'
                           : other.id == LocalModelCatalog.voice.id
                               ? '/local/voice'
                               : '/local/omni';
@@ -697,9 +807,8 @@ class _BusyOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PiColors.of(context);
-    final percent = state.progress == null
-        ? null
-        : (state.progress! * 100).round();
+    final percent =
+        state.progress == null ? null : (state.progress! * 100).round();
     final label = state.importing
         ? 'Importing model…'
         : percent == null
@@ -756,9 +865,10 @@ class _BusyOverlay extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
+  const _MessageBubble({required this.message, this.streaming = false});
 
   final LocalChatMessage message;
+  final bool streaming;
 
   @override
   Widget build(BuildContext context) {
@@ -799,6 +909,15 @@ class _MessageBubble extends StatelessWidget {
                     Text(
                       '▋',
                       style: TextStyle(fontSize: 13, color: c.textMuted),
+                    )
+                  else if (streaming)
+                    SelectableText(
+                      message.text,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: c.text,
+                      ),
                     )
                   else
                     _LocalMarkdown(data: message.text),

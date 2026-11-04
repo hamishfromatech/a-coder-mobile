@@ -47,6 +47,7 @@ class LocalChatState {
   final bool downloading;
   final bool generating;
   final bool speaking;
+  final bool autoSpeak;
   final double? progress;
   final String? error;
 
@@ -59,6 +60,7 @@ class LocalChatState {
     this.downloading = false,
     this.generating = false,
     this.speaking = false,
+    this.autoSpeak = true,
     this.progress,
     this.error,
   });
@@ -72,6 +74,7 @@ class LocalChatState {
     bool? downloading,
     bool? generating,
     bool? speaking,
+    bool? autoSpeak,
     Object? progress = _unset,
     Object? error = _unset,
   }) {
@@ -84,6 +87,7 @@ class LocalChatState {
       downloading: downloading ?? this.downloading,
       generating: generating ?? this.generating,
       speaking: speaking ?? this.speaking,
+      autoSpeak: autoSpeak ?? this.autoSpeak,
       progress: identical(progress, _unset)
           ? this.progress
           : (progress as num?)?.toDouble(),
@@ -120,6 +124,7 @@ class LocalChatController extends StateNotifier<LocalChatState> {
   TextToSpeechEngine? _ttsEngine;
   AudioPlayer? _audioPlayer;
   StreamSubscription<void>? _playerComplete;
+  Timer? _flushTimer;
   bool _cancelDownload = false;
   LocalModelSpec get spec => _spec;
 
@@ -313,6 +318,8 @@ Be concise, practical and honest. If you are unsure, say so.''';
 
   Future<void> unloadModel() async {
     await _stopSpeech();
+    _flushTimer?.cancel();
+    _flushTimer = null;
     _subscription?.cancel();
     _subscription = null;
     final engine = _engine;
@@ -410,13 +417,20 @@ Be concise, practical and honest. If you are unsure, say so.''';
           if (!mounted) return;
           buffer.write(chunk.text);
           thinking.write(chunk.thinking);
-          _replaceLastAssistant(
-            buffer.toString(),
-            thinking: thinking.toString(),
-          );
+          _flushTimer ??= Timer(const Duration(milliseconds: 33), () {
+            _flushTimer = null;
+            if (mounted) {
+              _replaceLastAssistant(
+                buffer.toString(),
+                thinking: thinking.toString(),
+              );
+            }
+          });
         },
         onError: (Object e) {
           if (!mounted) return;
+          _flushTimer?.cancel();
+          _flushTimer = null;
           state = state.copyWith(
             generating: false,
             error: 'Generation failed: $e',
@@ -425,6 +439,8 @@ Be concise, practical and honest. If you are unsure, say so.''';
         },
         onDone: () {
           if (!mounted) return;
+          _flushTimer?.cancel();
+          _flushTimer = null;
           final split = _splitThinking(
             answer: buffer.toString(),
             thinking: thinking.toString(),
@@ -435,7 +451,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
           );
           state = state.copyWith(generating: false);
           _subscription = null;
-          if (_spec.hasProjector && split.answer.isNotEmpty) {
+          if (_spec.hasProjector && state.autoSpeak && split.answer.isNotEmpty) {
             unawaited(_speak(split.answer));
           }
         },
@@ -448,6 +464,12 @@ Be concise, practical and honest. If you are unsure, say so.''';
         error: 'Generation failed: $e',
       );
     }
+  }
+
+  void toggleAutoSpeak() {
+    final next = !state.autoSpeak;
+    state = state.copyWith(autoSpeak: next);
+    if (!next) unawaited(_stopSpeech());
   }
 
   Future<void> _speak(String text) async {
@@ -524,11 +546,15 @@ Be concise, practical and honest. If you are unsure, say so.''';
 
   void stop() {
     _engine?.cancelGeneration();
+    _flushTimer?.cancel();
+    _flushTimer = null;
     unawaited(_stopSpeech());
   }
 
   Future<void> newChat() async {
     await _stopSpeech();
+    _flushTimer?.cancel();
+    _flushTimer = null;
     if (state.generating) {
       _engine?.cancelGeneration();
       await _subscription?.cancel();
@@ -546,6 +572,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
   @override
   void dispose() {
     _subscription?.cancel();
+    _flushTimer?.cancel();
     _playerComplete?.cancel();
     _audioPlayer?.dispose();
     _ttsEngine?.dispose();
