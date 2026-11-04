@@ -6,14 +6,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../design/components/button.dart';
 import '../../design/primitives.dart';
 import '../../design/theme.dart';
 import 'local_chat_controller.dart';
+import 'local_model_store.dart';
 
 class LocalChatScreen extends ConsumerStatefulWidget {
-  const LocalChatScreen({super.key});
+  final LocalModelSpec spec;
+
+  const LocalChatScreen({super.key, required this.spec});
 
   @override
   ConsumerState<LocalChatScreen> createState() => _LocalChatScreenState();
@@ -22,26 +27,96 @@ class LocalChatScreen extends ConsumerStatefulWidget {
 class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
   final _composer = TextEditingController();
   final _scroll = ScrollController();
+  AudioRecorder? _recorder;
+  bool _recording = false;
+  String? _recordPath;
 
   @override
   void dispose() {
     _composer.dispose();
     _scroll.dispose();
+    _recorder?.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_recording) {
+      await _stopRecording();
+      return;
+    }
+    final recorder = AudioRecorder();
+    final allowed = await recorder.hasPermission();
+    if (!allowed) {
+      await recorder.dispose();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Microphone permission is required')),
+      );
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/acoder-voice-${DateTime.now().millisecondsSinceEpoch}.wav';
+    await recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.wav,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+      path: path,
+    );
+    if (!mounted) {
+      await recorder.dispose();
+      return;
+    }
+    setState(() {
+      _recorder = recorder;
+      _recording = true;
+      _recordPath = path;
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    final recorder = _recorder;
+    _recorder = null;
+    String? path;
+    try {
+      path = await recorder?.stop();
+    } catch (_) {
+      path = null;
+    }
+    await recorder?.dispose();
+    if (!mounted) return;
+    setState(() => _recording = false);
+    final file = path ?? _recordPath;
+    _recordPath = null;
+    if (file != null) {
+      await ref
+          .read(localChatControllerProvider(widget.spec.id).notifier)
+          .sendAudio(file);
+      _scrollToBottom();
+    }
   }
 
   Future<void> _importModel() async {
     const type = XTypeGroup(label: 'GGUF model', extensions: ['gguf']);
     final file = await openFile(acceptedTypeGroups: const [type]);
     if (file == null) return;
-    await ref.read(localChatControllerProvider.notifier).importModel(file);
+    XFile? projector;
+    if (widget.spec.hasProjector) {
+      projector = await openFile(acceptedTypeGroups: const [type]);
+      if (projector == null) return;
+    }
+    await ref
+        .read(localChatControllerProvider(widget.spec.id).notifier)
+        .importModel(file, projector: projector);
   }
 
   void _send() {
     final text = _composer.text.trim();
     if (text.isEmpty) return;
     _composer.clear();
-    ref.read(localChatControllerProvider.notifier).send(text);
+    ref.read(localChatControllerProvider(widget.spec.id).notifier).send(text);
     _scrollToBottom();
   }
 
@@ -58,9 +133,9 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(localChatControllerProvider.notifier);
-    final state = ref.watch(localChatControllerProvider);
-    ref.listen(localChatControllerProvider, (previous, next) {
+    final controller = ref.read(localChatControllerProvider(widget.spec.id).notifier);
+    final state = ref.watch(localChatControllerProvider(widget.spec.id));
+    ref.listen(localChatControllerProvider(widget.spec.id), (previous, next) {
       if (previous?.messages.length != next.messages.length ||
           next.generating) {
         _scrollToBottom();
@@ -77,13 +152,13 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('On-device'),
+            const Text('On-device'),
             Text(
-              'LFM3 · offline',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
+              '${widget.spec.name} · offline',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
             ),
           ],
         ),
@@ -93,6 +168,14 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
               tooltip: 'New chat',
               icon: const Icon(Icons.add_comment_outlined),
               onPressed: controller.newChat,
+            ),
+          if (state.speaking)
+            IconButton(
+              tooltip: 'Stop speaking',
+              icon: const Icon(Icons.volume_off),
+              onPressed: () => ref
+                  .read(localChatControllerProvider(widget.spec.id).notifier)
+                  .stop(),
             ),
           IconButton(
             tooltip: 'Model',
@@ -157,7 +240,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   Widget _buildSetup(BuildContext context, LocalChatState state) {
     final c = PiColors.of(context);
-    final spec = ref.read(localChatControllerProvider.notifier).spec;
+    final spec = ref.read(localChatControllerProvider(widget.spec.id).notifier).spec;
     final busy = state.importing || state.downloading;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
@@ -210,9 +293,18 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${spec.displaySize} · ${spec.license}',
+                spec.hasProjector
+                    ? '${spec.displaySize} + ${spec.displayProjectorSize} mmproj · ${spec.license}'
+                    : '${spec.displaySize} · ${spec.license}',
                 style: TextStyle(fontSize: 11, color: c.textMuted),
               ),
+              if (spec.hasProjector) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Voice mode: speak a question, get a spoken LFM3 answer.',
+                  style: TextStyle(fontSize: 11, color: c.accent),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 'Keep at least 2 GB free. 6–8 GB RAM recommended. '
@@ -235,7 +327,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           if (state.downloading)
             TextButton(
               onPressed: () =>
-                  ref.read(localChatControllerProvider.notifier).cancelDownload(),
+                  ref.read(localChatControllerProvider(widget.spec.id).notifier).cancelDownload(),
               child: const Text('Cancel download'),
             ),
         ],
@@ -258,7 +350,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
           onPressed: busy
               ? null
               : () => ref
-                  .read(localChatControllerProvider.notifier)
+                  .read(localChatControllerProvider(widget.spec.id).notifier)
                   .downloadModel(),
         ),
         const SizedBox(height: 10),
@@ -292,7 +384,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
 
   Widget _buildReady(BuildContext context, LocalChatState state) {
     final c = PiColors.of(context);
-    final spec = ref.read(localChatControllerProvider.notifier).spec;
+    final spec = ref.read(localChatControllerProvider(widget.spec.id).notifier).spec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -320,7 +412,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
               onPressed: state.loadingModel
                   ? null
                   : () =>
-                      ref.read(localChatControllerProvider.notifier).loadModel(),
+                      ref.read(localChatControllerProvider(widget.spec.id).notifier).loadModel(),
             ),
           ],
         ),
@@ -369,6 +461,16 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                   },
                 ),
         ),
+        if (_recording)
+          Container(
+            width: double.infinity,
+            color: PiColors.error.withValues(alpha: 0.12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              'Recording… tap the mic to send',
+              style: TextStyle(fontSize: 11, color: PiColors.error),
+            ),
+          ),
         SafeArea(
           top: false,
           child: Container(
@@ -411,13 +513,28 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                if (widget.spec.hasProjector) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: _recording ? 'Send voice' : 'Record voice',
+                    onPressed:
+                        state.generating ? null : () => _toggleRecording(),
+                    icon: Icon(
+                      _recording ? Icons.stop_circle : Icons.mic_none,
+                      color: _recording ? PiColors.error : null,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 4),
                 IconButton.filled(
                   tooltip: state.generating ? 'Stop' : 'Send',
-                  onPressed: state.generating
-                      ? () => ref
-                          .read(localChatControllerProvider.notifier)
-                          .stop()
+                  onPressed: state.generating || _recording
+                      ? (state.generating
+                          ? () => ref
+                              .read(localChatControllerProvider(widget.spec.id)
+                                  .notifier)
+                              .stop()
+                          : null)
                       : _send,
                   icon: Icon(
                     state.generating ? Icons.stop_rounded : Icons.arrow_upward,
@@ -435,7 +552,7 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
     BuildContext context,
     LocalChatState state,
   ) async {
-    final controller = ref.read(localChatControllerProvider.notifier);
+    final controller = ref.read(localChatControllerProvider(widget.spec.id).notifier);
     final spec = controller.spec;
     final c = PiColors.of(context);
     await showModalBottomSheet<void>(
@@ -460,6 +577,27 @@ class _LocalChatScreenState extends ConsumerState<LocalChatScreen> {
                   style: TextStyle(fontSize: 11, color: c.textMuted),
                 ),
                 const SizedBox(height: 12),
+                ListTile(
+                  leading: Icon(
+                    widget.spec.hasProjector ? Icons.chat_outlined : Icons.mic_none,
+                  ),
+                  title: Text(
+                    widget.spec.hasProjector
+                        ? 'Switch to text (LFM3-1.7B)'
+                        : 'Voice mode (LFM3-Audio)',
+                  ),
+                  subtitle: Text(
+                    widget.spec.hasProjector
+                        ? 'Smaller text-only model'
+                        : 'Speech input, LFM3 audio model',
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(context).pushNamed(
+                      widget.spec.hasProjector ? '/local' : '/local/voice',
+                    );
+                  },
+                ),
                 if (state.modelLoaded)
                   ListTile(
                     leading: const Icon(Icons.eject_outlined),

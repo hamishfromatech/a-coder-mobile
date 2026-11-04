@@ -24,6 +24,7 @@ import 'features/cron/screens/cron_screen.dart';
 import 'features/office/screens/office_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'features/local/local_chat_screen.dart';
+import 'features/local/local_model_store.dart';
 import 'features/shell/screens/app_shell.dart';
 
 class ACoderApp extends ConsumerStatefulWidget {
@@ -165,7 +166,11 @@ class _ACoderAppState extends ConsumerState<ACoderApp>
             );
           case '/local':
             return MaterialPageRoute<void>(
-                settings: settings, builder: (_) => const LocalChatScreen());
+                settings: settings, builder: (_) => const LocalChatScreen(spec: LocalModelCatalog.text));
+          case '/local/voice':
+            return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) => const LocalChatScreen(spec: LocalModelCatalog.voice));
           case '/settings':
             return MaterialPageRoute<void>(
                 settings: settings, builder: (_) => const SettingsScreen());

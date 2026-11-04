@@ -8,6 +8,7 @@ environment:
   flutter: '>=3.24.0'
 
 dependencies:
+  audioplayers: ^6.8.1
   bonsoir: ^7.1.5                   # mDNS discovery
   collection: ^1.19.0               # utilities
   connectivity_plus: ^7.3.1         # network-change triggers
@@ -28,6 +29,7 @@ dependencies:
   mobile_scanner: ^7.4.2            # QR scan
   path_provider: ^2.1.6
   qr_flutter: ^4.1.0                # share QR (bridge prints in terminal)
+  record: ^7.1.2
   shared_preferences: ^2.3.2        # non-secret settings
   uuid: ^4.5.0                      # command IDs
   web_socket_channel: ^3.0.1        # WebSocket transport
@@ -90,3 +92,9 @@ hooks:
             backends: [cpu]
           android-x64:
             backends: [cpu]
+
+dependency_overrides:
+  llamadart:
+    git:
+      url: https://github.com/hamishfromatech/llamadart.git
+      ref: ae5684bfa2f6d90385d061abbef03d6456a9e3d4
