@@ -142,6 +142,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: Text(hostName),
         actions: [
           IconButton(
+            tooltip: 'On-device chat',
+            icon: const Icon(Icons.memory_outlined, size: 21),
+            onPressed: () => Navigator.of(context).pushNamed('/local'),
+          ),
+          IconButton(
             tooltip: 'Command palette',
             icon: const Icon(Icons.search, size: 21),
             onPressed: () => showPiCommandPalette(

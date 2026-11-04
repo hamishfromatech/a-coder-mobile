@@ -315,6 +315,17 @@ class _PairingScreenState extends ConsumerState<PairingScreen>
           _buildDiscoverTab(c),
         ],
       ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+          child: TextButton.icon(
+            onPressed: () => Navigator.of(context).pushNamed('/local'),
+            icon: const Icon(Icons.memory_outlined, size: 18),
+            label: const Text('Use on-device chat'),
+          ),
+        ),
+      ),
     );
   }
 
