@@ -4,6 +4,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../design/components/button.dart';
@@ -587,6 +588,7 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = PiColors.of(context);
     final isUser = message.role == LocalChatRole.user;
+    final thinking = message.thinking.trim();
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -600,14 +602,157 @@ class _MessageBubble extends StatelessWidget {
           borderRadius: BorderRadius.circular(PiRadius.xl),
           border: Border.all(color: isUser ? c.accent : c.border),
         ),
-        child: SelectableText(
-          message.text.isEmpty ? '▋' : message.text,
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.45,
-            color: isUser ? Colors.white : c.text,
+        child: isUser
+            ? SelectableText(
+                message.text,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: Colors.white,
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (thinking.isNotEmpty)
+                    _LocalThinkingBlock(thinking: thinking),
+                  if (thinking.isNotEmpty && message.text.isNotEmpty)
+                    const SizedBox(height: 8),
+                  if (message.text.isEmpty)
+                    Text(
+                      '▋',
+                      style: TextStyle(fontSize: 13, color: c.textMuted),
+                    )
+                  else
+                    _LocalMarkdown(data: message.text),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _LocalThinkingBlock extends StatefulWidget {
+  const _LocalThinkingBlock({required this.thinking});
+
+  final String thinking;
+
+  @override
+  State<_LocalThinkingBlock> createState() => _LocalThinkingBlockState();
+}
+
+class _LocalThinkingBlockState extends State<_LocalThinkingBlock> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PiColors.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(PiRadius.lg),
+        border: Border.all(color: c.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 15,
+                    color: c.textMuted,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    'Thinking',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: c.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+          if (_expanded)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(9, 0, 9, 8),
+                child: SelectableText(
+                  widget.thinking,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.45,
+                    color: c.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocalMarkdown extends StatelessWidget {
+  const _LocalMarkdown({required this.data});
+
+  final String data;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = PiColors.of(context);
+    return MarkdownBody(
+      data: data,
+      selectable: true,
+      softLineBreak: true,
+      styleSheet: MarkdownStyleSheet(
+        p: TextStyle(fontSize: 13, height: 1.5, color: c.text),
+        h1: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: c.text,
         ),
+        h2: TextStyle(
+          fontSize: 14.5,
+          fontWeight: FontWeight.w600,
+          color: c.text,
+        ),
+        h3: TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          color: c.text,
+        ),
+        strong: const TextStyle(fontWeight: FontWeight.w600),
+        em: const TextStyle(fontStyle: FontStyle.italic),
+        code: TextStyle(
+          fontSize: 12,
+          fontFamily: PiFonts.mono,
+          color: c.accent,
+          backgroundColor: c.surface,
+        ),
+        codeblockDecoration: BoxDecoration(
+          color: const Color(0xFF0A0A0C),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: c.border),
+        ),
+        blockquote: TextStyle(
+          fontSize: 13,
+          color: c.textSecondary,
+        ),
+        listBullet: TextStyle(fontSize: 13, color: c.text),
       ),
     );
   }

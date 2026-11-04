@@ -19,11 +19,20 @@ enum LocalChatRole { user, assistant }
 class LocalChatMessage {
   final LocalChatRole role;
   final String text;
+  final String thinking;
 
-  const LocalChatMessage({required this.role, required this.text});
+  const LocalChatMessage({
+    required this.role,
+    required this.text,
+    this.thinking = '',
+  });
 
-  LocalChatMessage copyWith({String? text}) =>
-      LocalChatMessage(role: role, text: text ?? this.text);
+  LocalChatMessage copyWith({String? text, String? thinking}) =>
+      LocalChatMessage(
+        role: role,
+        text: text ?? this.text,
+        thinking: thinking ?? this.thinking,
+      );
 }
 
 const _unset = Object();
@@ -101,7 +110,7 @@ class LocalChatController extends StateNotifier<LocalChatState> {
 
   LlamaEngine? _engine;
   ChatSession? _session;
-  StreamSubscription<String>? _subscription;
+  StreamSubscription<LlamaCompletionChunk>? _subscription;
   bool _cancelDownload = false;
   LocalModelSpec get spec => _spec;
 
@@ -286,6 +295,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
     );
 
     final buffer = StringBuffer();
+    final thinking = StringBuffer();
     try {
       final stream = session.create(
         [LlamaTextContent(prompt)],
@@ -295,13 +305,17 @@ Be concise, practical and honest. If you are unsure, say so.''';
           topK: 50,
           penalty: 1.1,
         ),
-        enableThinking: false,
+        enableThinking: true,
       );
-      _subscription = stream.textDeltas().listen(
-        (delta) {
+      _subscription = stream.listen(
+        (chunk) {
           if (!mounted) return;
-          buffer.write(delta);
-          _replaceLastAssistant(buffer.toString());
+          buffer.write(chunk.text);
+          thinking.write(chunk.thinking);
+          _replaceLastAssistant(
+            buffer.toString(),
+            thinking: thinking.toString(),
+          );
         },
         onError: (Object e) {
           if (!mounted) return;
@@ -313,8 +327,14 @@ Be concise, practical and honest. If you are unsure, say so.''';
         },
         onDone: () {
           if (!mounted) return;
-          final reply = _cleanReply(buffer.toString());
-          _replaceLastAssistant(reply.isEmpty ? '(no response)' : reply);
+          final split = _splitThinking(
+            answer: buffer.toString(),
+            thinking: thinking.toString(),
+          );
+          _replaceLastAssistant(
+            split.answer.isEmpty ? '(no response)' : split.answer,
+            thinking: split.thinking,
+          );
           state = state.copyWith(generating: false);
           _subscription = null;
         },
@@ -329,21 +349,33 @@ Be concise, practical and honest. If you are unsure, say so.''';
     }
   }
 
-  /// LFM3 may emit a reasoning trace even when thinking is disabled. The
-  /// user sees the answer, not the internal trace. Keep any content after the
-  /// final `</think>` marker.
-  String _cleanReply(String raw) {
-    final end = raw.lastIndexOf('</think>');
-    if (end >= 0) return raw.substring(end + 9).trim();
-    return raw.trim();
+  /// Some templates put the reasoning marker inside the text stream rather
+  /// than the thinking channel. Normalize both shapes.
+  ({String thinking, String answer}) _splitThinking({
+    required String answer,
+    required String thinking,
+  }) {
+    var cleanAnswer = answer.trim();
+    var cleanThinking = thinking.trim();
+    if (cleanThinking.isEmpty) {
+      final end = cleanAnswer.lastIndexOf('</think>');
+      if (end >= 0) {
+        cleanThinking = cleanAnswer.substring(0, end).trim();
+        cleanAnswer = cleanAnswer.substring(end + 9).trim();
+      }
+    }
+    return (thinking: cleanThinking, answer: cleanAnswer);
   }
 
-  void _replaceLastAssistant(String text) {
+  void _replaceLastAssistant(String text, {String thinking = ''}) {
     final messages = List<LocalChatMessage>.from(state.messages);
     if (messages.isEmpty) return;
     final last = messages.length - 1;
     if (messages[last].role != LocalChatRole.assistant) return;
-    messages[last] = messages[last].copyWith(text: text);
+    messages[last] = messages[last].copyWith(
+      text: text,
+      thinking: thinking,
+    );
     state = state.copyWith(messages: messages);
   }
 
