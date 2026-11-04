@@ -54,7 +54,12 @@ on failure). Import is the preferred path for low-bandwidth users.
   completed answers can be replayed.
 - Speech language selection (English default, 18 LFM3 languages).
 - Model hub with installed state and delete-to-free-storage.
-- The current model is unloaded when switching modes or leaving the screen.
+- Conversation history persists on the phone and survives app restarts; when
+  the model reloads, prior turns are re-fed so it keeps context. Voice and
+  image turns are remembered as text placeholders ('Voice message', the image
+  caption), not as re-sent media.
+- The current model is unloaded when switching modes or leaving the screen;
+  the transcript stays.
 
 ## Implementation notes
 

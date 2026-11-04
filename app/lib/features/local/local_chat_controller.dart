@@ -5,6 +5,8 @@
 // cloud are involved.
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -12,6 +14,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:llamadart/llamadart.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_model_store.dart';
@@ -34,6 +37,19 @@ class LocalChatMessage {
         role: role,
         text: text ?? this.text,
         thinking: thinking ?? this.thinking,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'role': role.name,
+        'text': text,
+        'thinking': thinking,
+      };
+
+  factory LocalChatMessage.fromMap(Map<String, dynamic> map) =>
+      LocalChatMessage(
+        role: LocalChatRole.values.byName(map['role'] as String),
+        text: map['text'] as String,
+        thinking: map['thinking'] as String? ?? '',
       );
 }
 
@@ -105,8 +121,9 @@ final localModelStoreProvider = Provider<LocalModelStore>((ref) {
   return LocalModelStore();
 });
 
-final localChatControllerProvider = StateNotifierProvider.family<
-    LocalChatController, LocalChatState, String>((ref, specId) {
+final localChatControllerProvider =
+    StateNotifierProvider.family<LocalChatController, LocalChatState, String>(
+        (ref, specId) {
   final spec = LocalModelCatalog.byId(specId) ?? LocalModelCatalog.text;
   final controller = LocalChatController(
     ref.watch(localModelStoreProvider),
@@ -117,8 +134,7 @@ final localChatControllerProvider = StateNotifierProvider.family<
 });
 
 class LocalChatController extends StateNotifier<LocalChatState> {
-  LocalChatController(this._store, this._spec)
-      : super(const LocalChatState());
+  LocalChatController(this._store, this._spec) : super(const LocalChatState());
 
   final LocalModelStore _store;
   final LocalModelSpec _spec;
@@ -135,6 +151,57 @@ class LocalChatController extends StateNotifier<LocalChatState> {
 
   static const _speechLanguageKey = 'local-tts-language';
 
+  Future<File?> _historyFile() async {
+    try {
+      final dir = Directory(
+        '${(await getApplicationDocumentsDirectory()).path}'
+        '/local_chat_history',
+      );
+      await dir.create(recursive: true);
+      return File('${dir.path}/${_spec.id}.json');
+    } catch (e) {
+      debugPrint('[local] history file unavailable: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadTranscript() async {
+    final file = await _historyFile();
+    if (file == null || !await file.exists()) return;
+    try {
+      final raw = jsonDecode(await file.readAsString()) as List<dynamic>;
+      final messages = [
+        for (final entry in raw)
+          LocalChatMessage.fromMap(entry as Map<String, dynamic>),
+      ];
+      if (mounted && messages.isNotEmpty) {
+        state = state.copyWith(messages: messages);
+      }
+    } catch (e) {
+      debugPrint('[local] transcript restore failed: $e');
+    }
+  }
+
+  Future<void> _persistTranscript() async {
+    final file = await _historyFile();
+    if (file == null) return;
+    try {
+      final raw = [for (final message in state.messages) message.toMap()];
+      await file.writeAsString(jsonEncode(raw), flush: true);
+    } catch (e) {
+      debugPrint('[local] transcript save failed: $e');
+    }
+  }
+
+  Future<void> _clearTranscript() async {
+    final file = await _historyFile();
+    try {
+      if (file != null && await file.exists()) await file.delete();
+    } catch (e) {
+      debugPrint('[local] transcript clear failed: $e');
+    }
+  }
+
   static const _systemPrompt = '''
 You are A-Coder's on-device assistant. You run entirely on the user's phone.
 Be concise, practical and honest. If you are unsure, say so.''';
@@ -145,6 +212,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
     if (mounted && language != null && language.isNotEmpty) {
       state = state.copyWith(speechLanguage: language);
     }
+    await _loadTranscript();
     final path = await _store.existingPath(_spec);
     final projector = _spec.hasProjector
         ? await _store.existingPath(_spec, projector: true)
@@ -297,9 +365,8 @@ Be concise, practical and honest. If you are unsure, say so.''';
       final engine = await LlamaEngine.load(
         LlamaModel(
           ModelSource.path(path),
-          projector: projectorPath == null
-              ? null
-              : ModelSource.path(projectorPath),
+          projector:
+              projectorPath == null ? null : ModelSource.path(projectorPath),
         ),
       );
       final session = ChatSession(
@@ -310,6 +377,16 @@ Be concise, practical and honest. If you are unsure, say so.''';
       if (!mounted) {
         await engine.dispose();
         return;
+      }
+      for (final message in state.messages) {
+        session.addMessage(
+          LlamaChatMessage.fromText(
+            role: message.role == LocalChatRole.user
+                ? LlamaChatRole.user
+                : LlamaChatRole.assistant,
+            text: message.text,
+          ),
+        );
       }
       _engine = engine;
       _session = session;
@@ -342,13 +419,13 @@ Be concise, practical and honest. If you are unsure, say so.''';
     state = state.copyWith(
       modelLoaded: false,
       generating: false,
-      messages: const [],
     );
   }
 
   Future<void> deleteModel() async {
     await unloadModel();
     await _store.delete(_spec);
+    unawaited(_clearTranscript());
     if (!mounted) return;
     state = state.copyWith(
       modelReady: false,
@@ -419,6 +496,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
         const LocalChatMessage(role: LocalChatRole.assistant, text: ''),
       ],
     );
+    unawaited(_persistTranscript());
 
     final buffer = StringBuffer();
     final thinking = StringBuffer();
@@ -456,6 +534,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
             generating: false,
             error: 'Generation failed: $e',
           );
+          unawaited(_persistTranscript());
           _subscription = null;
         },
         onDone: () {
@@ -471,8 +550,11 @@ Be concise, practical and honest. If you are unsure, say so.''';
             thinking: split.thinking,
           );
           state = state.copyWith(generating: false);
+          unawaited(_persistTranscript());
           _subscription = null;
-          if (_spec.hasProjector && state.autoSpeak && split.answer.isNotEmpty) {
+          if (_spec.hasProjector &&
+              state.autoSpeak &&
+              split.answer.isNotEmpty) {
             unawaited(_speak(split.answer));
           }
         },
@@ -592,6 +674,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
       _subscription = null;
     }
     _session?.reset();
+    unawaited(_clearTranscript());
     if (!mounted) return;
     state = state.copyWith(
       messages: const [],
@@ -602,6 +685,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
 
   @override
   void dispose() {
+    unawaited(_persistTranscript());
     _subscription?.cancel();
     _flushTimer?.cancel();
     _playerComplete?.cancel();
