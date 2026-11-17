@@ -93,6 +93,31 @@ are git-ignored; they are not part of this repository.
 - Transcript paging via `get_transcript_page` (80-entry pages, scroll-up load),
   inline image history with a full-screen viewer, and file-history rewind.
 
+**On-device LFM3 — `feat/on-device-lfm3` (2026-11-04, pending push)**
+
+- **Modes**: text (`LFM3-1.7B`), voice (`LFM3-Audio-2B` + `mmproj`) and
+  multimodal Omni (`LFM3-Omni-2B` + `mmproj`). Q4_K_M GGUF, LFM Open License
+  v1.0; models are not bundled in the APK.
+- **Entry points**: the On-device hub opens from the pairing screen, the home
+  memory icon and Settings. It lists each mode with installed state, download
+  progress, import (main GGUF then `mmproj`) and delete-to-free-storage.
+- **Chat**: streaming text with a collapsible Thinking block, Markdown with
+  horizontally scrolling code blocks and copy, image attachments with a caption
+  preview, push-to-talk at 16 kHz mono with Cancel/Send in the recording bar.
+- **Speech**: LFM3 native speech output through the pinned `llamadart` fork
+  (`lfm3-tts`, `ae5684b`); no system TTS and no cloud calls. Auto-speak can be
+  muted, answers can be replayed, and the reply language is selectable (English
+  default, 18 LFM3 languages).
+- **Persistence**: transcripts survive restarts and are re-fed as text when the
+  model loads again, so context continues across sessions. Voice turns are
+  stored as `🎤 Voice message`, image turns as the caption or `🖼 Image`.
+- **Runtime**: one llama.cpp engine per mode, app-lifetime so the screen does
+  not reload a 1 GB model; unloaded when switching modes. Streaming UI updates
+  are throttled to ~30 fps and Markdown is parsed once a reply completes.
+- **Platform**: arm64 Android release build (native runtime); `RECORD_AUDIO`
+  and `NSMicrophoneUsageDescription` declared.
+- Contract and known limits: [`docs/on-device.md`](docs/on-device.md).
+
 ## Desktop visual parity
 
 The mobile UI now follows `desktop-app/DESIGN.md` rather than merely sharing
@@ -113,7 +138,10 @@ its color tokens:
 ## Toolchain
 
 Recorded 2026-11-03 on the build machine (macOS 26.5.1, build 25F80,
-darwin-arm64).
+darwin-arm64). The host has since been upgraded to **macOS 27.2
+(26B123)**; the Flutter/Dart versions below are unchanged, but golden
+rendering is not — see *Golden baselines vs host OS* under
+*Verification*.
 
 | Tool | Version | Location |
 |---|---|---|
@@ -255,10 +283,43 @@ method stop on channel dev.steenbakker.mobile_scanner/scanner/method)` lines
 while the pairing screens tear down. That is logged noise, not a failure —
 every test still reports `success`.
 
-Re-checked 2026-11-17 at `2920258` (`feat/on-device-lfm3`): `flutter analyze` →
-`No issues found! (ran in 2.7s)`. The full suite was not re-run in that pass —
-no Dart changed and the machine was at ~80% swap (6.6 GB of 8 GB used). The
-only commit since is docs-only (`3b71a5a`).
+Re-measured 2026-11-17 on `feat/on-device-lfm3` with the installed SDK
+(`/Users/hamishfromatech/develop/flutter/bin/flutter`, Flutter 3.47.5):
+
+```bash
+cd app
+flutter pub get     # Got dependencies!
+flutter analyze     # No issues found! (ran in 2.6s)
+flutter test        # +266 passed, -13 reported — 9 distinct golden tests
+```
+
+All 13 reported failures are the same nine golden cases (a failing golden can
+report twice: assertion plus async error). They are **host-OS
+rasterisation drift, not regressions**:
+
+- This machine is now macOS 27.2 (26B123); the baselines were generated on
+  macOS 26. The isolated diffs show scattered text antialiasing (0.05–0.08 %
+  of pixels, 142–242 px per frame), not layout or colour change.
+- Each failing baseline was re-checked against `main` (`74a0bc1`) in a clean
+  `git worktree`: `main` fails the same files with identical pixel counts
+  (`approval_card` 192 px, `empty_state` 142/173 px, `session_row` 242 px).
+  The two `pairing_manual` baselines were regenerated on this branch on
+  2026-11-04 and now drift by 194/195 px for the same reason.
+- Nothing was regenerated. CI (`macos-26`, Flutter pinned `3.47.5`) is the
+  environment the baselines belong to; refreshing them on macOS 27 would move
+  the mismatch into CI. The tolerance in `app/test/flutter_test_config.dart`
+  was **not** raised.
+- Everything else is green. The non-golden suite, run explicitly with the three
+  drifting golden files excluded:
+
+```bash
+cd app && flutter test $(find test -name '*_test.dart' \
+  | grep -v -E 'test/golden/(components|screens|session_row)_golden_test\.dart')
+# 00:10 +195: All tests passed!
+```
+
+The full suite's 266 passes include the golden files' unaffected cases. See
+`QA.md` for the follow-up.
 
 ### Android emulator validation (2026-11-03)
 
@@ -356,7 +417,13 @@ branch `main`).
 3. **Bridge branch** — `wss://` and hardening live on
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
-4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
+4. **On-device LFM3 follow-ups** (not v1 blockers unless THE-48 says
+   otherwise): physical-device token/s and thermal measurements (THE-48);
+   video input (the Dart binding rejects video parts, native llama.cpp path
+   needed); model voice selection for TTS (language is exposed, voice is not);
+   iOS on-device engine (not wired in this pass); no checksum/size verification
+   on model downloads (HuggingFace resolve URLs are trusted over HTTPS).
+5. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
    (**public**, `main`); CI green and branch protection enforced. The Android
    compile job, iOS PR guard, and `LICENSE` landed through PR #1 (squash
    `e56fed2`), because `main` no longer accepts direct pushes. All three CI

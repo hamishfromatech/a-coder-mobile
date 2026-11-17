@@ -19,4 +19,31 @@ void main() {
     expect(message.thinking, 'reasoning');
     expect(message.copyWith(text: 'new').thinking, 'reasoning');
   });
+
+  test('splitThinking lifts inline reasoning without eating answer chars', () {
+    final split = LocalChatController.splitThinking(
+      answer: '2+2 is 4.\u003C/think\u003EThe answer is 4.',
+      thinking: '',
+    );
+    expect(split.thinking, '2+2 is 4.');
+    expect(split.answer, 'The answer is 4.');
+  });
+
+  test('splitThinking keeps channel thinking and trims the answer', () {
+    final split = LocalChatController.splitThinking(
+      answer: '  The answer is 4.  ',
+      thinking: '  channel reasoning  ',
+    );
+    expect(split.thinking, 'channel reasoning');
+    expect(split.answer, 'The answer is 4.');
+  });
+
+  test('splitThinking passes through answers with no marker', () {
+    final split = LocalChatController.splitThinking(
+      answer: 'plain answer',
+      thinking: '',
+    );
+    expect(split.thinking, '');
+    expect(split.answer, 'plain answer');
+  });
 }

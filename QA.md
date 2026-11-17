@@ -58,6 +58,67 @@ flutter run -d emulator-5554 \
   bundled JetBrains Mono); `disableAnimations` set in the harness.
 - Sizes: 320x640, 390x844, 430x932; dark + light.
 
+### Golden baselines vs host OS (2026-11-17)
+
+The build host was upgraded from macOS 26.5.1 to **macOS 27.2 (26B123)**. Nine
+golden cases now differ by 0.05–0.08 % (142–242 px per frame); every isolated
+diff is scattered text antialiasing, not layout or colour.
+
+```
+Golden "approval_card_390x844_dark.png": Pixel test failed, 0.06%, 192px
+Golden "empty_state_320x640_light.png": Pixel test failed, 0.08%, 173px
+Golden "session_row_populated_390x844_dark.png": Pixel test failed, 0.07%, 242px
+…plus approval_card light, empty_state 320 dark, empty_state 390 light,
+pairing_manual dark/light, session_row light
+```
+
+This is the environment, not the branch: `main` at `74a0bc1`, extracted into a
+clean `git worktree`, fails the same files with identical pixel counts. The
+pairing baselines were regenerated on this branch on 2026-11-04 and drift for
+the same reason.
+
+- **Do not run `flutter test --update-goldens` on macOS 27.** CI is `macos-26`
+  with Flutter pinned `3.47.5` and owns the baselines; refreshing them here
+  would move the mismatch into CI.
+- Do not raise `_kGoldenPixelTolerance` (`test/flutter_test_config.dart`)
+  without measuring a real regression against it.
+- Green functional command on the macOS 27 host (excludes only the three
+  drifting golden files):
+
+```bash
+cd app && flutter test $(find test -name '*_test.dart' \
+  | grep -v -E 'test/golden/(components|screens|session_row)_golden_test\.dart')
+```
+
+- Follow-up (filed separately): refresh baselines from a macOS 26 host, or
+  decide the tolerance policy deliberately after the OS upgrade.
+
+### On-device LFM3 (branch `feat/on-device-lfm3`)
+
+Automated coverage (headless, no model or device needed):
+
+| Area | Test |
+|---|---|
+| Download-progress typing (`int` → `double`) | `test/features/local/local_chat_state_test.dart` |
+| Thinking split: inline thinking-close marker, channel thinking, no marker | same file |
+| Transcript round-trip + legacy entries without `thinking` | `test/features/local/local_transcript_test.dart` |
+| Model catalogue specs (files, `mmproj`, URLs, license) | none — compile-time constants only |
+
+Not covered automatically, by design: loading a real GGUF, generation,
+LFM3 TTS, model download/import I/O, the recorder, and the OS permission
+prompts. Those need a physical arm64 device with the model files (THE-48):
+
+| Check | Expected |
+|---|---|
+| Import Omni (`gguf` + `mmproj`) then load | model loads, first token < 10 s on a recent phone |
+| Text turn | streaming text, collapsible Thinking, markdown + code copy |
+| Voice turn (first mic tap) | Android/iOS permission prompt, 16 kHz recording, Cancel/Send, text answer + speech |
+| Image turn | gallery pick, caption preview, answer describes the image |
+| Speech language switch | reply speech changes language; setting survives restart |
+| Restart app | transcript restored; reloading the model re-feeds prior turns |
+| Delete model from the hub | both files removed, hub shows not installed, chat history cleared |
+| Thermal / battery / tokens per second | recorded for the release notes; no throttling cliff in a 10-minute chat |
+
 ### Integration
 - Happy path in `app/integration_test/happy_path_test.dart` against the fake
   bridge server.

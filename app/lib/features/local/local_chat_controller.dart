@@ -182,11 +182,16 @@ class LocalChatController extends StateNotifier<LocalChatState> {
     }
   }
 
-  Future<void> _persistTranscript() async {
+  Future<void> _persistTranscript() => _persistMessages(state.messages);
+
+  /// Writes an explicit message snapshot. `dispose()` must use this: the state
+  /// notifier throws once disposed, so reading `state` after the await would
+  /// lose the final save and surface an unhandled async error.
+  Future<void> _persistMessages(List<LocalChatMessage> messages) async {
     final file = await _historyFile();
     if (file == null) return;
     try {
-      final raw = [for (final message in state.messages) message.toMap()];
+      final raw = [for (final message in messages) message.toMap()];
       await file.writeAsString(jsonEncode(raw), flush: true);
     } catch (e) {
       debugPrint('[local] transcript save failed: $e');
@@ -541,7 +546,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
           if (!mounted) return;
           _flushTimer?.cancel();
           _flushTimer = null;
-          final split = _splitThinking(
+          final split = splitThinking(
             answer: buffer.toString(),
             thinking: thinking.toString(),
           );
@@ -627,19 +632,23 @@ Be concise, practical and honest. If you are unsure, say so.''';
     if (mounted && state.speaking) state = state.copyWith(speaking: false);
   }
 
+  // The LFM3 reasoning close marker; escaped so the literal survives editors.
+  static const _thinkingClose = '\u003C/think\u003E';
+
   /// Some templates put the reasoning marker inside the text stream rather
-  /// than the thinking channel. Normalize both shapes.
-  ({String thinking, String answer}) _splitThinking({
+  /// than the thinking channel. Normalize both shapes. Exposed for tests.
+  static ({String thinking, String answer}) splitThinking({
     required String answer,
     required String thinking,
   }) {
     var cleanAnswer = answer.trim();
     var cleanThinking = thinking.trim();
     if (cleanThinking.isEmpty) {
-      final end = cleanAnswer.lastIndexOf('</think>');
+      final end = cleanAnswer.lastIndexOf(_thinkingClose);
       if (end >= 0) {
         cleanThinking = cleanAnswer.substring(0, end).trim();
-        cleanAnswer = cleanAnswer.substring(end + 9).trim();
+        cleanAnswer =
+            cleanAnswer.substring(end + _thinkingClose.length).trim();
       }
     }
     return (thinking: cleanThinking, answer: cleanAnswer);
@@ -685,7 +694,8 @@ Be concise, practical and honest. If you are unsure, say so.''';
 
   @override
   void dispose() {
-    unawaited(_persistTranscript());
+    // Snapshot before the notifier is torn down; see _persistMessages.
+    unawaited(_persistMessages(List<LocalChatMessage>.from(state.messages)));
     _subscription?.cancel();
     _flushTimer?.cancel();
     _playerComplete?.cancel();

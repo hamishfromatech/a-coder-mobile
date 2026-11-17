@@ -56,8 +56,9 @@ on failure). Import is the preferred path for low-bandwidth users.
 - Model hub with installed state and delete-to-free-storage.
 - Conversation history persists on the phone and survives app restarts; when
   the model reloads, prior turns are re-fed so it keeps context. Voice and
-  image turns are remembered as text placeholders ('Voice message', the image
-  caption), not as re-sent media.
+  image turns are remembered as text placeholders — `🎤 Voice message` for
+  audio, the typed caption (or `🖼 Image` when there is none) for images — not
+  as re-sent media.
 - The current model is unloaded when switching modes or leaving the screen;
   the transcript stays.
 
@@ -71,6 +72,11 @@ on failure). Import is the preferred path for low-bandwidth users.
 - No Qwen TTS and no system TTS are used for voice replies.
 - Streaming UI updates are throttled to ~30 fps; Markdown is parsed only after
   a reply completes.
+- An inline `</think>` marker inside the text stream is split into the Thinking
+  block; channel-only thinking is kept as-is.
+- Transcripts are written to `<documents>/local_chat_history/<model-id>.json`
+  after every completed or failed turn, on new chat, and on dispose (from a
+  message snapshot, because the state notifier is already torn down).
 - The model, not the app, owns generation; a single engine is used per mode and
   is disposed on switch/exit.
 
