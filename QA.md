@@ -4,7 +4,7 @@
 - Unit/widget/golden headless: `cd app && flutter pub get && flutter test test/support test/golden`
 - Full suite: `cd app && flutter test`
 - Analyze: `cd app && flutter analyze`
-- Regenerate goldens: `cd app && flutter test --update-goldens test/golden`
+- Regenerate goldens: `cd app && flutter test --update-goldens test/golden` (macOS 26 + Flutter 3.47.5 only — see *Golden baselines vs host OS*)
 - Integration (device/emulator): `cd app && flutter test integration_test -d emulator-5554` (requires a connected device; fake server binds 127.0.0.1 inside the test process)
 - Read integration test help: `cd app && flutter test integration_test --help`
 
@@ -58,40 +58,72 @@ flutter run -d emulator-5554 \
   bundled JetBrains Mono); `disableAnimations` set in the harness.
 - Sizes: 320x640, 390x844, 430x932; dark + light.
 
-### Golden baselines vs host OS (2026-11-17)
+### Golden baselines vs host OS (policy settled 2026-11-17)
 
-The build host was upgraded from macOS 26.5.1 to **macOS 27.2 (26B123)**. Nine
-golden cases now differ by 0.05–0.08 % (142–242 px per frame); every isolated
-diff is scattered text antialiasing, not layout or colour.
+**Baselines are owned by macOS 26.** CI runs the golden job on `macos-26` with
+Flutter pinned `3.47.5` (`.github/workflows/mobile.yml`), and the PNGs under
+`app/test/golden/` are what that job produced. Regenerate them only there.
 
-```
-Golden "approval_card_390x844_dark.png": Pixel test failed, 0.06%, 192px
-Golden "empty_state_320x640_light.png": Pixel test failed, 0.08%, 173px
-Golden "session_row_populated_390x844_dark.png": Pixel test failed, 0.07%, 242px
-…plus approval_card light, empty_state 320 dark, empty_state 390 light,
-pairing_manual dark/light, session_row light
-```
+The build host was upgraded from macOS 26.5.1 to **macOS 27.2 (26B123)** and
+nine golden cases drifted by 0.053–0.084 % of pixels (142–242 px per frame).
+The drift is the rasteriser, not the branch: `main` at `74a0bc1` in a clean
+`git worktree` fails the same files with identical counts, and the two
+`pairing_manual` baselines regenerated here on 2026-11-04 drift too.
 
-This is the environment, not the branch: `main` at `74a0bc1`, extracted into a
-clean `git worktree`, fails the same files with identical pixel counts. The
-pairing baselines were regenerated on this branch on 2026-11-04 and drift for
-the same reason.
+Measured 2026-11-17 on macOS 27.2 (26B123), Flutter 3.47.5 — the nine cases
+that crossed the old 0.05 % budget and failed:
 
-- **Do not run `flutter test --update-goldens` on macOS 27.** CI is `macos-26`
-  with Flutter pinned `3.47.5` and owns the baselines; refreshing them here
-  would move the mismatch into CI.
-- Do not raise `_kGoldenPixelTolerance` (`test/flutter_test_config.dart`)
-  without measuring a real regression against it.
-- Green functional command on the macOS 27 host (excludes only the three
-  drifting golden files):
+| Golden | Diff px | % | max Δ/channel | px Δ>16 | specks |
+|---|---|---|---|---|---|
+| approval_card_390x844_dark | 192 | 0.058 | 39 | 6 | 123 |
+| approval_card_390x844_light | 192 | 0.058 | 42 | 7 | 123 |
+| empty_state_320x640_dark | 142 | 0.069 | 12 | 0 | 102 |
+| empty_state_320x640_light | 173 | 0.084 | 14 | 0 | 103 |
+| empty_state_390x844_light | 173 | 0.053 | 14 | 0 | 103 |
+| pairing_manual_390x844_dark | 194 | 0.059 | 29 | 3 | 134 |
+| pairing_manual_390x844_light | 195 | 0.059 | 30 | 6 | 134 |
+| session_row_populated_390x844_dark | 242 | 0.074 | 34 | 6 | 151 |
+| session_row_populated_390x844_light | 242 | 0.074 | 28 | 4 | 148 |
+
+Every differing pixel sat within 1 px of a >24/255 luminance edge, and the
+diffs formed 102–151 disconnected specks (largest 28 px): text antialiasing,
+not layout or colour. For contrast, shifting any of these frames by a single
+pixel changes 1,642–4,422 pixels by >16 — 10–27× the budget, in connected runs.
+
+The drift is wider than the failures suggested: 39 further goldens drift by
+0.007–0.049 %, under the old budget and therefore silently accepted. Across all
+48 affected goldens no frame has more than 7 pixels above Δ16 and none has a
+pixel at Δ64.
+
+**Policy** (`app/test/support/golden_comparator.dart`):
+
+- Pixels whose largest channel delta is ≤ 16 count as antialiasing noise.
+- Pixels above 16 must stay within 0.05 % of the frame (the long-standing
+  budget), and all differing pixels within 0.25 % of it.
+- Any pixel at Δ≥64 fails outright.
+
+Calibration tests (`app/test/support/golden_comparator_test.dart`) pin the
+behaviour: a 1 px layout shift, a broad low-contrast tint, a single gross
+pixel and excessive low-delta noise all still fail.
+
+**If your host is not macOS 26:** run `flutter test` normally. Accepted drift
+prints `Golden "….png": GoldenDiffStats(…) — accepted as host antialiasing
+jitter` and the suite stays green. If a golden still fails:
+
+1. Inspect `app/test/golden/failures/`: `*_isolatedDiff.png` shows the changed
+   pixels, `*_maskedDiff.png` overlays them on the baseline.
+2. A moved box, a colour change or a different glyph is a real regression.
+   Fix the code; do not accept it.
+3. If it is host drift beyond the bounds above, record the measurement in the
+   commit and change the thresholds deliberately in the same change. Do not
+   run `--update-goldens` off the baseline host: refreshing baselines on a
+   non-macOS-26 host moves the mismatch into CI.
+
+**Regenerating baselines** (macOS 26 + Flutter 3.47.5 only):
 
 ```bash
-cd app && flutter test $(find test -name '*_test.dart' \
-  | grep -v -E 'test/golden/(components|screens|session_row)_golden_test\.dart')
+cd app && flutter test --update-goldens test/golden
 ```
-
-- Follow-up (filed separately): refresh baselines from a macOS 26 host, or
-  decide the tolerance policy deliberately after the OS upgrade.
 
 ### On-device LFM3 (branch `feat/on-device-lfm3`)
 

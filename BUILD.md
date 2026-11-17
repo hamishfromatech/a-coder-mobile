@@ -139,9 +139,10 @@ its color tokens:
 
 Recorded 2026-11-03 on the build machine (macOS 26.5.1, build 25F80,
 darwin-arm64). The host has since been upgraded to **macOS 27.2
-(26B123)**; the Flutter/Dart versions below are unchanged, but golden
-rendering is not — see *Golden baselines vs host OS* under
-*Verification*.
+(26B123)**; the Flutter/Dart versions below are unchanged, and golden text
+antialiasing now differs slightly from the `macos-26`-owned baselines. That
+drift is measured and tolerated within fixed bounds by the golden comparator —
+see *Golden baselines vs host OS* in [`QA.md`](QA.md#golden-baselines-vs-host-os-policy-settled-2026-11-17).
 
 | Tool | Version | Location |
 |---|---|---|
@@ -284,42 +285,38 @@ while the pairing screens tear down. That is logged noise, not a failure —
 every test still reports `success`.
 
 Re-measured 2026-11-17 on `feat/on-device-lfm3` with the installed SDK
-(`/Users/hamishfromatech/develop/flutter/bin/flutter`, Flutter 3.47.5):
+(`/Users/hamishfromatech/develop/flutter/bin/flutter`, Flutter 3.47.5), after
+settling the host-OS golden policy (THE-111):
 
 ```bash
 cd app
 flutter pub get     # Got dependencies!
-flutter analyze     # No issues found! (ran in 2.6s)
-flutter test        # +266 passed, -13 reported — 9 distinct golden tests
+flutter analyze     # No issues found! (ran in 1.4s)
+flutter test        # +289: All tests passed!
 ```
 
-All 13 reported failures are the same nine golden cases (a failing golden can
-report twice: assertion plus async error). They are **host-OS
-rasterisation drift, not regressions**:
+The full suite is green on macOS 27.2 (26B123) even though the baselines are
+owned by `macos-26` CI. Nine goldens rasterise text antialiasing slightly
+differently here: 0.053–0.084 % of pixels (142–242 px), max Δ42/255, every
+differing pixel on a glyph edge, spread over ~100–150 disconnected specks.
+That is environment noise, not a regression — `main` at `74a0bc1` in a clean
+`git worktree` fails the same nine files with identical counts. The drift is
+broader still: 39 more goldens drift by 0.007–0.049 %, which the old 0.05 %
+threshold accepted silently.
 
-- This machine is now macOS 27.2 (26B123); the baselines were generated on
-  macOS 26. The isolated diffs show scattered text antialiasing (0.05–0.08 %
-  of pixels, 142–242 px per frame), not layout or colour change.
-- Each failing baseline was re-checked against `main` (`74a0bc1`) in a clean
-  `git worktree`: `main` fails the same files with identical pixel counts
-  (`approval_card` 192 px, `empty_state` 142/173 px, `session_row` 242 px).
-  The two `pairing_manual` baselines were regenerated on this branch on
-  2026-11-04 and now drift by 194/195 px for the same reason.
-- Nothing was regenerated. CI (`macos-26`, Flutter pinned `3.47.5`) is the
-  environment the baselines belong to; refreshing them on macOS 27 would move
-  the mismatch into CI. The tolerance in `app/test/flutter_test_config.dart`
-  was **not** raised.
-- Everything else is green. The non-golden suite, run explicitly with the three
-  drifting golden files excluded:
+Rather than refresh baselines off-host (which would move the mismatch into
+CI), `app/test/flutter_test_config.dart` now accepts *bounded* antialiasing
+jitter: pixels at Δ≤16 are free, pixels above it count against the existing
+0.05 % budget, all differing pixels against 0.25 %, and any pixel at Δ≥64
+fails outright. Each accepted golden prints a `GoldenDiffStats(…)` line, so
+drift stays visible in the log.
 
-```bash
-cd app && flutter test $(find test -name '*_test.dart' \
-  | grep -v -E 'test/golden/(components|screens|session_row)_golden_test\.dart')
-# 00:10 +195: All tests passed!
-```
-
-The full suite's 266 passes include the golden files' unaffected cases. See
-`QA.md` for the follow-up.
+Real regressions still fail. `app/test/support/golden_comparator_test.dart`
+proves a 1 px layout shift (1,642–4,422 changed pixels on these frames, 10–27×
+the budget), a broad low-contrast tint, a single gross pixel, and excessive
+low-delta noise are all rejected. Measurements, thresholds and the maintainer
+workflow are in
+[`QA.md`](QA.md#golden-baselines-vs-host-os-policy-settled-2026-11-17).
 
 ### Android emulator validation (2026-11-03)
 

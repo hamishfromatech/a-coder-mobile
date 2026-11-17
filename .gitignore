@@ -2,6 +2,7 @@
 app/build/
 app/.dart_tool/
 app/.flutter-plugins-dependencies
+app/test/golden/failures/
 bridge/node_modules/
 bridge/dist/
 
