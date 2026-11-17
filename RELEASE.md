@@ -40,9 +40,9 @@ approval `7989c5af`) and the **THE-42 review**, then THE-107.
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Open — conditional** | Maya (THE-106) | On `6b02bd2`: `flutter analyze` clean; non-golden suite **198/198**; **9 golden cases drift on macOS 27.2** with 142–242 px text-antialiasing diffs and fail identically on `main` (`74a0bc1`). Baselines were generated on macOS 26 and CI is macos-26. DoD 1 needs either the CI run on the PR or an explicit accept of the golden drift (THE-111). |
-| 2 | THE-48 device QA on a physical device, with evidence | **In progress** | Maya | Xcode 27.2 installed, so THE-48 is unblocked and running. iOS **simulator runtimes are not installed yet** (`simctl list runtimes` empty; `flutter doctor` cannot list simulator runtimes) — device builds work, simulator/UI tests wait for the runtime download. Emulator matrix from 2026-11-03 has 2 open failures (below). |
+| 2 | THE-48 device QA on a physical device, with evidence | **In review — blocked on hardware** | Maya | Xcode 27.2 installed, but `devicectl list devices` -> **0**, `flutter devices` shows only macOS/Chrome, and there is **no simulator runtime** (`simctl list runtimes` empty). The run recorded fresh bridge evidence at v0.80.202 (wss banner, pin matches the served cert, `/health` 200) and 12/12 cert-pinning tests; pairing, one turn and wrong-pin refusal need a phone. Question card `159bffa1` asks for a device or an interim simulator pass. Two QA findings to carry in: the fixture cert is `CN=localhost` with no LAN IP in its SAN, and the wrong-pin case needs an untrusted chain or the pin is never consulted. |
 | 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. iOS needs Xcode + an Apple team (none set in the Xcode project). |
-| 4 | Store metadata + release notes ready (submission board-gated) | **In progress** | Dash (THE-109), reviewed by Maya | No store metadata, screenshots or release notes existed at kickoff; THE-109 is drafting them. No draft files in this workspace yet (checked 2026-11-17). |
+| 4 | Store metadata + release notes ready (submission board-gated) | **Drafts complete — review open** | Dash (THE-109), reviewed by Maya | Drafts committed on branch `the-109-store-docs` @ `94f19d7` (separate worktree): app-store, play-store, privacy policy, screenshot shot-list, README with 12 board decisions. Remaining: privacy-policy legal review + hosted URL, four screenshots (blocked by swap and, for iOS, the toolchain), and the board decisions. Nothing published. |
 | 5 | Dash go/no-go review PASS on every line | **Not started** | Dash | Rubric to be issued with the RC. |
 
 ## Critical path
@@ -71,9 +71,9 @@ Store metadata (Dash, independent)
 |---|---|---|---|---|
 | Land `feat/on-device-lfm3` | THE-106 | Maya | in review | board approval `7989c5af` pending: push `6b02bd2` + open PR (merge separately gated) |
 | iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | verified Xcode 27.2 / iOS SDK 27.2 / license accepted on 2026-11-17; simulator runtime still downloading |
-| Physical-device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | in progress | running against the installed toolchain; needs a real Android phone on the same LAN as the bridge |
+| Physical-device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | in review | blocked on a phone (0 devices attached) and on the missing simulator runtime; card `159bffa1` pending |
 | Release artifacts | THE-107 | Maya | blocked | Android AAB once THE-106 lands; iOS archive needs device QA + signing identity |
-| Store metadata + release notes | THE-109 | Dash | in progress | drafts only; nothing published |
+| Store metadata + release notes | THE-109 | Dash | drafts done | branch `the-109-store-docs` @ `94f19d7`; needs privacy URL/legal sign-off, screenshots and the board decisions |
 | Desktop "Mobile access" card | THE-42 | Dash | in review | Maya code review then board acceptance; ships in the desktop build used for QA |
 | iOS on-device gate | THE-110 | Maya | blocked (THE-106) | hide/disable on-device on iOS for v1, with a widget test |
 | Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
@@ -126,8 +126,13 @@ Store metadata (Dash, independent)
    `7989c5af` requests push + PR only; merge stays separately gated.
 7. **Golden baselines drift on macOS 27.2.** 9 golden cases fail locally with
    identical text-antialiasing diffs on `main`, so they are host-related, not a
-   branch regression. The non-golden suite is 198/198 green. Fixing or
-   re-baselining is THE-111; until then DoD 1 rests on the macos-26 CI run.
+   branch regression. THE-111 settled the policy (`ef2aaff`): baselines stay
+   owned by macos-26 CI and the tolerance now classifies the drift instead of
+   only counting pixels; no baseline PNG was regenerated. No post-change suite
+   run is recorded yet, so DoD 1 still rests on the macos-26 CI run.
+8. **No physical device and no simulator runtime.** Xcode is installed but
+   `devicectl` sees 0 devices and `simctl` has no runtimes, so neither the
+   physical-device pass nor an interim simulator pass can run today (THE-48).
 
 ## Artifact runbook
 
