@@ -37,6 +37,8 @@
 		</array>
 		<key>NSCameraUsageDescription</key>
 		<string>Camera is used to scan the A-Coder pairing QR code.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Microphone access is used to record a voice message for your coding task.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Photo library access is used to attach images to your coding task.</string>
 		<key>NSLocalNetworkUsageDescription</key>

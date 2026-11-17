@@ -85,7 +85,8 @@ completing one turn (below).
 
 Run against app `1.0.0+1` (debug, arm64), **Android 15 / API 35**, Pixel 7 AVD
 `acoder_pixel_api35`, bridge `a-coder-cli serve` 0.80.193 on the host. iOS is
-still unexecuted — it is blocked on full Xcode (THE-38).
+still unexecuted — it is blocked on full Xcode (THE-38). The iOS pre-flight
+below is the part that can be checked without Xcode.
 
 | Check | Result | Evidence / reason |
 |---|---|---|
@@ -110,6 +111,33 @@ still unexecuted — it is blocked on full Xcode (THE-38).
    unbounded on paper. Needs a device-side debug pass.
 3. Background → foreground landed on the Pairing screen instead of resyncing;
    confirm on the 4 GB emulator profile and on a physical device.
+
+### iOS device matrix — pre-flight only (2026-11-17)
+
+Nothing below has been executed: it needs full Xcode (THE-38) and a physical
+device. The static half is done, so a device run should not fail on a missing
+`Info.plist` string:
+
+- `app/ios/Runner/Info.plist` declares `NSCameraUsageDescription`
+  (`mobile_scanner`), `NSPhotoLibraryUsageDescription` (`image_picker`),
+  `NSMicrophoneUsageDescription` (`record` — added 2026-11-17),
+  `NSLocalNetworkUsageDescription`, `NSBonjourServices` (`_a-coder._tcp`) and
+  `NSAppTransportSecurity → NSAllowsLocalNetworking`.
+- `plutil -lint app/ios/Runner/Info.plist` passes.
+- Deployment target `15.0`; bundle id `dev.acoder.mobile.acoderMobile`.
+- `app/ios/Podfile.lock` has no `record` pod yet; the first `pod install` after
+  Xcode is installed regenerates it. Expect that before the first build — it is
+  not a failure.
+
+| Check | Expected | Status |
+|---|---|---|
+| Voice message: first mic tap | iOS permission prompt appears, recording starts, no app termination | not run |
+| Voice message: mic denied | `Microphone permission is required` snackbar, no crash | not run |
+| QR pair | camera prompt, scan pairs the host | not run |
+| Discovery | host appears via `_a-coder._tcp` on the LAN | not run |
+| `ws://` LAN connect | permitted by `NSAllowsLocalNetworking` | not run |
+| Signed archive installs on device | archive + provisioning complete | not run |
+| TestFlight upload | uploads; App Store Connect asks export compliance (`ITSAppUsesNonExemptEncryption` unset) | not run |
 
 ## Known gaps requiring app/lib hooks (not implemented here)
 - Injectable transport / secure-storage seam: full pairing→home→chat driving in

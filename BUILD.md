@@ -1,6 +1,6 @@
 # A-Coder Mobile — Build Status
 
-_Last updated: 2026-11-03_
+_Last updated: 2026-11-17_
 
 ## Product
 
@@ -125,7 +125,7 @@ darwin-arm64).
 | Android emulator | 37.2.13.0 (build 16740729) | `/opt/homebrew/share/android-commandlinetools/emulator` |
 | Android AVD | `acoder_pixel_api35` — Pixel 7, Android 15 (API 35), arm64-v8a | `~/.android/avd/` |
 | JDK | OpenJDK 17.0.20.1 (Homebrew) | via `JAVA_HOME` |
-| Xcode | **absent** — only Command Line Tools 16.4.0.0.1 | `/Library/Developer/CommandLineTools` |
+| Xcode | **absent** — only Command Line Tools 16.4.0.0.1 (re-checked 2026-11-17) | `/Library/Developer/CommandLineTools` |
 
 `flutter`/`dart` are on `PATH` persistently via `~/.zprofile`
 (`export PATH="$HOME/develop/flutter/bin:$PATH"`). Flutter 3.47.5 clears the
@@ -195,11 +195,49 @@ Human steps, in order:
 
 Until step 1 happens there is no `xcodebuild -version`, no iOS simulator, no
 `flutter run -d ios`, no `pod install` in `app/ios`, and the Xcode signing flow
-in `README.md` cannot be exercised. Analyze, `flutter test`, the web build and
-the macOS desktop target are unaffected — the Dart toolchain does not need
-Xcode. CI builds the unsigned IPA on a macOS runner instead
-(`.github/workflows/ios.yml`), so iOS artifact production does not depend on
-this machine.
+in `README.md` cannot be exercised. Analyze, `flutter test` and the web build
+are unaffected — the Dart toolchain does not need Xcode. (The Flutter app here
+targets `android`, `ios` and `web` only; there is no `macos` desktop target in
+`app/`, so nothing in this repo is built for the Mac.) CI builds the unsigned
+IPA on a macOS runner instead (`.github/workflows/ios.yml`), so iOS artifact
+production does not depend on this machine.
+
+**Release gate (board, 2026-11-17):** v1 targets **2026-12-12**, RC
+**2026-12-10**. Full Xcode is the only blocker for iOS device QA (THE-48) and
+for producing a signed iOS archive. The board owns the install; step 1 is the
+whole of the remaining work on this machine. Re-checked 2026-11-17: still
+absent, `xcode-select -p` still `/Library/Developer/CommandLineTools`, and
+`flutter doctor` now reports a single `!` (Xcode) because the Android licences
+have since been accepted.
+
+### iOS platform config (audited 2026-11-17 — needs no Xcode)
+
+`app/ios/Runner/Info.plist` audited against the plugins the app actually ships,
+because a missing usage string is a hard crash at first use and would otherwise
+only surface during THE-48:
+
+| Capability | Plugin | Declared |
+|---|---|---|
+| Camera / QR scan | `mobile_scanner` | `NSCameraUsageDescription` — present |
+| Photo attach | `image_picker` | `NSPhotoLibraryUsageDescription` — present |
+| Voice message | `record` | `NSMicrophoneUsageDescription` — **was missing, added 2026-11-17** |
+| LAN bridge | `web_socket_channel` | `NSLocalNetworkUsageDescription`, `NSBonjourServices` (`_a-coder._tcp`), `NSAppTransportSecurity → NSAllowsLocalNetworking` — present |
+
+On iOS, starting `record` without `NSMicrophoneUsageDescription` terminates the
+app, so the voice button in `lib/features/local/local_chat_screen.dart` would
+have failed device QA on its first tap. Android was already correct:
+`RECORD_AUDIO` is declared in `android/app/src/main/AndroidManifest.xml`.
+
+`app/ios/Podfile.lock` predates the `record` plugin (it lists `image_picker_ios`
+and `mobile_scanner` only). That is expected and self-healing — the first
+`flutter build ios` / `pod install` after Xcode is installed regenerates it.
+Deployment target is `15.0` in both `Podfile` and `project.pbxproj`.
+
+`plutil -lint app/ios/Runner/Info.plist` → `OK`.
+
+`ITSAppUsesNonExemptEncryption` is not set, so App Store Connect will ask the
+export-compliance question on every upload. Answering it once in the plist is a
+known archive-time tidy-up, not a build blocker.
 
 ## Verification (current)
 
@@ -216,6 +254,11 @@ flutter test        # 267 passing, 0 failing, 0 skipped, ~8 s
 method stop on channel dev.steenbakker.mobile_scanner/scanner/method)` lines
 while the pairing screens tear down. That is logged noise, not a failure —
 every test still reports `success`.
+
+Re-checked 2026-11-17 at `2920258` (`feat/on-device-lfm3`): `flutter analyze` →
+`No issues found! (ran in 2.7s)`. The full suite was not re-run in that pass —
+no Dart changed and the machine was at ~80% swap (6.6 GB of 8 GB used). The
+only commit since is docs-only (`3b71a5a`).
 
 ### Android emulator validation (2026-11-03)
 
@@ -303,6 +346,8 @@ branch `main`).
    resync after the bridge returns or after a long background. iOS still has no
    simulator because full Xcode is not installed (see *Xcode blocker* above),
    and the QR/discovery/cellular/live-turn rows still need a physical device.
+   iOS is on the release gate: v1 2026-12-12, RC 2026-12-10, with THE-48 as the
+   device-QA dependent and the signed archive behind the same install.
 2. **Push relay** — **deferred post-v1** by the board on 2026-11-17 (nothing
    past 2026-12-12; LAN-only path stays). `plan/11-push-relay-spike.md` now
    holds the implementable design (endpoints, HMAC registration, coalescing,
