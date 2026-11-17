@@ -61,7 +61,10 @@ are git-ignored; they are not part of this repository.
   serves TLS; the QR carries `tls:true` + the SHA-256 `pin`; the app pins
   self-signed LAN certs and shows a TLS/pinned badge per machine. mDNS TXT
   advertises `tls=1`.
-- **Push relay**: design spike only; nothing ships yet.
+- **Push relay**: deferred post-v1 (board scope decision, 2026-11-17); v1 is
+  LAN-only. The implementable design is kept current in
+  `plan/11-push-relay-spike.md`; no relay client, APNs/FCM dependency, or
+  notification permission prompt ships.
 
 **M2/M3/M4 — Client core**
 
@@ -300,8 +303,11 @@ branch `main`).
    resync after the bridge returns or after a long background. iOS still has no
    simulator because full Xcode is not installed (see *Xcode blocker* above),
    and the QR/discovery/cellular/live-turn rows still need a physical device.
-2. **Push relay implementation** — design is a local-only spike; nothing ships
-   yet.
+2. **Push relay** — **deferred post-v1** by the board on 2026-11-17 (nothing
+   past 2026-12-12; LAN-only path stays). `plan/11-push-relay-spike.md` now
+   holds the implementable design (endpoints, HMAC registration, coalescing,
+   dedupe, revocation) for the post-v1 milestone. Implementation requires a
+   new milestone scope and explicit board approval; it is not started.
 3. **Bridge branch** — `wss://` and hardening live on
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
