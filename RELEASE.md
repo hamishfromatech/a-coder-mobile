@@ -3,11 +3,17 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-17 22:57 NZDT. `feat/on-device-lfm3` @ `2920258`
-(local-only), `main` @ `74a0bc1`. App version `1.0.0+1`.
+**Snapshot:** 2026-11-17 23:00 NZDT. `feat/on-device-lfm3` @ `cded22e`
+(docs commit; feature head `2920258`), `main` @ `74a0bc1`. App version
+`1.0.0+1`.
 
 Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, store
 submission and release-notes publication.
+
+Task structure (board plan, 2026-11-17): **THE-107** release build (Maya,
+blocked by THE-106, THE-42, THE-48) → **THE-108** go/no-go (Dash). Delegated
+slices: **THE-109** store metadata drafts (Dash), **THE-110** iOS on-device
+gate (Maya, blocked by THE-106).
 
 ---
 
@@ -18,7 +24,7 @@ submission and release-notes publication.
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Open** | Maya (THE-106) | Last recorded green: 267 tests @ `361f747`, 2026-11-03 — **before** the LFM3 branch. No gate result recorded yet for `2920258`. |
 | 2 | THE-48 device QA on a physical device, with evidence | **Blocked** | Maya | Blocked on THE-38 (Xcode) for the iOS half and on hardware. Emulator matrix from 2026-11-03 has 2 open failures (below). |
 | 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. iOS needs Xcode + an Apple team (none set in the Xcode project). |
-| 4 | Store metadata + release notes ready (submission board-gated) | **Not started** | Dash (new task) | No store metadata, screenshots or release notes exist in the repo. |
+| 4 | Store metadata + release notes ready (submission board-gated) | **In progress** | Dash (THE-109), reviewed by Maya | No store metadata, screenshots or release notes existed at kickoff; THE-109 is drafting them under `docs/store/v1/`. |
 | 5 | Dash go/no-go review PASS on every line | **Not started** | Dash | Rubric to be issued with the RC. |
 
 ## Critical path
@@ -47,10 +53,11 @@ Store metadata (Dash, independent)
 | Land `feat/on-device-lfm3` | THE-106 | Maya | in progress | analyze + test on `2920258`, docs, then board push approval, PR → `main` |
 | iOS toolchain | THE-38 | Board installs, Maya verifies | in progress | install full Xcode; verify `xcodebuild -version` and `flutter build ios --simulator` |
 | Physical-device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | blocked | runs after THE-38; needs a real Android phone on the same LAN as the bridge |
-| Release artifacts | THE-105 | Maya | open | Android AAB now; iOS archive after THE-38 |
-| Store metadata + release notes | new (Dash) | Dash | not started | drafts only; nothing published |
+| Release artifacts | THE-107 | Maya | blocked | Android AAB as soon as THE-106 lands; iOS archive after THE-38 |
+| Store metadata + release notes | THE-109 | Dash | in progress | drafts only; nothing published |
 | Desktop "Mobile access" card | THE-42 | Dash | in review | confirm it ships in the desktop build used for QA |
-| Go/no-go review | THE-105 | Dash | not started | rubric at RC; verdict PASS/FAIL per line |
+| iOS on-device gate | THE-110 | Maya | blocked (THE-106) | hide/disable on-device on iOS for v1, with a widget test |
+| Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
 | Push relay | THE-40 | — | out of scope | design spike only; not part of v1 |
 
 ## Release contents (and what is verified)
@@ -88,6 +95,11 @@ Store metadata (Dash, independent)
    cover. The physical-device matrix is required either way.
 5. **Version freeze.** `1.0.0+1` is the RC version. After any store upload the
    build number must increase (`+2`, `+3`); never upload a lower build number.
+   THE-107's brief says bundle ids are `com.atech.*`; the app actually ships as
+   `dev.acoder.mobile` (Android) and `dev.acoder.mobile.acoderMobile` (iOS).
+   Renaming the Android `applicationId` now would create a new Play listing and
+   detach the existing upload key, so the recommendation is to keep the current
+   ids unless the board explicitly chooses a new identity.
 6. **Branch is local-only.** Push and the PR are board-gated (THE-106). CI
    (analyze/test/Android compile/unsigned IPA) has therefore never run on the
    LFM3 commits; the first PR run is a real gate, not a formality.
@@ -143,7 +155,9 @@ Signing checks that must be recorded with the artifact:
    submission (not for the RC build).
 3. iOS v1 scope for on-device models: gate them to Android for v1
    (recommended) or wire an iOS native runtime before RC.
-4. Physical devices available for QA (Android model, iPhone model).
+4. Bundle identity: keep `dev.acoder.mobile` / `dev.acoder.mobile.acoderMobile`
+   (recommended) or switch to `com.atech.*` before v1.
+5. Physical devices available for QA (Android model, iPhone model).
 
 ## Governance
 
