@@ -3,17 +3,32 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-17 23:00 NZDT. `feat/on-device-lfm3` @ `cded22e`
-(docs commit; feature head `2920258`), `main` @ `74a0bc1`. App version
-`1.0.0+1`.
+**Snapshot:** 2026-11-17 23:10 NZDT. `feat/on-device-lfm3` @ `995351c`
+(docs head; feature head `2920258`), `main` @ `74a0bc1`. App version
+`1.0.0+1`. THE-106 is landing the LFM3 branch from a concurrent run, so the
+working tree is shared — do not build artifacts from it until it is clean.
 
 Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, store
 submission and release-notes publication.
 
-Task structure (board plan, 2026-11-17): **THE-107** release build (Maya,
-blocked by THE-106, THE-42, THE-48) → **THE-108** go/no-go (Dash). Delegated
-slices: **THE-109** store metadata drafts (Dash), **THE-110** iOS on-device
-gate (Maya, blocked by THE-106).
+## Task structure (board plan, comment `653ee48a`, 2026-11-17)
+
+| Issue | Task | Owner | Blocked by |
+|---|---|---|---|
+| THE-106 | Land `feat/on-device-lfm3` (analyze/test, push approval, PR) | Maya | — |
+| THE-42 | Desktop "Mobile access" card (in review) | Dash | — |
+| THE-38 | Install full Xcode (board action, critical) | board | — |
+| THE-48 | Device QA over `wss://` on hardware | Maya | THE-38 |
+| THE-107 | v1 release build: AAB + iOS archive, signing, store metadata | Maya | THE-106, THE-42, THE-48 |
+| THE-108 | Go/no-go review with evidence | Dash | THE-107 |
+
+Deferred past v1: **THE-40** push relay, **THE-47** scanner polish.
+Delegated slices under THE-107: **THE-109** store metadata/screenshots/release
+notes drafts (Dash, drafts only), **THE-110** iOS on-device gate (Maya).
+
+Board decisions still needed before THE-107 can build: bundle identity, iOS
+on-device scope, Apple team, Play Console status, physical QA devices, and
+upload-keystore backup. They are in the saved question card on THE-105.
 
 ---
 
@@ -24,7 +39,7 @@ gate (Maya, blocked by THE-106).
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Open** | Maya (THE-106) | Last recorded green: 267 tests @ `361f747`, 2026-11-03 — **before** the LFM3 branch. No gate result recorded yet for `2920258`. |
 | 2 | THE-48 device QA on a physical device, with evidence | **Blocked** | Maya | Blocked on THE-38 (Xcode) for the iOS half and on hardware. Emulator matrix from 2026-11-03 has 2 open failures (below). |
 | 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. iOS needs Xcode + an Apple team (none set in the Xcode project). |
-| 4 | Store metadata + release notes ready (submission board-gated) | **In progress** | Dash (THE-109), reviewed by Maya | No store metadata, screenshots or release notes existed at kickoff; THE-109 is drafting them under `docs/store/v1/`. |
+| 4 | Store metadata + release notes ready (submission board-gated) | **In progress** | Dash (THE-109), reviewed by Maya | No store metadata, screenshots or release notes existed at kickoff; THE-109 is drafting them. No draft files in this workspace yet (checked 2026-11-17). |
 | 5 | Dash go/no-go review PASS on every line | **Not started** | Dash | Rubric to be issued with the RC. |
 
 ## Critical path
@@ -59,6 +74,7 @@ Store metadata (Dash, independent)
 | iOS on-device gate | THE-110 | Maya | blocked (THE-106) | hide/disable on-device on iOS for v1, with a widget test |
 | Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
 | Push relay | THE-40 | — | out of scope | design spike only; not part of v1 |
+| Scanner polish | THE-47 | Dash | deferred | backlog; not part of v1 |
 
 ## Release contents (and what is verified)
 
