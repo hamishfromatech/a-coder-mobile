@@ -116,7 +116,7 @@ prompts. Those need a physical arm64 device with the model files (THE-48):
 | Image turn | gallery pick, caption preview, answer describes the image |
 | Speech language switch | reply speech changes language; setting survives restart |
 | Restart app | transcript restored; reloading the model re-feeds prior turns |
-| Delete model from the hub | both files removed, hub shows not installed, chat history cleared |
+| Delete model from the hub | both files removed, hub shows not installed; the transcript survives hub deletion (only the chat screen's delete and New chat clear it) |
 | Thermal / battery / tokens per second | recorded for the release notes; no throttling cliff in a 10-minute chat |
 
 ### Integration
