@@ -3,10 +3,9 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-17 23:10 NZDT. `feat/on-device-lfm3` @ `995351c`
-(docs head; feature head `2920258`), `main` @ `74a0bc1`. App version
-`1.0.0+1`. THE-106 is landing the LFM3 branch from a concurrent run, so the
-working tree is shared — do not build artifacts from it until it is clean.
+**Snapshot:** 2026-11-17 23:55 NZDT. `feat/on-device-lfm3` @ `6b02bd2`
+(not pushed), `main` @ `74a0bc1`. App version `1.0.0+1`. Xcode **27.2
+(27B52)** installed and selected. Working tree clean.
 
 Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, store
 submission and release-notes publication.
@@ -30,14 +29,18 @@ Board decisions still needed before THE-107 can build: bundle identity, iOS
 on-device scope, Apple team, Play Console status, physical QA devices, and
 upload-keystore backup. They are in the saved question card on THE-105.
 
+**Critical path changed on 2026-11-17:** Xcode is installed, so the gate is no
+longer the toolchain. It is now the **THE-106 push approval** (pending board
+approval `7989c5af`) and the **THE-42 review**, then THE-107.
+
 ---
 
 ## Definition of done — current state
 
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
-| 1 | `flutter analyze` + `flutter test` green on the release commit | **Open** | Maya (THE-106) | Last recorded green: 267 tests @ `361f747`, 2026-11-03 — **before** the LFM3 branch. No gate result recorded yet for `2920258`. |
-| 2 | THE-48 device QA on a physical device, with evidence | **Blocked** | Maya | Blocked on THE-38 (Xcode) for the iOS half and on hardware. Emulator matrix from 2026-11-03 has 2 open failures (below). |
+| 1 | `flutter analyze` + `flutter test` green on the release commit | **Open — conditional** | Maya (THE-106) | On `6b02bd2`: `flutter analyze` clean; non-golden suite **198/198**; **9 golden cases drift on macOS 27.2** with 142–242 px text-antialiasing diffs and fail identically on `main` (`74a0bc1`). Baselines were generated on macOS 26 and CI is macos-26. DoD 1 needs either the CI run on the PR or an explicit accept of the golden drift (THE-111). |
+| 2 | THE-48 device QA on a physical device, with evidence | **In progress** | Maya | Xcode 27.2 installed, so THE-48 is unblocked and running. iOS **simulator runtimes are not installed yet** (`simctl list runtimes` empty; `flutter doctor` cannot list simulator runtimes) — device builds work, simulator/UI tests wait for the runtime download. Emulator matrix from 2026-11-03 has 2 open failures (below). |
 | 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. iOS needs Xcode + an Apple team (none set in the Xcode project). |
 | 4 | Store metadata + release notes ready (submission board-gated) | **In progress** | Dash (THE-109), reviewed by Maya | No store metadata, screenshots or release notes existed at kickoff; THE-109 is drafting them. No draft files in this workspace yet (checked 2026-11-17). |
 | 5 | Dash go/no-go review PASS on every line | **Not started** | Dash | Rubric to be issued with the RC. |
@@ -45,19 +48,20 @@ upload-keystore backup. They are in the saved question card on THE-105.
 ## Critical path
 
 ```
-Xcode install (THE-38, board)
-  └─> iOS simulator build + physical-device QA (THE-48)
-        └─> signed iOS archive (DoD 3)
-Android AAB (independent) ──┘
-LFM3 branch lands (THE-106) ─> release commit ─> artifacts rebuilt on it
+THE-106 push approval (board, pending 7989c5af) ─> PR ─> CI (macos-26)
+  └─> release commit ─> AAB + iOS archive rebuilt on it
+The-42 review ─────────────────────────────────┘
+Xcode 27.2 (done 2026-11-17) ─> THE-48 device QA ─> signed iOS archive
 Store metadata (Dash, independent)
 ```
 
-- **Xcode install latest dates.** For RC on 12-10: install by **Thu 2026-11-26**
-  (two-week buffer for device QA, defect fixes, signing). Hard latest
-  **Thu 2026-12-03** (one week; no slack for a defect that needs a rebuild).
-  Past 12-03, the 12-12 ship date should be treated as at risk and the board
-  asked to re-plan.
+- **Xcode install is no longer at risk.** Verified 2026-11-17: `/Applications/Xcode.app`
+  selected, `Xcode 27.2` build `27B52`, iOS SDK 27.2, iOS Simulator SDK 27.2,
+  `xcodebuild -checkFirstLaunchStatus` exit 0 (license accepted). The only
+  missing piece is the simulator **runtime**, which is downloading.
+- **Xcode install dates are moot.** For RC on 12-10 the old guidance was install
+  by 2026-11-26; it landed on 11-17. The date-based risk now belongs to the
+  THE-106 push approval and the THE-42 review.
 - Every artifact must be rebuilt from the **same release commit** after the
   LFM3 branch lands. Do not ship an AAB built from a dirty or pre-merge tree.
 
@@ -65,12 +69,12 @@ Store metadata (Dash, independent)
 
 | Workstream | Issue | Owner | State | Next action |
 |---|---|---|---|---|
-| Land `feat/on-device-lfm3` | THE-106 | Maya | in progress | analyze + test on `2920258`, docs, then board push approval, PR → `main` |
-| iOS toolchain | THE-38 | Board installs, Maya verifies | in progress | install full Xcode; verify `xcodebuild -version` and `flutter build ios --simulator` |
-| Physical-device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | blocked | runs after THE-38; needs a real Android phone on the same LAN as the bridge |
-| Release artifacts | THE-107 | Maya | blocked | Android AAB as soon as THE-106 lands; iOS archive after THE-38 |
+| Land `feat/on-device-lfm3` | THE-106 | Maya | in review | board approval `7989c5af` pending: push `6b02bd2` + open PR (merge separately gated) |
+| iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | verified Xcode 27.2 / iOS SDK 27.2 / license accepted on 2026-11-17; simulator runtime still downloading |
+| Physical-device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | in progress | running against the installed toolchain; needs a real Android phone on the same LAN as the bridge |
+| Release artifacts | THE-107 | Maya | blocked | Android AAB once THE-106 lands; iOS archive needs device QA + signing identity |
 | Store metadata + release notes | THE-109 | Dash | in progress | drafts only; nothing published |
-| Desktop "Mobile access" card | THE-42 | Dash | in review | confirm it ships in the desktop build used for QA |
+| Desktop "Mobile access" card | THE-42 | Dash | in review | Maya code review then board acceptance; ships in the desktop build used for QA |
 | iOS on-device gate | THE-110 | Maya | blocked (THE-106) | hide/disable on-device on iOS for v1, with a widget test |
 | Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
 | Push relay | THE-40 | — | out of scope | design spike only; not part of v1 |
@@ -118,7 +122,12 @@ Store metadata (Dash, independent)
    ids unless the board explicitly chooses a new identity.
 6. **Branch is local-only.** Push and the PR are board-gated (THE-106). CI
    (analyze/test/Android compile/unsigned IPA) has therefore never run on the
-   LFM3 commits; the first PR run is a real gate, not a formality.
+   LFM3 commits; the first PR run is a real gate, not a formality. Approval
+   `7989c5af` requests push + PR only; merge stays separately gated.
+7. **Golden baselines drift on macOS 27.2.** 9 golden cases fail locally with
+   identical text-antialiasing diffs on `main`, so they are host-related, not a
+   branch regression. The non-golden suite is 198/198 green. Fixing or
+   re-baselining is THE-111; until then DoD 1 rests on the macos-26 CI run.
 
 ## Artifact runbook
 
@@ -157,8 +166,8 @@ Signing checks that must be recorded with the artifact:
 
 | Week | Dates | Exit criteria |
 |---|---|---|
-| 1 | 11-17 → 11-23 | LFM3 branch green (analyze + tests) and docs current; Android AAB built and installed; store drafts started; iOS on-device decision made |
-| 2 | 11-24 → 11-30 | Xcode installed **by 11-26**; iOS simulator build; physical-device QA (THE-48) with transcript + screenshots; defects triaged |
+| 1 | 11-17 → 11-23 | LFM3 branch green (analyze + tests) and docs current; **Xcode installed (done 11-17)**; Android AAB built and installed; store drafts started; iOS on-device decision made |
+| 2 | 11-24 → 11-30 | iOS simulator runtime installed + simulator build; physical-device QA (THE-48) with transcript + screenshots; defects triaged |
 | 3 | 12-01 → 12-09 | Release commit frozen; AAB + signed iOS archive rebuilt on it; QA installs both; store metadata + screenshots final; Dash go/no-go PASS by 12-09 |
 | RC | 12-10 | Board approves tag/RC |
 | Ship | 12-12 | Board submits to both stores |
@@ -174,6 +183,9 @@ Signing checks that must be recorded with the artifact:
 4. Bundle identity: keep `dev.acoder.mobile` / `dev.acoder.mobile.acoderMobile`
    (recommended) or switch to `com.atech.*` before v1.
 5. Physical devices available for QA (Android model, iPhone model).
+6. Upload-keystore backup confirmation (`upload-keystore.jks` + `key.properties`).
+
+All six are in the saved question card `30ec2894` on THE-105 (still pending).
 
 ## Governance
 
