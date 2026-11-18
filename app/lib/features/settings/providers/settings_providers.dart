@@ -89,6 +89,10 @@ final settingsProvider =
 /// (which still resolves to `SharedPreferences.getInstance()`), so behaviour is
 /// unchanged — this only lets widgets/tests drive the store with isolated,
 /// in-memory prefs.
+///
+/// Each call returns a **new** provider, so hold the result: reading a fresh
+/// `settingsProviderWith(...)` in a test creates a second, detached notifier
+/// instead of the one a `ProviderScope` override is rendering.
 StateNotifierProvider<SettingsNotifier, AppSettings> settingsProviderWith(
   {SharedPreferences? prefs,
    AppSettings? initial,

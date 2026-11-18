@@ -95,6 +95,16 @@ void main() {
     expect(find.text('SKIN'), findsOneWidget);
     expect(find.text('THEME'), findsOneWidget);
     expect(find.text('CHAT TEXT SIZE'), findsOneWidget);
+    // Alerts renders from the same injected store (no permission prompt is
+    // requested until the master toggle is tapped, so this stays platform-free).
+    await tester.tap(find.text('Alerts'));
+    await tester.pumpAndSettle();
+    expect(find.text('ALERTS'), findsOneWidget);
+    expect(find.text('Notifications'), findsOneWidget);
+    expect(find.text('Approvals needed'), findsOneWidget);
+    // Six tabs in a scrollable bar: ensure the target tab is actually on
+    // screen before tapping, otherwise the tap lands off-viewport.
+    await tester.ensureVisible(find.text('About'));
     await tester.tap(find.text('About'));
     await tester.pumpAndSettle();
     expect(find.text('A-Coder Mobile'), findsOneWidget);
@@ -114,7 +124,11 @@ void main() {
 
     final container = ProviderScope.containerOf(
         tester.element(find.byType(SettingsScreen)));
-    final notifier = container.read(settingsProviderWith(prefs: prefs).notifier);
+    // Read the notifier the screen is actually bound to (the overridden
+    // `settingsProvider`). `settingsProviderWith()` returns a *new* provider
+    // object per call, so reading that here would drive a detached notifier and
+    // leave the widget tree untouched.
+    final notifier = container.read(settingsProvider.notifier);
 
     await notifier.setTheme(ThemePref.light);
     expect(notifier.state.theme, ThemePref.light);
@@ -164,7 +178,8 @@ void main() {
 
     final container = ProviderScope.containerOf(
         tester.element(find.byType(SettingsScreen)));
-    final notifier = container.read(settingsProviderWith(prefs: prefs).notifier);
+    // Same rule as the appearance test: drive the notifier the screen uses.
+    final notifier = container.read(settingsProvider.notifier);
 
     await notifier.setNotificationsEnabled(true);
     expect(notifier.state.notificationsEnabled, true);
@@ -190,5 +205,27 @@ void main() {
     expect(prefs.getBool('alertBackgroundWaiting'), false);
     expect(prefs.getBool('alertCronFailures'), false);
     expect(prefs.getBool('alertWhileForeground'), true);
+  });
+
+  test('settingsProviderWith builds an isolated store over the given prefs',
+      () async {
+    // The factory seam itself: hold the returned provider once (a second call
+    // would be a different provider) and confirm it loads and persists through
+    // the supplied store rather than the app-wide singleton.
+    SharedPreferences.setMockInitialValues(
+        <String, Object>{'theme': ThemePref.light.index});
+    final prefs = await SharedPreferences.getInstance();
+    final provider = settingsProviderWith(prefs: prefs);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    // Reading the provider constructs the notifier, which calls `_load()` and
+    // awaits the supplied prefs instance; give that microtask a turn.
+    container.read(provider);
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(provider).theme, ThemePref.light);
+
+    await container.read(provider.notifier).setSkin('ember');
+    expect(prefs.getString('skin'), 'ember');
   });
 }

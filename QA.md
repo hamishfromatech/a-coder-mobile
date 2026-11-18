@@ -258,8 +258,19 @@ device. The static half is done, so a device run should not fail on a missing
   `test/golden/session_row_golden_test.dart`; `HomeScreen`'s empty-list copy is
   asserted in `test/features/sessions/home_screen_test.dart`, and the generic
   `EmptyState` golden still covers the visual.
-- Settings screen sections were not made golden because they depend on shared
-  prefs / secure storage; `SettingsScreen` remains untested.
+- Settings screen sections are covered by **widget tests, not goldens**
+  (`app/test/features/settings/settings_widget_test.dart`, THE-45,
+  commit `74a0bc1`). The `settingsProviderWith(prefs:, initial:)` /
+  `SettingsNotifier(prefs:, initial:)` seam lets the real `SettingsScreen`
+  render Appearance, Alerts and About over in-memory prefs and exercises every
+  persisted setter; production still resolves the shared
+  `SharedPreferences.getInstance()` through the default `settingsProvider`.
+  No golden was added on purpose: baselines are owned by the macOS 26 golden
+  host (*Golden baselines vs host OS*) and the screen is stateful over host and
+  session providers. `SettingsNotifier` also guards its async `_load()` with
+  `if (state == _initial)`, which is an identity check today because
+  `AppSettings` has no `operator ==`; if value equality is ever added, switch
+  that guard to `identical(state, _initial)`.
 - Pairing manual-form goldens emit a `MissingPluginException` during teardown
   because the scan tab instantiates `MobileScanner` without a platform impl
   in the test runner; the golden pixels are still produced and compared.
