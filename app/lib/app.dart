@@ -26,6 +26,8 @@ import 'features/settings/screens/settings_screen.dart';
 import 'features/local/local_chat_screen.dart';
 import 'features/local/local_models_screen.dart';
 import 'features/local/local_model_store.dart';
+import 'features/local/on_device_availability.dart';
+import 'features/local/on_device_unavailable_screen.dart';
 import 'features/shell/screens/app_shell.dart';
 
 class ACoderApp extends ConsumerStatefulWidget {
@@ -120,79 +122,91 @@ class _ACoderAppState extends ConsumerState<ACoderApp>
         skin: settings.skin,
         child: child ?? const SizedBox.shrink(),
       ),
-      // ─── Route map (doc 06) ──────────────────────────────────
-      // /                     → gate: no hosts → Pairing; else → Home
-      // /pair                 → Pairing screen
-      // /home                 → Session list + status header
-      // /chat/:hostId         → Chat screen (arguments: {hostId, sessionPath})
-      // /model                → Model picker (modal)
-      // /settings             → Connection mgmt, appearance, about
-      onGenerateRoute: (settings) {
-        switch (settings.name) {
-          case '/':
-            return MaterialPageRoute<void>(
-                settings: settings, builder: (_) => const _HomeGate());
-          case '/pair':
-            return MaterialPageRoute<void>(
-                settings: settings, builder: (_) => const PairingScreen());
-          case '/home':
-            final args = settings.arguments as Map<String, String>? ?? {};
-            return MaterialPageRoute<void>(
-              settings: settings,
-              builder: (_) => AppShell(activeHostId: args['hostId'] ?? ''),
-            );
-          case '/chat':
-            final args = settings.arguments as Map<String, String>? ?? {};
-            return MaterialPageRoute<void>(
-              settings: settings,
-              builder: (_) => ChatScreen(
-                hostId: args['hostId'] ?? '',
-                sessionPath: args['sessionPath'],
-              ),
-            );
-          case '/model':
-            return MaterialPageRoute<void>(
-                settings: settings, builder: (_) => const ModelPickerScreen());
-          case '/cron':
-            final args = settings.arguments as Map<String, String>? ?? {};
-            return MaterialPageRoute<void>(
-              settings: settings,
-              builder: (_) => CronScreen(hostId: args['hostId'] ?? ''),
-            );
-          case '/office':
-            final args = settings.arguments as Map<String, String>? ?? {};
-            return MaterialPageRoute<void>(
-              settings: settings,
-              builder: (_) => OfficeScreen(hostId: args['hostId'] ?? ''),
-            );
-          case '/local':
-            return MaterialPageRoute<void>(
-                settings: settings, builder: (_) => const LocalModelsScreen());
-          case '/local/text':
-            return MaterialPageRoute<void>(
-                settings: settings,
-                builder: (_) =>
-                    const LocalChatScreen(spec: LocalModelCatalog.text));
-          case '/local/omni':
-            return MaterialPageRoute<void>(
-                settings: settings,
-                builder: (_) =>
-                    const LocalChatScreen(spec: LocalModelCatalog.omni));
-          case '/local/voice':
-            return MaterialPageRoute<void>(
-                settings: settings,
-                builder: (_) =>
-                    const LocalChatScreen(spec: LocalModelCatalog.voice));
-          case '/settings':
-            return MaterialPageRoute<void>(
-                settings: settings, builder: (_) => const SettingsScreen());
-          default:
-            return null;
-        }
-      },
+      onGenerateRoute: appRouteFor,
       home: const _HomeGate(),
     );
   }
+}
+
+/// Route map (doc 06), top-level so widget tests can drive the real map
+/// without constructing the plugin-touching app shell.
+///
+/// /                     → gate: no hosts → Pairing; else → Home
+/// /pair                 → Pairing screen
+/// /home                 → Session list + status header
+/// /chat                 → Chat screen (arguments: {hostId, sessionPath})
+/// /model                → Model picker (modal)
+/// /local*               → On-device hub/chat (Android only in v1, THE-110)
+/// /settings             → Connection mgmt, appearance, about
+Route<dynamic>? appRouteFor(RouteSettings settings) {
+  switch (settings.name) {
+    case '/':
+      return MaterialPageRoute<void>(
+          settings: settings, builder: (_) => const _HomeGate());
+    case '/pair':
+      return MaterialPageRoute<void>(
+          settings: settings, builder: (_) => const PairingScreen());
+    case '/home':
+      final args = settings.arguments as Map<String, String>? ?? {};
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => AppShell(activeHostId: args['hostId'] ?? ''),
+      );
+    case '/chat':
+      final args = settings.arguments as Map<String, String>? ?? {};
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ChatScreen(
+          hostId: args['hostId'] ?? '',
+          sessionPath: args['sessionPath'],
+        ),
+      );
+    case '/model':
+      return MaterialPageRoute<void>(
+          settings: settings, builder: (_) => const ModelPickerScreen());
+    case '/cron':
+      final args = settings.arguments as Map<String, String>? ?? {};
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => CronScreen(hostId: args['hostId'] ?? ''),
+      );
+    case '/office':
+      final args = settings.arguments as Map<String, String>? ?? {};
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => OfficeScreen(hostId: args['hostId'] ?? ''),
+      );
+    case '/local':
+      return _onDeviceRoute(settings, () => const LocalModelsScreen());
+    case '/local/text':
+      return _onDeviceRoute(
+          settings, () => const LocalChatScreen(spec: LocalModelCatalog.text));
+    case '/local/omni':
+      return _onDeviceRoute(
+          settings, () => const LocalChatScreen(spec: LocalModelCatalog.omni));
+    case '/local/voice':
+      return _onDeviceRoute(
+          settings, () => const LocalChatScreen(spec: LocalModelCatalog.voice));
+    case '/settings':
+      return MaterialPageRoute<void>(
+          settings: settings, builder: (_) => const SettingsScreen());
+    default:
+      return null;
+  }
+}
+
+/// On-device routes resolve to their screen only where a `llamadart` native
+/// runtime exists (Android in v1). Everywhere else the route stays reachable
+/// but renders the gate, and [screen] is never called — so neither
+/// `LocalModelsScreen`/`LocalChatScreen` nor a `llamadart` load is constructed.
+Route<dynamic>? _onDeviceRoute(
+    RouteSettings settings, Widget Function() screen) {
+  return MaterialPageRoute<void>(
+    settings: settings,
+    builder: (_) => onDeviceModelsAvailable()
+        ? screen()
+        : const OnDeviceUnavailableScreen(),
+  );
 }
 
 /// Route gate: loading → spinner; no host → Pairing; else → Home.

@@ -17,6 +17,7 @@ import '../../../design/components/status_dot.dart';
 import '../../../design/components/chip.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../../chat/providers/chat_providers.dart';
+import '../../local/on_device_availability.dart';
 import '../../shell/widgets/command_palette.dart';
 import '../providers/session_pins.dart';
 import '../providers/sessions_providers.dart';
@@ -141,11 +142,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: Text(hostName),
         actions: [
-          IconButton(
-            tooltip: 'On-device chat',
-            icon: const Icon(Icons.memory_outlined, size: 21),
-            onPressed: () => Navigator.of(context).pushNamed('/local'),
-          ),
+          // On-device LFM3 is Android-only in v1 (THE-110).
+          if (onDeviceModelsAvailable())
+            IconButton(
+              tooltip: 'On-device chat',
+              icon: const Icon(Icons.memory_outlined, size: 21),
+              onPressed: () => Navigator.of(context).pushNamed('/local'),
+            ),
           IconButton(
             tooltip: 'Command palette',
             icon: const Icon(Icons.search, size: 21),
