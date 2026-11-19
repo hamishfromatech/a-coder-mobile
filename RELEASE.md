@@ -10,8 +10,8 @@ merge commit **`9de316d`**, whose tree is identical to the CI-verified head
 `flutter` -> `No issues found!` + **289 tests passed**; `android`,
 `unsigned-ipa` and `changes` all pass. App version `1.0.0+1`. The six release
 questions were answered 2026-11-19 12:47Z — see *Board decisions applied* below.
-Local `feat/on-device-lfm3` is now divergent and carries **6 commits that are
-not on `main`**.
+Local `feat/on-device-lfm3` is now divergent and carries the unmerged follow-up
+commits (settings test/seam + release docs) — see Gap 6.
 
 **Resource gate (2026-11-20 01:50–02:15 NZDT):** swap **1475 MB of 2048 MB
 (72%)** on a 32 GB Mac, with an ffmpeg render and another Paperclip agent
@@ -41,7 +41,7 @@ notes drafts (Dash, drafts only), **THE-110** iOS on-device gate (Maya).
 **Critical path moved past the merge.** Xcode installed 11-17, PR #3 went green
 11-17, the six answers landed 11-19 12:47Z and **PR #3 merged at 12:47:58Z**
 (board-authorised one-time admin bypass; branch protection was not changed).
-THE-106 is landed, so the gate is now the **6-commit follow-up PR**, the
+THE-106 is landed, so the gate is now the **follow-up PR**, the
 **THE-42 copy fix** (checked 2026-11-20: not yet in the desktop branch), the
 **physical-device pass** (THE-48) and the **three operator lookups** that only
 signing and submission need.
@@ -63,7 +63,7 @@ signing and submission need.
 
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
-| 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on the merge commit `9de316d`** | Maya (THE-106) | `main` push CI run [44527248735](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/44527248735): `flutter` job (macos-26) -> `Analyze: No issues found! (ran in 14.9s)` and **`289 tests passed`**; `android` pass. [iOS run 44527249107](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/44527249107): `unsigned-ipa` and `changes` pass. `git diff ef2aaff 9de316d` is empty, so the merged tree is exactly the head verified before the merge. **Still to do:** the 6-commit follow-up PR contains a settings-provider change and a widget test, so DoD 1 must be re-run on that merge commit before it is the release commit. |
+| 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on the merge commit `9de316d`** | Maya (THE-106) | `main` push CI run [44527248735](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/44527248735): `flutter` job (macos-26) -> `Analyze: No issues found! (ran in 14.9s)` and **`289 tests passed`**; `android` pass. [iOS run 44527249107](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/44527249107): `unsigned-ipa` and `changes` pass. `git diff ef2aaff 9de316d` is empty, so the merged tree is exactly the head verified before the merge. **Still to do:** the follow-up PR contains a settings-provider change and a widget test, so DoD 1 must be re-run on that merge commit before it is the release commit. |
 | 2 | THE-48 device QA on a physical device, with evidence | **Interim simulator pass now runnable; physical device still missing** | Maya | 2026-11-19 evidence: `simctl list runtimes` -> **two iOS 27.2 runtimes**; `simctl list devices available` -> iPhone 18 Pro / 18 Pro Max / 17 / 17e / Air, iPad mini (all shutdown); `flutter emulators` -> **`apple_ios_simulator`** and **`acoder_pixel_api35`**; `xcodebuild -list` resolves the workspace and the `Runner` scheme. `devicectl list devices` -> **0**. So the `wss://` pairing pass can now run in a simulator as clearly-labelled interim evidence; physical-device evidence for DoD 2 cannot. Bridge evidence unchanged: v0.80.202 wss banner, served-cert pin match, `/health` 200, 12/12 cert-pinning tests. Two QA traps to carry in: the fixture cert is `CN=localhost` with no LAN IP in its SAN, and the wrong-pin case needs an untrusted chain or the pin is never consulted. |
 | 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. Bundle identity is now fixed by the 2026-11-19 decision, so the first AAB will not need an identity rebuild. iOS still needs an Apple team (none set in the Xcode project). |
 | 4 | Store metadata + release notes ready (submission board-gated) | **Drafts complete — review open** | Dash (THE-109), reviewed by Maya | Drafts committed on branch `the-109-store-docs` @ `94f19d7` (separate worktree): app-store, play-store, privacy policy, screenshot shot-list, README with 12 board decisions. Remaining: privacy-policy legal review + hosted URL, four screenshots (blocked by swap and, for iOS, the toolchain), and Dash's own 12 doc decisions. Identity and iOS scope are now settled for it by the 2026-11-19 answers. Nothing published. |
@@ -168,14 +168,17 @@ Store metadata (Dash, drafts done) ─> DoD 4
    (Android) and `dev.acoder.mobile.acoderMobile` (iOS)**. THE-107's brief said
    `com.atech.*`; the decision supersedes it, so there is no rename, no new Play
    listing and no upload-key detachment.
-6. **Six local commits are not on `main`.** The squash merge landed the contents
-   of `ef2aaff` only. `454082f`/`c3b2481` (THE-45/46 settings test + injectable
-   prefs seam) and `5d4b64f`/`4b5ddbd`/`4abaed1`/`7e4a6bd` (release docs) exist
-   only on this machine; `git diff --stat 9de316d..HEAD` is 4 files, +214/−71.
-   `origin/feat/on-device-lfm3` was deleted by the merge, so this needs a new
-   branch off `origin/main`, a board-approved push and a second PR. DoD 1 must
-   be re-run on that merge commit, because the delta changes a settings provider
-   and adds a widget test.
+6. **The follow-up commits are not on `main`.** The squash merge landed the
+   contents of `ef2aaff` only. These commits exist only on this machine:
+   - `454082f`, `c3b2481` — THE-45/46 settings test + injectable prefs seam
+   - `5d4b64f`, `4b5ddbd`, `4abaed1`, `7e4a6bd`, `3d793a6` — release tracker and
+     QA docs
+
+   `git diff --stat 9de316d..HEAD` is 4 files, **+214/−71**. A local branch
+   `release/v1-followup` off `origin/main` carries the same content (tip tree
+   identical to this branch's tip), so the push is a plain branch push once the
+   board approves it. DoD 1 must be re-run on that PR's merge commit, because
+   the delta changes a settings provider and adds a widget test.
 7. **Golden baselines drift on macOS 27.2.** 9 golden cases fail locally with
    identical text-antialiasing diffs on `main`, so they are host-related, not a
    branch regression. THE-111 settled the policy (`ef2aaff`): baselines stay
@@ -254,8 +257,8 @@ The merge gate that sat beside this list is settled: the board chose a
 **one-time admin bypass** for PR #3 over changing branch protection, THE-114 was
 closed as a duplicate, and the merge landed as `9de316d`. Protection on `main`
 is unchanged (`required_approving_review_count: 1`,
-`require_last_push_approval: true`, `enforce_admins: true`), so the 6-commit
-follow-up PR needs its own board decision on how it merges — another one-time
+`require_last_push_approval: true`, `enforce_admins: true`), so the follow-up
+PR needs its own board decision on how it merges — another one-time
 bypass, a temporary reviewer, or a second collaborator.
 
 ## Governance
