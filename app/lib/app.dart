@@ -23,6 +23,9 @@ import 'features/chat/screens/model_picker_screen.dart';
 import 'features/cron/screens/cron_screen.dart';
 import 'features/office/screens/office_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
+import 'features/local/local_chat_screen.dart';
+import 'features/local/local_models_screen.dart';
+import 'features/local/local_model_store.dart';
 import 'features/shell/screens/app_shell.dart';
 
 class ACoderApp extends ConsumerStatefulWidget {
@@ -162,6 +165,24 @@ class _ACoderAppState extends ConsumerState<ACoderApp>
               settings: settings,
               builder: (_) => OfficeScreen(hostId: args['hostId'] ?? ''),
             );
+          case '/local':
+            return MaterialPageRoute<void>(
+                settings: settings, builder: (_) => const LocalModelsScreen());
+          case '/local/text':
+            return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) =>
+                    const LocalChatScreen(spec: LocalModelCatalog.text));
+          case '/local/omni':
+            return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) =>
+                    const LocalChatScreen(spec: LocalModelCatalog.omni));
+          case '/local/voice':
+            return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) =>
+                    const LocalChatScreen(spec: LocalModelCatalog.voice));
           case '/settings':
             return MaterialPageRoute<void>(
                 settings: settings, builder: (_) => const SettingsScreen());

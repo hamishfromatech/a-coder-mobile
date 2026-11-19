@@ -1,6 +1,6 @@
 # A-Coder Mobile — Build Status
 
-_Last updated: 2026-11-03_
+_Last updated: 2026-11-17_
 
 ## Product
 
@@ -61,7 +61,10 @@ are git-ignored; they are not part of this repository.
   serves TLS; the QR carries `tls:true` + the SHA-256 `pin`; the app pins
   self-signed LAN certs and shows a TLS/pinned badge per machine. mDNS TXT
   advertises `tls=1`.
-- **Push relay**: design spike only; nothing ships yet.
+- **Push relay**: deferred post-v1 (board scope decision, 2026-11-17); v1 is
+  LAN-only. The implementable design is kept current in
+  `plan/11-push-relay-spike.md`; no relay client, APNs/FCM dependency, or
+  notification permission prompt ships.
 
 **M2/M3/M4 — Client core**
 
@@ -90,6 +93,31 @@ are git-ignored; they are not part of this repository.
 - Transcript paging via `get_transcript_page` (80-entry pages, scroll-up load),
   inline image history with a full-screen viewer, and file-history rewind.
 
+**On-device LFM3 — `feat/on-device-lfm3` (2026-11-04, pending push)**
+
+- **Modes**: text (`LFM3-1.7B`), voice (`LFM3-Audio-2B` + `mmproj`) and
+  multimodal Omni (`LFM3-Omni-2B` + `mmproj`). Q4_K_M GGUF, LFM Open License
+  v1.0; models are not bundled in the APK.
+- **Entry points**: the On-device hub opens from the pairing screen, the home
+  memory icon and Settings. It lists each mode with installed state, download
+  progress, import (main GGUF then `mmproj`) and delete-to-free-storage.
+- **Chat**: streaming text with a collapsible Thinking block, Markdown with
+  horizontally scrolling code blocks and copy, image attachments with a caption
+  preview, push-to-talk at 16 kHz mono with Cancel/Send in the recording bar.
+- **Speech**: LFM3 native speech output through the pinned `llamadart` fork
+  (`lfm3-tts`, `ae5684b`); no system TTS and no cloud calls. Auto-speak can be
+  muted, answers can be replayed, and the reply language is selectable (English
+  default, 18 LFM3 languages).
+- **Persistence**: transcripts survive restarts and are re-fed as text when the
+  model loads again, so context continues across sessions. Voice turns are
+  stored as `🎤 Voice message`, image turns as the caption or `🖼 Image`.
+- **Runtime**: one llama.cpp engine per mode, app-lifetime so the screen does
+  not reload a 1 GB model; unloaded when switching modes. Streaming UI updates
+  are throttled to ~30 fps and Markdown is parsed once a reply completes.
+- **Platform**: arm64 Android release build (native runtime); `RECORD_AUDIO`
+  and `NSMicrophoneUsageDescription` declared.
+- Contract and known limits: [`docs/on-device.md`](docs/on-device.md).
+
 ## Desktop visual parity
 
 The mobile UI now follows `desktop-app/DESIGN.md` rather than merely sharing
@@ -110,7 +138,11 @@ its color tokens:
 ## Toolchain
 
 Recorded 2026-11-03 on the build machine (macOS 26.5.1, build 25F80,
-darwin-arm64).
+darwin-arm64). The host has since been upgraded to **macOS 27.2
+(26B123)**; the Flutter/Dart versions below are unchanged, and golden text
+antialiasing now differs slightly from the `macos-26`-owned baselines. That
+drift is measured and tolerated within fixed bounds by the golden comparator —
+see *Golden baselines vs host OS* in [`QA.md`](QA.md#golden-baselines-vs-host-os-policy-settled-2026-11-17).
 
 | Tool | Version | Location |
 |---|---|---|
@@ -118,9 +150,11 @@ darwin-arm64).
 | Dart | 3.13.4 | bundled with Flutter |
 | DevTools | 2.60.0 | bundled with Flutter |
 | CocoaPods | 1.16.2 | system |
-| Android SDK | 36.0.0 (platform android-36, build-tools 36.0.0) | `/opt/homebrew/share/android-commandlinetools` |
+| Android SDK | 36.0.0 (platforms android-35 + android-36, build-tools 36.0.0) | `/opt/homebrew/share/android-commandlinetools` |
+| Android emulator | 37.2.13.0 (build 16740729) | `/opt/homebrew/share/android-commandlinetools/emulator` |
+| Android AVD | `acoder_pixel_api35` — Pixel 7, Android 15 (API 35), arm64-v8a | `~/.android/avd/` |
 | JDK | OpenJDK 17.0.20.1 (Homebrew) | via `JAVA_HOME` |
-| Xcode | **absent** — only Command Line Tools 16.4.0.0.1 | `/Library/Developer/CommandLineTools` |
+| Xcode | **absent** — only Command Line Tools 16.4.0.0.1 (re-checked 2026-11-17) | `/Library/Developer/CommandLineTools` |
 
 `flutter`/`dart` are on `PATH` persistently via `~/.zprofile`
 (`export PATH="$HOME/develop/flutter/bin:$PATH"`). Flutter 3.47.5 clears the
@@ -136,11 +170,12 @@ darwin-arm64).
     • Dart version 3.13.4
     • DevTools version 2.60.0
 
-[!] Android toolchain - develop for Android devices (Android SDK version 36.0.0)
+[✓] Android toolchain - develop for Android devices (Android SDK version 36.0.0)
     • Android SDK at /opt/homebrew/share/android-commandlinetools
+    • Emulator version 37.2.13.0
     • Platform android-36, build-tools 36.0.0
     • Java version OpenJDK Runtime Environment Homebrew (build 17.0.20.1+0)
-    ! Some Android licenses not accepted. To resolve this, run: flutter doctor --android-licenses
+    • All Android licenses accepted.
 
 [!] Xcode - develop for iOS and macOS
     ✗ Xcode installation is incomplete; a full installation is necessary for iOS and macOS development.
@@ -189,27 +224,123 @@ Human steps, in order:
 
 Until step 1 happens there is no `xcodebuild -version`, no iOS simulator, no
 `flutter run -d ios`, no `pod install` in `app/ios`, and the Xcode signing flow
-in `README.md` cannot be exercised. Analyze, `flutter test`, the web build and
-the macOS desktop target are unaffected — the Dart toolchain does not need
-Xcode. CI builds the unsigned IPA on a macOS runner instead
-(`.github/workflows/ios.yml`), so iOS artifact production does not depend on
-this machine.
+in `README.md` cannot be exercised. Analyze, `flutter test` and the web build
+are unaffected — the Dart toolchain does not need Xcode. (The Flutter app here
+targets `android`, `ios` and `web` only; there is no `macos` desktop target in
+`app/`, so nothing in this repo is built for the Mac.) CI builds the unsigned
+IPA on a macOS runner instead (`.github/workflows/ios.yml`), so iOS artifact
+production does not depend on this machine.
+
+**Release gate (board, 2026-11-17):** v1 targets **2026-12-12**, RC
+**2026-12-10**. Full Xcode is the only blocker for iOS device QA (THE-48) and
+for producing a signed iOS archive. The board owns the install; step 1 is the
+whole of the remaining work on this machine. Re-checked 2026-11-17: still
+absent, `xcode-select -p` still `/Library/Developer/CommandLineTools`, and
+`flutter doctor` now reports a single `!` (Xcode) because the Android licences
+have since been accepted.
+
+### iOS platform config (audited 2026-11-17 — needs no Xcode)
+
+`app/ios/Runner/Info.plist` audited against the plugins the app actually ships,
+because a missing usage string is a hard crash at first use and would otherwise
+only surface during THE-48:
+
+| Capability | Plugin | Declared |
+|---|---|---|
+| Camera / QR scan | `mobile_scanner` | `NSCameraUsageDescription` — present |
+| Photo attach | `image_picker` | `NSPhotoLibraryUsageDescription` — present |
+| Voice message | `record` | `NSMicrophoneUsageDescription` — **was missing, added 2026-11-17** |
+| LAN bridge | `web_socket_channel` | `NSLocalNetworkUsageDescription`, `NSBonjourServices` (`_a-coder._tcp`), `NSAppTransportSecurity → NSAllowsLocalNetworking` — present |
+
+On iOS, starting `record` without `NSMicrophoneUsageDescription` terminates the
+app, so the voice button in `lib/features/local/local_chat_screen.dart` would
+have failed device QA on its first tap. Android was already correct:
+`RECORD_AUDIO` is declared in `android/app/src/main/AndroidManifest.xml`.
+
+`app/ios/Podfile.lock` predates the `record` plugin (it lists `image_picker_ios`
+and `mobile_scanner` only). That is expected and self-healing — the first
+`flutter build ios` / `pod install` after Xcode is installed regenerates it.
+Deployment target is `15.0` in both `Podfile` and `project.pbxproj`.
+
+`plutil -lint app/ios/Runner/Info.plist` → `OK`.
+
+`ITSAppUsesNonExemptEncryption` is not set, so App Store Connect will ask the
+export-compliance question on every upload. Answering it once in the plist is a
+known archive-time tidy-up, not a build blocker.
 
 ## Verification (current)
 
-Measured at HEAD `279f08f` on 2026-11-03:
+Measured on 2026-11-03 at `361f747`:
 
 ```bash
 cd app
 flutter pub get     # Got dependencies!
-flutter analyze     # No issues found! (ran in 1.2s)
-flutter test        # 267 passing, 0 failing, 0 skipped, ~10 s
+flutter analyze     # No issues found! (ran in 2.1s)
+flutter test        # 267 passing, 0 failing, 0 skipped, ~8 s
 ```
 
 `flutter test` prints two `MissingPluginException(No implementation found for
 method stop on channel dev.steenbakker.mobile_scanner/scanner/method)` lines
 while the pairing screens tear down. That is logged noise, not a failure —
 every test still reports `success`.
+
+Re-measured 2026-11-17 on `feat/on-device-lfm3` with the installed SDK
+(`/Users/hamishfromatech/develop/flutter/bin/flutter`, Flutter 3.47.5), after
+settling the host-OS golden policy (THE-111):
+
+```bash
+cd app
+flutter pub get     # Got dependencies!
+flutter analyze     # No issues found! (ran in 1.4s)
+flutter test        # +289: All tests passed!
+```
+
+The full suite is green on macOS 27.2 (26B123) even though the baselines are
+owned by `macos-26` CI. Nine goldens rasterise text antialiasing slightly
+differently here: 0.053–0.084 % of pixels (142–242 px), max Δ42/255, every
+differing pixel on a glyph edge, spread over ~100–150 disconnected specks.
+That is environment noise, not a regression — `main` at `74a0bc1` in a clean
+`git worktree` fails the same nine files with identical counts. The drift is
+broader still: 39 more goldens drift by 0.007–0.049 %, which the old 0.05 %
+threshold accepted silently.
+
+Rather than refresh baselines off-host (which would move the mismatch into
+CI), `app/test/flutter_test_config.dart` now accepts *bounded* antialiasing
+jitter: pixels at Δ≤16 are free, pixels above it count against the existing
+0.05 % budget, all differing pixels against 0.25 %, and any pixel at Δ≥64
+fails outright. Each accepted golden prints a `GoldenDiffStats(…)` line, so
+drift stays visible in the log.
+
+Real regressions still fail. `app/test/support/golden_comparator_test.dart`
+proves a 1 px layout shift (1,642–4,422 changed pixels on these frames, 10–27×
+the budget), a broad low-contrast tint, a single gross pixel, and excessive
+low-delta noise are all rejected. Measurements, thresholds and the maintainer
+workflow are in
+[`QA.md`](QA.md#golden-baselines-vs-host-os-policy-settled-2026-11-17).
+
+### Android emulator validation (2026-11-03)
+
+Android toolchain is now complete on this machine: SDK 36 with `emulator`
+37.2.13, a Pixel 7 / Android 15 (API 35) arm64-v8a AVD, and all licences
+accepted. Setup commands are in [`QA.md`](QA.md#android-emulator-setup-2026-11-03).
+
+```bash
+flutter devices
+# … sdk gphone64 arm64 (mobile) • emulator-5554 • android-arm64 • Android 15 (API 35) (emulator)
+
+cd app && flutter test integration_test -d emulator-5554
+# Built build/app/outputs/flutter-apk/app-debug.apk
+# 00:41 +1: happy path: prompt -> tool approval -> steer -> final answer
+# 00:41 +1: All tests passed!
+```
+
+The integration suite passes on the emulator. The manual matrix in `QA.md` was
+executed as far as the emulator allows: **1 pass** (token persisted across app
+restart), **2 fails** (kill/restore bridge does not auto-resync and the offline
+Retry button is a no-op; background 5 min → foreground lands on the Pairing
+screen), and **7 not run** because they need a camera QR, mDNS through the
+emulator NAT, a cellular radio, or a live model turn. The per-row evidence and
+follow-ups are recorded in `QA.md`.
 
 ### Test-count reconciliation
 
@@ -266,17 +397,30 @@ branch `main`).
 
 ## Remaining
 
-1. **Device/E2E validation** — no simulator is available because full Xcode is
-   not installed (see *Xcode blocker* above), and no Android emulator is
-   configured. `app/integration_test/happy_path_test.dart` compiles and runs
-   against the in-process fake bridge once a device is attached. The manual
-   matrix in `QA.md` is unexecuted (including a TLS pairing pass).
-2. **Push relay implementation** — design is a local-only spike; nothing ships
-   yet.
+1. **Device/E2E validation** — Android is now set up and the integration suite
+   passes on the emulator (see *Android emulator validation* above). Two matrix
+   rows failed on the emulator and need fixes before the matrix can be called
+   green: the offline home's Retry button is a no-op, and the app does not
+   resync after the bridge returns or after a long background. iOS still has no
+   simulator because full Xcode is not installed (see *Xcode blocker* above),
+   and the QR/discovery/cellular/live-turn rows still need a physical device.
+   iOS is on the release gate: v1 2026-12-12, RC 2026-12-10, with THE-48 as the
+   device-QA dependent and the signed archive behind the same install.
+2. **Push relay** — **deferred post-v1** by the board on 2026-11-17 (nothing
+   past 2026-12-12; LAN-only path stays). `plan/11-push-relay-spike.md` now
+   holds the implementable design (endpoints, HMAC registration, coalescing,
+   dedupe, revocation) for the post-v1 milestone. Implementation requires a
+   new milestone scope and explicit board approval; it is not started.
 3. **Bridge branch** — `wss://` and hardening live on
    `feat/mobile-bridge-perf` (`0ccc0f288`); merge into the active CLI branch
    when ready.
-4. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
+4. **On-device LFM3 follow-ups** (not v1 blockers unless THE-48 says
+   otherwise): physical-device token/s and thermal measurements (THE-48);
+   video input (the Dart binding rejects video parts, native llama.cpp path
+   needed); model voice selection for TTS (language is exposed, voice is not);
+   iOS on-device engine (not wired in this pass); no checksum/size verification
+   on model downloads (HuggingFace resolve URLs are trusted over HTTPS).
+5. **Repo hosting** — pushed to `github.com/hamishfromatech/a-coder-mobile`
    (**public**, `main`); CI green and branch protection enforced. The Android
    compile job, iOS PR guard, and `LICENSE` landed through PR #1 (squash
    `e56fed2`), because `main` no longer accepts direct pushes. All three CI

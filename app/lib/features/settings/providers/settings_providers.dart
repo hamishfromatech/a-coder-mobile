@@ -82,92 +82,129 @@ final settingsProvider =
   return SettingsNotifier();
 });
 
+/// Injectable settings-store seam.
+///
+/// Builds a settings provider backed by an explicit `SharedPreferences` instead
+/// of the app-wide singleton. Production keeps using the default `settingsProvider`
+/// (which still resolves to `SharedPreferences.getInstance()`), so behaviour is
+/// unchanged — this only lets widgets/tests drive the store with isolated,
+/// in-memory prefs.
+StateNotifierProvider<SettingsNotifier, AppSettings> settingsProviderWith(
+  {SharedPreferences? prefs,
+   AppSettings? initial,
+  }) {
+  return StateNotifierProvider<SettingsNotifier, AppSettings>((ref) =>
+      SettingsNotifier(prefs: prefs, initial: initial));
+}
+
 class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier() : super(const AppSettings()) {
+  /// Injectable preferences store. `null` resolves to the global
+  /// `SharedPreferences.getInstance()` exactly as before, keeping production
+  /// behaviour unchanged.
+  SharedPreferences? _prefs;
+
+  /// Values the notifier started from, used to tell a load back from a setter.
+  late AppSettings _initial;
+
+  SettingsNotifier({
+    SharedPreferences? prefs,
+    AppSettings? initial,
+  }) : super(initial ?? const AppSettings()) {
+    _prefs = prefs;
+    _initial = initial ?? const AppSettings();
     _load();
   }
 
+  Future<SharedPreferences> _prefsInstance() async =>
+      _prefs ?? await SharedPreferences.getInstance();
+
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = AppSettings(
-      theme: ThemePref.values.asMap()[prefs.getInt('theme') ?? 1] ??
-          ThemePref.dark,
-      skin: prefs.getString('skin') ?? 'aurora',
-      chatTextSize: prefs.getDouble('chatTextSize') ?? 14.5,
-      haptics: prefs.getBool('haptics') ?? true,
-      chatBackdrop: prefs.getBool('chatBackdrop') ?? true,
-      notificationsEnabled: prefs.getBool('notificationsEnabled') ?? false,
-      alertApprovals: prefs.getBool('alertApprovals') ?? true,
-      alertTurnFinished: prefs.getBool('alertTurnFinished') ?? true,
-      alertBackgroundWaiting: prefs.getBool('alertBackgroundWaiting') ?? true,
-      alertCronFailures: prefs.getBool('alertCronFailures') ?? true,
-      alertWhileForeground: prefs.getBool('alertWhileForeground') ?? false,
-    );
+    final prefs = await _prefsInstance();
+    // Only apply the persisted values when no setter has already pinned the
+    // state. Running the async load here (called from the constructor) would
+    // otherwise land after a setter and reset `state` back to the values read
+    // at construction time.
+    if (state == _initial) {
+      state = AppSettings(
+        theme: ThemePref.values.asMap()[prefs.getInt('theme') ?? 1] ??
+            ThemePref.dark,
+        skin: prefs.getString('skin') ?? 'aurora',
+        chatTextSize: prefs.getDouble('chatTextSize') ?? 14.5,
+        haptics: prefs.getBool('haptics') ?? true,
+        chatBackdrop: prefs.getBool('chatBackdrop') ?? true,
+        notificationsEnabled: prefs.getBool('notificationsEnabled') ?? false,
+        alertApprovals: prefs.getBool('alertApprovals') ?? true,
+        alertTurnFinished: prefs.getBool('alertTurnFinished') ?? true,
+        alertBackgroundWaiting: prefs.getBool('alertBackgroundWaiting') ?? true,
+        alertCronFailures: prefs.getBool('alertCronFailures') ?? true,
+        alertWhileForeground: prefs.getBool('alertWhileForeground') ?? false,
+      );
+    }
   }
 
   Future<void> setTheme(ThemePref theme) async {
     state = state.copyWith(theme: theme);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setInt('theme', theme.index);
   }
 
   Future<void> setSkin(String skin) async {
     state = state.copyWith(skin: skin);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setString('skin', skin);
   }
 
   Future<void> setChatTextSize(double size) async {
     state = state.copyWith(chatTextSize: size);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setDouble('chatTextSize', size);
   }
 
   Future<void> setHaptics(bool enabled) async {
     state = state.copyWith(haptics: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('haptics', enabled);
   }
 
   Future<void> setChatBackdrop(bool enabled) async {
     state = state.copyWith(chatBackdrop: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('chatBackdrop', enabled);
   }
 
   Future<void> setNotificationsEnabled(bool enabled) async {
     state = state.copyWith(notificationsEnabled: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('notificationsEnabled', enabled);
   }
 
   Future<void> setAlertApprovals(bool enabled) async {
     state = state.copyWith(alertApprovals: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('alertApprovals', enabled);
   }
 
   Future<void> setAlertTurnFinished(bool enabled) async {
     state = state.copyWith(alertTurnFinished: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('alertTurnFinished', enabled);
   }
 
   Future<void> setAlertBackgroundWaiting(bool enabled) async {
     state = state.copyWith(alertBackgroundWaiting: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('alertBackgroundWaiting', enabled);
   }
 
   Future<void> setAlertCronFailures(bool enabled) async {
     state = state.copyWith(alertCronFailures: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('alertCronFailures', enabled);
   }
 
   Future<void> setAlertWhileForeground(bool enabled) async {
     state = state.copyWith(alertWhileForeground: enabled);
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefsInstance();
     await prefs.setBool('alertWhileForeground', enabled);
   }
 }

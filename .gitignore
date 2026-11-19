@@ -2,11 +2,16 @@
 app/build/
 app/.dart_tool/
 app/.flutter-plugins-dependencies
+app/test/golden/failures/
 bridge/node_modules/
 bridge/dist/
 
 # Local-only planning docs (kept on the development machine, never committed)
 /plan/
+
+# Local-only UI design explorations (standalone HTML mockups; not the shipped
+# spec — the implemented design language lives in app/lib/design/)
+/design/
 
 # OS / IDE
 **/.DS_Store

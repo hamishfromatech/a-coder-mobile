@@ -1,0 +1,712 @@
+// On-device LFM3 chat engine and controller.
+//
+// The engine lives for the app lifetime (not in build()), so opening and
+// closing the screen does not reload a 1 GB model. No desktop bridge and no
+// cloud are involved.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+
+import 'package:audioplayers/audioplayers.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:llamadart/llamadart.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'local_model_store.dart';
+
+enum LocalChatRole { user, assistant }
+
+class LocalChatMessage {
+  final LocalChatRole role;
+  final String text;
+  final String thinking;
+
+  const LocalChatMessage({
+    required this.role,
+    required this.text,
+    this.thinking = '',
+  });
+
+  LocalChatMessage copyWith({String? text, String? thinking}) =>
+      LocalChatMessage(
+        role: role,
+        text: text ?? this.text,
+        thinking: thinking ?? this.thinking,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'role': role.name,
+        'text': text,
+        'thinking': thinking,
+      };
+
+  factory LocalChatMessage.fromMap(Map<String, dynamic> map) =>
+      LocalChatMessage(
+        role: LocalChatRole.values.byName(map['role'] as String),
+        text: map['text'] as String,
+        thinking: map['thinking'] as String? ?? '',
+      );
+}
+
+const _unset = Object();
+
+class LocalChatState {
+  final List<LocalChatMessage> messages;
+  final bool modelReady;
+  final bool modelLoaded;
+  final bool loadingModel;
+  final bool importing;
+  final bool downloading;
+  final bool generating;
+  final bool speaking;
+  final bool autoSpeak;
+  final String speechLanguage;
+  final double? progress;
+  final String? error;
+
+  const LocalChatState({
+    this.messages = const [],
+    this.modelReady = false,
+    this.modelLoaded = false,
+    this.loadingModel = false,
+    this.importing = false,
+    this.downloading = false,
+    this.generating = false,
+    this.speaking = false,
+    this.autoSpeak = true,
+    this.speechLanguage = 'en',
+    this.progress,
+    this.error,
+  });
+
+  LocalChatState copyWith({
+    List<LocalChatMessage>? messages,
+    bool? modelReady,
+    bool? modelLoaded,
+    bool? loadingModel,
+    bool? importing,
+    bool? downloading,
+    bool? generating,
+    bool? speaking,
+    bool? autoSpeak,
+    String? speechLanguage,
+    Object? progress = _unset,
+    Object? error = _unset,
+  }) {
+    return LocalChatState(
+      messages: messages ?? this.messages,
+      modelReady: modelReady ?? this.modelReady,
+      modelLoaded: modelLoaded ?? this.modelLoaded,
+      loadingModel: loadingModel ?? this.loadingModel,
+      importing: importing ?? this.importing,
+      downloading: downloading ?? this.downloading,
+      generating: generating ?? this.generating,
+      speaking: speaking ?? this.speaking,
+      autoSpeak: autoSpeak ?? this.autoSpeak,
+      speechLanguage: speechLanguage ?? this.speechLanguage,
+      progress: identical(progress, _unset)
+          ? this.progress
+          : (progress as num?)?.toDouble(),
+      error: identical(error, _unset) ? this.error : error as String?,
+    );
+  }
+}
+
+final localModelStoreProvider = Provider<LocalModelStore>((ref) {
+  return LocalModelStore();
+});
+
+final localChatControllerProvider =
+    StateNotifierProvider.family<LocalChatController, LocalChatState, String>(
+        (ref, specId) {
+  final spec = LocalModelCatalog.byId(specId) ?? LocalModelCatalog.text;
+  final controller = LocalChatController(
+    ref.watch(localModelStoreProvider),
+    spec,
+  );
+  unawaited(controller.init());
+  return controller;
+});
+
+class LocalChatController extends StateNotifier<LocalChatState> {
+  LocalChatController(this._store, this._spec) : super(const LocalChatState());
+
+  final LocalModelStore _store;
+  final LocalModelSpec _spec;
+
+  LlamaEngine? _engine;
+  ChatSession? _session;
+  StreamSubscription<LlamaCompletionChunk>? _subscription;
+  TextToSpeechEngine? _ttsEngine;
+  AudioPlayer? _audioPlayer;
+  StreamSubscription<void>? _playerComplete;
+  Timer? _flushTimer;
+  bool _cancelDownload = false;
+  LocalModelSpec get spec => _spec;
+
+  static const _speechLanguageKey = 'local-tts-language';
+
+  Future<File?> _historyFile() async {
+    try {
+      final dir = Directory(
+        '${(await getApplicationDocumentsDirectory()).path}'
+        '/local_chat_history',
+      );
+      await dir.create(recursive: true);
+      return File('${dir.path}/${_spec.id}.json');
+    } catch (e) {
+      debugPrint('[local] history file unavailable: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadTranscript() async {
+    final file = await _historyFile();
+    if (file == null || !await file.exists()) return;
+    try {
+      final raw = jsonDecode(await file.readAsString()) as List<dynamic>;
+      final messages = [
+        for (final entry in raw)
+          LocalChatMessage.fromMap(entry as Map<String, dynamic>),
+      ];
+      if (mounted && messages.isNotEmpty) {
+        state = state.copyWith(messages: messages);
+      }
+    } catch (e) {
+      debugPrint('[local] transcript restore failed: $e');
+    }
+  }
+
+  Future<void> _persistTranscript() => _persistMessages(state.messages);
+
+  /// Writes an explicit message snapshot. `dispose()` must use this: the state
+  /// notifier throws once disposed, so reading `state` after the await would
+  /// lose the final save and surface an unhandled async error.
+  Future<void> _persistMessages(List<LocalChatMessage> messages) async {
+    final file = await _historyFile();
+    if (file == null) return;
+    try {
+      final raw = [for (final message in messages) message.toMap()];
+      await file.writeAsString(jsonEncode(raw), flush: true);
+    } catch (e) {
+      debugPrint('[local] transcript save failed: $e');
+    }
+  }
+
+  Future<void> _clearTranscript() async {
+    final file = await _historyFile();
+    try {
+      if (file != null && await file.exists()) await file.delete();
+    } catch (e) {
+      debugPrint('[local] transcript clear failed: $e');
+    }
+  }
+
+  static const _systemPrompt = '''
+You are A-Coder's on-device assistant. You run entirely on the user's phone.
+Be concise, practical and honest. If you are unsure, say so.''';
+
+  Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    final language = prefs.getString(_speechLanguageKey);
+    if (mounted && language != null && language.isNotEmpty) {
+      state = state.copyWith(speechLanguage: language);
+    }
+    await _loadTranscript();
+    final path = await _store.existingPath(_spec);
+    final projector = _spec.hasProjector
+        ? await _store.existingPath(_spec, projector: true)
+        : null;
+    if (!mounted) return;
+    state = state.copyWith(
+      modelReady: path != null && (!_spec.hasProjector || projector != null),
+    );
+  }
+
+  Future<void> importModel(XFile source, {XFile? projector}) async {
+    if (state.importing || state.downloading) return;
+    if (_spec.hasProjector && projector == null) {
+      state = state.copyWith(
+        error: 'This voice model also needs its mmproj file.',
+      );
+      return;
+    }
+    state = state.copyWith(
+      importing: true,
+      error: null,
+      progress: 0.0,
+    );
+    try {
+      await _store.importModel(
+        _spec,
+        source,
+        onProgress: (value) {
+          if (!mounted) return;
+          state = state.copyWith(progress: value);
+        },
+      );
+      if (_spec.hasProjector) {
+        if (!mounted) return;
+        state = state.copyWith(progress: 0.0);
+        await _store.importModel(
+          _spec,
+          projector!,
+          projector: true,
+          onProgress: (value) {
+            if (!mounted) return;
+            state = state.copyWith(progress: value);
+          },
+        );
+      }
+      if (!mounted) return;
+      state = state.copyWith(
+        importing: false,
+        modelReady: true,
+        progress: 1.0,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        importing: false,
+        progress: null,
+        error: 'Import failed: $e',
+      );
+    }
+  }
+
+  Future<void> downloadModel() async {
+    if (state.importing || state.downloading) return;
+    _cancelDownload = false;
+    debugPrint('[local] download start ${_spec.url}');
+    state = state.copyWith(
+      downloading: true,
+      error: null,
+      progress: null,
+    );
+    try {
+      await _store.downloadModel(
+        _spec,
+        onProgress: (value) {
+          if (!mounted) return;
+          state = state.copyWith(progress: value);
+        },
+        isCancelled: () => _cancelDownload,
+      );
+      if (_spec.hasProjector) {
+        if (!mounted) return;
+        state = state.copyWith(progress: 0.0);
+        await _store.downloadModel(
+          _spec,
+          projector: true,
+          onProgress: (value) {
+            if (!mounted) return;
+            state = state.copyWith(progress: value);
+          },
+          isCancelled: () => _cancelDownload,
+        );
+      }
+      if (!mounted) return;
+      debugPrint('[local] download complete');
+      state = state.copyWith(
+        downloading: false,
+        modelReady: true,
+        progress: 1.0,
+      );
+    } on LocalModelDownloadCancelled {
+      debugPrint('[local] download cancelled');
+      if (!mounted) return;
+      state = state.copyWith(
+        downloading: false,
+        progress: null,
+        error: null,
+      );
+    } catch (e, st) {
+      debugPrint('[local] download failed: $e\n$st');
+      if (!mounted) return;
+      state = state.copyWith(
+        downloading: false,
+        progress: null,
+        error: 'Download failed: $e',
+      );
+    }
+  }
+
+  void cancelDownload() {
+    debugPrint('[local] download cancel requested');
+    _cancelDownload = true;
+  }
+
+  Future<void> loadModel() async {
+    if (state.loadingModel || state.modelLoaded) return;
+    final path = await _store.existingPath(_spec);
+    if (path == null) {
+      if (!mounted) return;
+      state = state.copyWith(
+        modelReady: false,
+        error: 'Model file is missing. Import or download it again.',
+      );
+      return;
+    }
+    String? projectorPath;
+    if (_spec.hasProjector) {
+      projectorPath = await _store.existingPath(_spec, projector: true);
+      if (projectorPath == null) {
+        if (!mounted) return;
+        state = state.copyWith(
+          loadingModel: false,
+          modelReady: false,
+          error: 'The mmproj file is missing. Import or download it again.',
+        );
+        return;
+      }
+    }
+    state = state.copyWith(loadingModel: true, error: null);
+    try {
+      final engine = await LlamaEngine.load(
+        LlamaModel(
+          ModelSource.path(path),
+          projector:
+              projectorPath == null ? null : ModelSource.path(projectorPath),
+        ),
+      );
+      final session = ChatSession(
+        engine,
+        systemPrompt: _systemPrompt,
+        maxContextTokens: 4096,
+      );
+      if (!mounted) {
+        await engine.dispose();
+        return;
+      }
+      for (final message in state.messages) {
+        session.addMessage(
+          LlamaChatMessage.fromText(
+            role: message.role == LocalChatRole.user
+                ? LlamaChatRole.user
+                : LlamaChatRole.assistant,
+            text: message.text,
+          ),
+        );
+      }
+      _engine = engine;
+      _session = session;
+      state = state.copyWith(
+        loadingModel: false,
+        modelLoaded: true,
+        modelReady: true,
+        error: null,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        loadingModel: false,
+        error: 'Could not load the model: $e',
+      );
+    }
+  }
+
+  Future<void> unloadModel() async {
+    await _stopSpeech();
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _subscription?.cancel();
+    _subscription = null;
+    final engine = _engine;
+    _engine = null;
+    _session = null;
+    await engine?.dispose();
+    if (!mounted) return;
+    state = state.copyWith(
+      modelLoaded: false,
+      generating: false,
+    );
+  }
+
+  Future<void> deleteModel() async {
+    await unloadModel();
+    await _store.delete(_spec);
+    unawaited(_clearTranscript());
+    if (!mounted) return;
+    state = state.copyWith(
+      modelReady: false,
+      modelLoaded: false,
+      progress: null,
+      messages: const [],
+    );
+  }
+
+  Future<void> send(String text) async {
+    final prompt = text.trim();
+    if (prompt.isEmpty || state.generating) return;
+    await _generate([LlamaTextContent(prompt)], userText: prompt);
+  }
+
+  /// Sends a recorded WAV/encoded audio turn to LFM3-Audio. The model answers
+  /// with text; speech output is handled by the LFM3 TTS path.
+  Future<void> sendAudio(String path) async {
+    if (path.isEmpty || state.generating) return;
+    await _generate(
+      [
+        LlamaAudioContent(path: path),
+        const LlamaTextContent('Answer the spoken request in text.'),
+      ],
+      userText: '🎤 Voice message',
+    );
+  }
+
+  /// Sends an image turn to LFM3-Omni. Audio and text use the same engine.
+  Future<void> sendImage(String path, {String? prompt}) async {
+    if (path.isEmpty || state.generating) return;
+    final instruction = prompt?.trim() ?? '';
+    await _generate(
+      [
+        LlamaImageContent(path: path),
+        LlamaTextContent(
+          instruction.isEmpty ? 'Describe this image in detail.' : instruction,
+        ),
+      ],
+      userText: instruction.isEmpty ? '🖼 Image' : instruction,
+    );
+  }
+
+  /// Replays an answer through LFM3 speech output, even if auto-speak is off.
+  Future<void> speakMessage(String text) async {
+    await _stopSpeech();
+    await _speak(text);
+  }
+
+  Future<void> _generate(
+    List<LlamaContentPart> parts, {
+    required String userText,
+  }) async {
+    await _stopSpeech();
+    if (!state.modelLoaded) {
+      await loadModel();
+      if (!state.modelLoaded) return;
+    }
+    final session = _session;
+    if (session == null) return;
+
+    state = state.copyWith(
+      generating: true,
+      error: null,
+      messages: [
+        ...state.messages,
+        LocalChatMessage(role: LocalChatRole.user, text: userText),
+        const LocalChatMessage(role: LocalChatRole.assistant, text: ''),
+      ],
+    );
+    unawaited(_persistTranscript());
+
+    final buffer = StringBuffer();
+    final thinking = StringBuffer();
+    try {
+      final stream = session.create(
+        parts,
+        params: const GenerationParams(
+          maxTokens: 1024,
+          temp: 0.1,
+          topK: 50,
+          penalty: 1.1,
+        ),
+        enableThinking: true,
+      );
+      _subscription = stream.listen(
+        (chunk) {
+          if (!mounted) return;
+          buffer.write(chunk.text);
+          thinking.write(chunk.thinking);
+          _flushTimer ??= Timer(const Duration(milliseconds: 33), () {
+            _flushTimer = null;
+            if (mounted) {
+              _replaceLastAssistant(
+                buffer.toString(),
+                thinking: thinking.toString(),
+              );
+            }
+          });
+        },
+        onError: (Object e) {
+          if (!mounted) return;
+          _flushTimer?.cancel();
+          _flushTimer = null;
+          state = state.copyWith(
+            generating: false,
+            error: 'Generation failed: $e',
+          );
+          unawaited(_persistTranscript());
+          _subscription = null;
+        },
+        onDone: () {
+          if (!mounted) return;
+          _flushTimer?.cancel();
+          _flushTimer = null;
+          final split = splitThinking(
+            answer: buffer.toString(),
+            thinking: thinking.toString(),
+          );
+          _replaceLastAssistant(
+            split.answer.isEmpty ? '(no response)' : split.answer,
+            thinking: split.thinking,
+          );
+          state = state.copyWith(generating: false);
+          unawaited(_persistTranscript());
+          _subscription = null;
+          if (_spec.hasProjector &&
+              state.autoSpeak &&
+              split.answer.isNotEmpty) {
+            unawaited(_speak(split.answer));
+          }
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        generating: false,
+        error: 'Generation failed: $e',
+      );
+    }
+  }
+
+  Future<void> setSpeechLanguage(String language) async {
+    state = state.copyWith(speechLanguage: language);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_speechLanguageKey, language);
+  }
+
+  void toggleAutoSpeak() {
+    final next = !state.autoSpeak;
+    state = state.copyWith(autoSpeak: next);
+    if (!next) unawaited(_stopSpeech());
+  }
+
+  Future<void> _speak(String text) async {
+    final engine = _engine;
+    if (engine == null || text.trim().isEmpty) return;
+    try {
+      _ttsEngine ??= TextToSpeechEngine.attach(
+        engine,
+        adapter: const Lfm3AudioTtsAdapter(),
+      );
+      final caps = await _ttsEngine!.capabilities;
+      if (!caps.isSupported) {
+        debugPrint('[local] TTS unsupported: ${caps.unsupportedReason}');
+        return;
+      }
+      if (mounted) state = state.copyWith(speaking: true);
+      final result = await _ttsEngine!.synthesizeOnce(
+        TextToSpeechRequest(
+          text: text,
+          language: state.speechLanguage,
+        ),
+      );
+      final wav = result.toWavBytes();
+      _audioPlayer ??= AudioPlayer();
+      await _audioPlayer!.stop();
+      await _playerComplete?.cancel();
+      _playerComplete = _audioPlayer!.onPlayerComplete.listen((_) {
+        if (mounted) state = state.copyWith(speaking: false);
+      });
+      await _audioPlayer!.play(BytesSource(wav, mimeType: 'audio/wav'));
+      if (mounted) state = state.copyWith(speaking: true);
+    } catch (e, st) {
+      debugPrint('[local] TTS failed: $e\n$st');
+      if (mounted) state = state.copyWith(speaking: false);
+    }
+  }
+
+  Future<void> _stopSpeech() async {
+    await _audioPlayer?.stop();
+    await _playerComplete?.cancel();
+    _playerComplete = null;
+    try {
+      await _ttsEngine?.dispose();
+    } catch (_) {}
+    _ttsEngine = null;
+    if (mounted && state.speaking) state = state.copyWith(speaking: false);
+  }
+
+  // The LFM3 reasoning close marker; escaped so the literal survives editors.
+  static const _thinkingClose = '\u003C/think\u003E';
+
+  /// Some templates put the reasoning marker inside the text stream rather
+  /// than the thinking channel. Normalize both shapes. Exposed for tests.
+  static ({String thinking, String answer}) splitThinking({
+    required String answer,
+    required String thinking,
+  }) {
+    var cleanAnswer = answer.trim();
+    var cleanThinking = thinking.trim();
+    if (cleanThinking.isEmpty) {
+      final end = cleanAnswer.lastIndexOf(_thinkingClose);
+      if (end >= 0) {
+        cleanThinking = cleanAnswer.substring(0, end).trim();
+        cleanAnswer =
+            cleanAnswer.substring(end + _thinkingClose.length).trim();
+      }
+    }
+    return (thinking: cleanThinking, answer: cleanAnswer);
+  }
+
+  void _replaceLastAssistant(String text, {String thinking = ''}) {
+    final messages = List<LocalChatMessage>.from(state.messages);
+    if (messages.isEmpty) return;
+    final last = messages.length - 1;
+    if (messages[last].role != LocalChatRole.assistant) return;
+    messages[last] = messages[last].copyWith(
+      text: text,
+      thinking: thinking,
+    );
+    state = state.copyWith(messages: messages);
+  }
+
+  void stop() {
+    _engine?.cancelGeneration();
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    unawaited(_stopSpeech());
+  }
+
+  Future<void> newChat() async {
+    await _stopSpeech();
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (state.generating) {
+      _engine?.cancelGeneration();
+      await _subscription?.cancel();
+      _subscription = null;
+    }
+    _session?.reset();
+    unawaited(_clearTranscript());
+    if (!mounted) return;
+    state = state.copyWith(
+      messages: const [],
+      generating: false,
+      error: null,
+    );
+  }
+
+  @override
+  void dispose() {
+    // Snapshot before the notifier is torn down; see _persistMessages.
+    unawaited(_persistMessages(List<LocalChatMessage>.from(state.messages)));
+    _subscription?.cancel();
+    _flushTimer?.cancel();
+    _playerComplete?.cancel();
+    _audioPlayer?.dispose();
+    _ttsEngine?.dispose();
+    final engine = _engine;
+    _engine = null;
+    _session = null;
+    if (engine != null) {
+      unawaited(engine.dispose());
+    }
+    super.dispose();
+  }
+}
