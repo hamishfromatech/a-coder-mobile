@@ -13,6 +13,8 @@ import 'package:acoder_mobile/features/pairing/providers/connection_providers.da
 import 'package:acoder_mobile/features/settings/providers/settings_providers.dart';
 import 'package:acoder_mobile/features/settings/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,13 +24,13 @@ import '../../support/load_fonts.dart';
 const hostId = 'h1';
 
 PairedHost _sampleHost() => PairedHost(
-  id: hostId,
-  name: 'Hamish MacBook',
-  host: '192.168.1.10',
-  port: 8787,
-  tls: false,
-  lastConnected: DateTime.now(),
-);
+      id: hostId,
+      name: 'Hamish MacBook',
+      host: '192.168.1.10',
+      port: 8787,
+      tls: false,
+      lastConnected: DateTime.now(),
+    );
 
 /// Build the provider overrides the SettingsScreen needs when driven in a
 /// widget test: a session controller that does not open a connection, and the
@@ -58,7 +60,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(loadUiFonts);
 
-  testWidgets('settings_screen renders appearance, alerts and about tabs with in-memory prefs',
+  testWidgets(
+      'settings_screen renders appearance, alerts and about tabs with in-memory prefs',
       (tester) async {
     _seedInMemoryPrefs();
     addTearDown(() {
@@ -110,7 +113,8 @@ void main() {
     expect(find.text('A-Coder Mobile'), findsOneWidget);
   });
 
-  testWidgets('appearance settings persist through the injectable seam', (tester) async {
+  testWidgets('appearance settings persist through the injectable seam',
+      (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final prefs = await SharedPreferences.getInstance();
 
@@ -122,8 +126,8 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 160));
 
-    final container = ProviderScope.containerOf(
-        tester.element(find.byType(SettingsScreen)));
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(SettingsScreen)));
     // Read the notifier the screen is actually bound to (the overridden
     // `settingsProvider`). `settingsProviderWith()` returns a *new* provider
     // object per call, so reading that here would drive a detached notifier and
@@ -164,7 +168,8 @@ void main() {
     expect(prefs.getBool('alertWhileForeground'), true);
   });
 
-  testWidgets('notification settings persist through the injectable seam', (tester) async {
+  testWidgets('notification settings persist through the injectable seam',
+      (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final prefs = await SharedPreferences.getInstance();
 
@@ -176,8 +181,8 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 160));
 
-    final container = ProviderScope.containerOf(
-        tester.element(find.byType(SettingsScreen)));
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(SettingsScreen)));
     // Same rule as the appearance test: drive the notifier the screen uses.
     final notifier = container.read(settingsProvider.notifier);
 
@@ -227,5 +232,42 @@ void main() {
 
     await container.read(provider.notifier).setSkin('ember');
     expect(prefs.getString('skin'), 'ember');
+  });
+
+  testWidgets('on-device row follows the v1 platform gate (THE-110)',
+      (tester) async {
+    _seedInMemoryPrefs();
+    final prefs = await SharedPreferences.getInstance();
+
+    Future<void> pumpAdvanced() async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _settingsOverrides(prefs: prefs),
+          child: MaterialApp(theme: PiTheme.dark, home: const SettingsScreen()),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 160));
+      await tester.ensureVisible(find.text('Advanced'));
+      await tester.tap(find.text('Advanced'));
+      await tester.pumpAndSettle();
+    }
+
+    try {
+      // iOS: the state is shown, with no button that cannot work.
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      await pumpAdvanced();
+      expect(find.text('Open on-device chat'), findsNothing);
+      expect(find.textContaining('Android-only in v1'), findsOneWidget);
+
+      // Android: unchanged behaviour.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await pumpAdvanced();
+      expect(find.text('Open on-device chat'), findsOneWidget);
+      expect(find.textContaining('Android-only in v1'), findsNothing);
+    } finally {
+      // Must be restored inside the test body: flutter_test asserts foundation
+      // debug variables are unset before tearDowns run.
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }

@@ -3,7 +3,7 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-20 02:15 NZDT (plan rev 7). **PR #3 is merged into
+**Snapshot:** 2026-11-20 02:25 NZDT (plan rev 8). **PR #3 is merged into
 `main`** at 2026-11-19 12:47:58Z via the board-authorised one-time admin bypass;
 merge commit **`9de316d`**, whose tree is identical to the CI-verified head
 `ef2aaff` (`git diff ef2aaff 9de316d` is empty). CI on `main` @ `9de316d`:
@@ -11,14 +11,16 @@ merge commit **`9de316d`**, whose tree is identical to the CI-verified head
 `unsigned-ipa` and `changes` all pass. App version `1.0.0+1`. The six release
 questions were answered 2026-11-19 12:47Z — see *Board decisions applied* below.
 Local `feat/on-device-lfm3` is now divergent and carries the unmerged follow-up
-commits (settings test/seam + release docs) — see Gap 6.
+commits (settings test/seam + release docs) — see Gap 6. **THE-110 (iOS
+on-device gate) is implemented and green**: `flutter analyze` clean and
+`flutter test` **297/297 passed** on `the-110-ios-on-device-gate`.
 
-**Resource gate (2026-11-20 01:50–02:15 NZDT):** swap **1475 MB of 2048 MB
-(72%)** on a 32 GB Mac, with an ffmpeg render and another Paperclip agent
-already running, so no local build, test suite or simulator boot was started.
-Free memory 57%, load 11.4/12. Every number below comes from an existing
-artifact, a GitHub-hosted CI run, an API read or a light discovery command — not
-from a fresh local build.
+**Resource gate (2026-11-20 02:20–02:25 NZDT):** before the suite, free memory
+64%, swap **1467 MB of 2048 MB (72%)**, load 8.0/12 (limit 24). Swap had been
+flat at 1467 MB with 885 total pageouts across 4h52m uptime, i.e. stale swapped
+pages rather than live thrash, so the suite ran as the single heavy job under
+`nice -n 15 flutter test --concurrency=1`. It finished in 33 s with no pressure
+delta. No build, simulator boot or render was started.
 
 Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, store
 submission and release-notes publication.
@@ -103,7 +105,7 @@ Store metadata (Dash, drafts done) ─> DoD 4
 | Release artifacts | THE-107 | Maya | blocked | Android AAB once THE-106 lands; iOS archive needs device QA + signing identity |
 | Store metadata + release notes | THE-109 | Dash | drafts done | branch `the-109-store-docs` @ `94f19d7`; needs privacy URL/legal sign-off, screenshots and the board decisions |
 | Desktop "Mobile access" card | THE-42 | Dash | in review | Maya code review then board acceptance; ships in the desktop build used for QA |
-| iOS on-device gate | THE-110 | Maya | **unblocked** — scope approved, THE-106 merged | implement the gate + widget test off `main`, verify with analyze + test |
+| iOS on-device gate | THE-110 | Maya | **done** — gate + tests on `the-110-ios-on-device-gate` | `/local*`, pairing link, home icon and Settings row Android-gated; iOS routes render the gate; widget tests on both platforms; analyze clean, 297/297 tests |
 | Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
 | Push relay | THE-40 | — | out of scope | design spike only; not part of v1 |
 | Scanner polish | THE-47 | Dash | deferred | backlog; not part of v1 |
@@ -119,14 +121,25 @@ Store metadata (Dash, drafts done) ─> DoD 4
 
 ## Gaps found in this audit
 
-1. **iOS and on-device models — decided, implementation next.** Board answer:
-   gate on-device to Android for v1 (THE-110). `docs/on-device.md` says "iOS
-   on-device support is not wired in this pass", but the app exposes the
-   `/local` routes on every platform (`app/lib/app.dart`) and `app/pubspec.yaml`
-   configures `llamadart` native backends only for `android-arm64` and
-   `android-x64`. THE-110 hides/disables the on-device entry points on iOS with
-   a widget test, so the iOS archive cannot present a feature that cannot load a
-   native runtime. THE-106 merged on 11-19, so this can now be built on `main`.
+1. **iOS on-device gate — implemented (THE-110).** Board answer (2026-11-19):
+   gate on-device to Android for v1. Implemented on
+   `the-110-ios-on-device-gate`: the four `/local*` routes, the pairing-screen
+   link, the home memory icon and the Settings row all check
+   `onDeviceModelsAvailable()`; on iOS the routes stay registered but render an
+   "On-device models are Android-only in v1" screen, and neither
+   `LocalModelsScreen`/`LocalChatScreen` nor a `LlamaEngine.load` is
+   constructed. Coverage: `test/features/local/on_device_gate_test.dart`
+   (platform mapping, all four routes on iOS and Android, home icon both ways)
+   plus a Settings test in `test/features/settings/settings_widget_test.dart`.
+   **The audit premise was partly wrong.** `flutter build ios --release
+   --no-codesign` succeeds (CI run `44527249107`, main, 2026-11-19; PR run
+   `44068833043`), and the unsigned IPA **does** ship
+   `Frameworks/llamadart.framework` — a 15.8 MB iOS-arm64 llama.cpp/ggml/Metal
+   runtime with the `mtmd` audio and `llama_dart_tts_*` LFM3 speech symbols.
+   The gate therefore enforces v1 **scope**, not a missing binary. iOS LFM3 is
+   still unvalidated (load, RAM, thermals, speech) and there is no iPhone in the
+   QA set. No load attempt was run on iOS; if one throws,
+   `LocalChatController.loadModel` catches it into `state.error`.
 2. **Store prerequisites are missing.** No store metadata, screenshots or
    privacy-policy document/URL; no `DEVELOPMENT_TEAM` in
    `app/ios/Runner.xcodeproj`; Play Console account status unverified. These
