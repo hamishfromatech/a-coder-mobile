@@ -3,9 +3,16 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-17 23:55 NZDT. `feat/on-device-lfm3` @ `6b02bd2`
-(not pushed), `main` @ `74a0bc1`. App version `1.0.0+1`. Xcode **27.2
-(27B52)** installed and selected. Working tree clean.
+**Snapshot:** 2026-11-19 05:45 NZDT (plan rev 5). `feat/on-device-lfm3` local
+head `c3b2481` (**4 commits ahead of the pushed head**); `origin` at `ef2aaff`,
+PR #3, all four CI checks green. `main` @ `74a0bc1`. App version `1.0.0+1`.
+Xcode **27.2 (27B52)** installed and selected, with **iOS 27.2 simulator
+runtimes installed on 2026-11-19**.
+
+**Resource gate (2026-11-19):** swap **11.80 GB of 12.29 GB (96%)** on a 32 GB
+Mac, so no build, test suite or simulator boot is started this heartbeat. Free
+memory 32%, load 4.5/12. Every number below comes from an existing artifact, an
+API read or a light discovery command, not from a fresh build.
 
 Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, store
 submission and release-notes publication.
@@ -29,9 +36,12 @@ Board decisions still needed before THE-107 can build: bundle identity, iOS
 on-device scope, Apple team, Play Console status, physical QA devices, and
 upload-keystore backup. They are in the saved question card on THE-105.
 
-**Critical path changed on 2026-11-17:** Xcode is installed, so the gate is no
-longer the toolchain. It is now the **THE-106 push approval** (pending board
-approval `7989c5af`) and the **THE-42 review**, then THE-107.
+**Critical path changed twice.** On 2026-11-17 Xcode installed, so the toolchain
+stopped being the gate. On 2026-11-19 the push approval was granted and PR #3
+went green, so the gate is now the **THE-106 merge** (blocked by the review gate
+on THE-114: the PR author is the repo's only collaborator), the **THE-42 copy
+fix**, the **physical-device pass** (THE-48) and the **six decisions in card
+`30ec2894`** that THE-107 needs before it can build.
 
 ---
 
@@ -39,8 +49,8 @@ approval `7989c5af`) and the **THE-42 review**, then THE-107.
 
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
-| 1 | `flutter analyze` + `flutter test` green on the release commit | **Open — conditional** | Maya (THE-106) | On `6b02bd2`: `flutter analyze` clean; non-golden suite **198/198**; **9 golden cases drift on macOS 27.2** with 142–242 px text-antialiasing diffs and fail identically on `main` (`74a0bc1`). Baselines were generated on macOS 26 and CI is macos-26. DoD 1 needs either the CI run on the PR or an explicit accept of the golden drift (THE-111). |
-| 2 | THE-48 device QA on a physical device, with evidence | **In review — blocked on hardware** | Maya | Xcode 27.2 installed, but `devicectl list devices` -> **0**, `flutter devices` shows only macOS/Chrome, and there is **no simulator runtime** (`simctl list runtimes` empty). The run recorded fresh bridge evidence at v0.80.202 (wss banner, pin matches the served cert, `/health` 200) and 12/12 cert-pinning tests; pairing, one turn and wrong-pin refusal need a phone. Question card `159bffa1` asks for a device or an interim simulator pass. Two QA findings to carry in: the fixture cert is `CN=localhost` with no LAN IP in its SAN, and the wrong-pin case needs an untrusted chain or the pin is never consulted. |
+| 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on the PR head; must be re-run on the merge commit** | Maya (THE-106) | PR #3 @ `ef2aaff` on macos-26: `flutter` job -> `Analyze: No issues found!` and **`289 tests passed`**; `android`, `changes` and `unsigned-ipa` also **pass**. That is the authoritative golden gate, because baselines are owned by macos-26 CI (THE-111). Local macOS 27.2 still drifts on 9 golden cases exactly as `main` does. Re-run required on the final release commit after merge. |
+| 2 | THE-48 device QA on a physical device, with evidence | **Interim simulator pass now runnable; physical device still missing** | Maya | 2026-11-19 evidence: `simctl list runtimes` -> **two iOS 27.2 runtimes**; `simctl list devices available` -> iPhone 18 Pro / 18 Pro Max / 17 / 17e / Air, iPad mini (all shutdown); `flutter emulators` -> **`apple_ios_simulator`** and **`acoder_pixel_api35`**; `xcodebuild -list` resolves the workspace and the `Runner` scheme. `devicectl list devices` -> **0**. So the `wss://` pairing pass can now run in a simulator as clearly-labelled interim evidence; physical-device evidence for DoD 2 cannot. Bridge evidence unchanged: v0.80.202 wss banner, served-cert pin match, `/health` 200, 12/12 cert-pinning tests. Two QA traps to carry in: the fixture cert is `CN=localhost` with no LAN IP in its SAN, and the wrong-pin case needs an untrusted chain or the pin is never consulted. |
 | 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. iOS needs Xcode + an Apple team (none set in the Xcode project). |
 | 4 | Store metadata + release notes ready (submission board-gated) | **Drafts complete — review open** | Dash (THE-109), reviewed by Maya | Drafts committed on branch `the-109-store-docs` @ `94f19d7` (separate worktree): app-store, play-store, privacy policy, screenshot shot-list, README with 12 board decisions. Remaining: privacy-policy legal review + hosted URL, four screenshots (blocked by swap and, for iOS, the toolchain), and the board decisions. Nothing published. |
 | 5 | Dash go/no-go review PASS on every line | **Not started** | Dash | Rubric to be issued with the RC. |
@@ -48,11 +58,15 @@ approval `7989c5af`) and the **THE-42 review**, then THE-107.
 ## Critical path
 
 ```
-THE-106 push approval (board, pending 7989c5af) ─> PR ─> CI (macos-26)
-  └─> release commit ─> AAB + iOS archive rebuilt on it
-The-42 review ─────────────────────────────────┘
-Xcode 27.2 (done 2026-11-17) ─> THE-48 device QA ─> signed iOS archive
-Store metadata (Dash, independent)
+THE-106 push (done 11-17) ─> PR #3 CI green (done 11-17, 289 tests)
+  └─> merge, gated by review gate THE-114 ─> release commit
+        └─> DoD 1 re-run ─> AAB + iOS archive rebuilt on it
+THE-42 copy fix (Dash) ────────────────────┘
+Xcode 27.2 + simulator runtime (done 11-19) ─> THE-48 wss:// pass
+  ├─ simulator interim evidence (runnable now, resource-gated)
+  └─ physical device (missing) ─> signed iOS archive / DoD 2
+Six decisions, card 30ec2894 ─> THE-107 build inputs
+Store metadata (Dash, drafts done) ─> DoD 4
 ```
 
 - **Xcode install is no longer at risk.** Verified 2026-11-17: `/Applications/Xcode.app`
@@ -69,9 +83,9 @@ Store metadata (Dash, independent)
 
 | Workstream | Issue | Owner | State | Next action |
 |---|---|---|---|---|
-| Land `feat/on-device-lfm3` | THE-106 | Maya | in review | board approval `7989c5af` pending: push `6b02bd2` + open PR (merge separately gated) |
-| iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | verified Xcode 27.2 / iOS SDK 27.2 / license accepted on 2026-11-17; simulator runtime still downloading |
-| Physical-device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | in review | blocked on a phone (0 devices attached) and on the missing simulator runtime; card `159bffa1` pending |
+| Land `feat/on-device-lfm3` | THE-106 | Maya | in review — merge blocked by review gate | pushed; PR #3 green; merge blocked by THE-114 (`REVIEW_REQUIRED`, author is the only collaborator); 4 local commits beyond the PR head need a board-approved push |
+| iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | Xcode 27.2 / iOS SDK 27.2 / license accepted 2026-11-17; **iOS 27.2 simulator runtimes installed 2026-11-19** |
+| Device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | in review — hardware outstanding | simulator pass unblocked 2026-11-19 (runtime + `apple_ios_simulator` emulator present); physical device still absent, `devicectl` 0; card `159bffa1` still pending on the hardware half |
 | Release artifacts | THE-107 | Maya | blocked | Android AAB once THE-106 lands; iOS archive needs device QA + signing identity |
 | Store metadata + release notes | THE-109 | Dash | drafts done | branch `the-109-store-docs` @ `94f19d7`; needs privacy URL/legal sign-off, screenshots and the board decisions |
 | Desktop "Mobile access" card | THE-42 | Dash | in review | Maya code review then board acceptance; ships in the desktop build used for QA |
@@ -85,7 +99,7 @@ Store metadata (Dash, independent)
 - **On-device LFM3** — voice chat, Omni multimodal, model hub/streaming, image
   composer, speech languages, persistent transcripts. Android arm64 only; see
   the iOS gap below.
-- **Desktop "Mobile access" card** (THE-42) — in review.
+- **Desktop "Mobile access" card** (THE-42) — changes requested on the Remove-device copy (it revokes, it is not cosmetic); back with Dash.
 - **`wss://` + certificate pinning** — bridge side merged (THE-41); app side is
   `app/lib/core/connection/cert_pinning.dart`. Device verification is THE-48.
 
@@ -120,19 +134,24 @@ Store metadata (Dash, independent)
    Renaming the Android `applicationId` now would create a new Play listing and
    detach the existing upload key, so the recommendation is to keep the current
    ids unless the board explicitly chooses a new identity.
-6. **Branch is local-only.** Push and the PR are board-gated (THE-106). CI
-   (analyze/test/Android compile/unsigned IPA) has therefore never run on the
-   LFM3 commits; the first PR run is a real gate, not a formality. Approval
-   `7989c5af` requests push + PR only; merge stays separately gated.
+6. **Local branch is 4 commits ahead of the CI-verified head.** The pushed head
+   is `ef2aaff`; `454082f`/`c3b2481` (THE-45/46 tests) and `5d4b64f`/`4b5ddbd`
+   (release docs), plus this tracker update, exist only on this machine.
+   Pushing them needs board approval, and the release commit must be the merged
+   `main` commit with DoD 1 re-run on it. Do not build artifacts from the local
+   head as if they were the verified one.
 7. **Golden baselines drift on macOS 27.2.** 9 golden cases fail locally with
    identical text-antialiasing diffs on `main`, so they are host-related, not a
    branch regression. THE-111 settled the policy (`ef2aaff`): baselines stay
    owned by macos-26 CI and the tolerance now classifies the drift instead of
    only counting pixels; no baseline PNG was regenerated. No post-change suite
    run is recorded yet, so DoD 1 still rests on the macos-26 CI run.
-8. **No physical device and no simulator runtime.** Xcode is installed but
-   `devicectl` sees 0 devices and `simctl` has no runtimes, so neither the
-   physical-device pass nor an interim simulator pass can run today (THE-48).
+8. **No physical device** (simulator gap closed 2026-11-19). Xcode 27.2 has two
+   iOS 27.2 runtimes and a bootable device set, and `flutter emulators` lists
+   `apple_ios_simulator` and `acoder_pixel_api35`, so an interim simulator
+   `wss://` pass is possible. `devicectl` still sees 0 devices, so DoD 2's
+   physical-device evidence is the one thing a simulator cannot supply
+   (THE-48).
 
 ## Artifact runbook
 
@@ -172,7 +191,7 @@ Signing checks that must be recorded with the artifact:
 | Week | Dates | Exit criteria |
 |---|---|---|
 | 1 | 11-17 → 11-23 | LFM3 branch green (analyze + tests) and docs current; **Xcode installed (done 11-17)**; Android AAB built and installed; store drafts started; iOS on-device decision made |
-| 2 | 11-24 → 11-30 | iOS simulator runtime installed + simulator build; physical-device QA (THE-48) with transcript + screenshots; defects triaged |
+| 2 | 11-24 → 11-30 | iOS simulator runtime installed (**done 11-19**) + simulator build; physical-device QA (THE-48) with transcript + screenshots; defects triaged |
 | 3 | 12-01 → 12-09 | Release commit frozen; AAB + signed iOS archive rebuilt on it; QA installs both; store metadata + screenshots final; Dash go/no-go PASS by 12-09 |
 | RC | 12-10 | Board approves tag/RC |
 | Ship | 12-12 | Board submits to both stores |
@@ -190,7 +209,11 @@ Signing checks that must be recorded with the artifact:
 5. Physical devices available for QA (Android model, iPhone model).
 6. Upload-keystore backup confirmation (`upload-keystore.jks` + `key.properties`).
 
-All six are in the saved question card `30ec2894` on THE-105 (still pending).
+All six are in the saved question card `30ec2894` on THE-105 (still pending as of
+2026-11-19). One more decision sits outside that card: the **THE-106 merge gate
+on THE-114** is blocked because the PR author is the repo's only collaborator,
+so it clears only by temporarily lowering `required_approving_review_count` for
+that merge or by adding a second reviewer. That is a yes/no, not a review.
 
 ## Governance
 
