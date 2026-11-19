@@ -10,10 +10,12 @@ merge commit **`9de316d`**, whose tree is identical to the CI-verified head
 `flutter` -> `No issues found!` + **289 tests passed**; `android`,
 `unsigned-ipa` and `changes` all pass. App version `1.0.0+1`. The six release
 questions were answered 2026-11-19 12:47Z — see *Board decisions applied* below.
-Local `feat/on-device-lfm3` is now divergent and carries the unmerged follow-up
-commits (settings test/seam + release docs) — see Gap 6. **THE-110 (iOS
-on-device gate) is implemented and green**: `flutter analyze` clean and
-`flutter test` **297/297 passed** on `the-110-ios-on-device-gate`.
+Local `feat/on-device-lfm3` is now divergent and carried the follow-up commits
+(settings test/seam + release docs); they were rebased onto `main` and pushed as
+[PR #4](https://github.com/hamishfromatech/a-coder-mobile/pull/4) — see Gap 6.
+**THE-110 (iOS on-device gate) is implemented, green and pushed**: `flutter
+analyze` clean and `flutter test` **297/297 passed**; merge is a separate board
+action.
 
 **Resource gate (2026-11-20 02:20–02:25 NZDT):** before the suite, free memory
 64%, swap **1467 MB of 2048 MB (72%)**, load 8.0/12 (limit 24). Swap had been
@@ -105,7 +107,7 @@ Store metadata (Dash, drafts done) ─> DoD 4
 | Release artifacts | THE-107 | Maya | blocked | Android AAB once THE-106 lands; iOS archive needs device QA + signing identity |
 | Store metadata + release notes | THE-109 | Dash | drafts done | branch `the-109-store-docs` @ `94f19d7`; needs privacy URL/legal sign-off, screenshots and the board decisions |
 | Desktop "Mobile access" card | THE-42 | Dash | in review | Maya code review then board acceptance; ships in the desktop build used for QA |
-| iOS on-device gate | THE-110 | Maya | **done** — gate + tests on `the-110-ios-on-device-gate` | `/local*`, pairing link, home icon and Settings row Android-gated; iOS routes render the gate; widget tests on both platforms; analyze clean, 297/297 tests |
+| iOS on-device gate | THE-110 | Maya | **done** — pushed as [PR #4](https://github.com/hamishfromatech/a-coder-mobile/pull/4); merge is a separate board action | `/local*`, pairing link, home icon and Settings row Android-gated; iOS routes render the gate; widget tests on both platforms; analyze clean, 297/297 tests |
 | Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
 | Push relay | THE-40 | — | out of scope | design spike only; not part of v1 |
 | Scanner polish | THE-47 | Dash | deferred | backlog; not part of v1 |
@@ -181,17 +183,22 @@ Store metadata (Dash, drafts done) ─> DoD 4
    (Android) and `dev.acoder.mobile.acoderMobile` (iOS)**. THE-107's brief said
    `com.atech.*`; the decision supersedes it, so there is no rename, no new Play
    listing and no upload-key detachment.
-6. **The follow-up commits are not on `main`.** The squash merge landed the
-   contents of `ef2aaff` only. These commits exist only on this machine:
+6. **The follow-up commits are not on `main` — they are [PR #4](https://github.com/hamishfromatech/a-coder-mobile/pull/4).**
+   The squash merge landed the contents of `ef2aaff` only. The board approved
+   the push on 2026-11-19 (`f3b168c2`), so the branch was rebased onto
+   `origin/main` (`9de316d`) and pushed as `the-110-ios-on-device-gate`:
    - `454082f`, `c3b2481` — THE-45/46 settings test + injectable prefs seam
-   - `5d4b64f`, `4b5ddbd`, `4abaed1`, `7e4a6bd`, `3d793a6` — release tracker and
-     QA docs
+   - `5d4b64f`, `4b5ddbd`, `4abaed1`, `7e4a6bd`, `3d793a6`, `f6aee6f` — release
+     tracker and QA docs
+   - `c2d50a4` — THE-110 iOS on-device gate (rebased from local `d9f0c0e`)
 
-   `git diff --stat 9de316d..HEAD` is 4 files, **+214/−71**. A local branch
-   `release/v1-followup` off `origin/main` carries the same content (tip tree
-   identical to this branch's tip), so the push is a plain branch push once the
-   board approves it. DoD 1 must be re-run on that PR's merge commit, because
-   the delta changes a settings provider and adds a widget test.
+   Rebasing onto `origin/main` dropped the commits already squashed into
+   `9de316d`; the rebased gate commit is tree-identical to the locally verified
+   `d9f0c0e` (`git diff d9f0c0e c2d50a4` is empty), so the 297/297 run still
+   describes the PR head. `git diff --stat origin/main...HEAD` is 13 files, **+730/−190** —
+   the follow-ups plus THE-110, with none of the already-merged LFM3 feature.
+   DoD 1 must be re-run on the PR's merge commit, because the delta changes a
+   settings provider and adds a widget test. Merge is a separate board action.
 7. **Golden baselines drift on macOS 27.2.** 9 golden cases fail locally with
    identical text-antialiasing diffs on `main`, so they are host-related, not a
    branch regression. THE-111 settled the policy (`ef2aaff`): baselines stay
