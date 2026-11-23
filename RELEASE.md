@@ -3,66 +3,137 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-23 14:2x NZDT (plan rev 11). **PR #4 is merged into
-`main`** at 2026-11-23 01:24:24Z, squash commit **`361bc63`**, under board
-approval `9520dd25` (one-time bypass). `git diff 5544b23 361bc63` is empty, so
-the merged tree is exactly the PR head that CI verified: `flutter` ->
-`No issues found!` + **297 tests passed**, plus `android`, `unsigned-ipa` and
-`changes` all green. That makes **`361bc63` the release commit candidate**, and
-its own push CI run confirms it: [mobile 45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320)
--> `Analyze: No issues found! (ran in 15.6s)`, **`🎉 297 tests passed`**, android
-success; [iOS build 45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)
--> success. App version `1.0.0+1`. The six release
-questions were answered 2026-11-19 12:47Z — see *Board decisions applied* below.
-PR #3 (`9de316d`, 2026-11-19) carried the LFM3 feature with 289 tests; PR #4
-carried the follow-up commits plus the THE-110 iOS on-device gate (see Gap 6).
-Merging PR #4 exposed a defect in `main`'s branch protection — see **Gap 9**: the
-required status contexts do not match any check the workflows publish, so no PR
-can ever satisfy them.
+**Snapshot:** 2026-11-23 14:4x NZDT (plan rev 12).
 
-**Resource gate (2026-11-23 14:22 NZDT):** free memory 74%, swap **3536 MB of
-5120 MB (69%)**, load 5.65/12 (limit 24). Swap is over the 25% hard-stop line, so
-this heartbeat ran **no build, no `flutter test` and no simulator boot**; every
-number in this revision comes from `gh`, `git`, `security`, `devicectl` or a
-GitHub-hosted CI run. The 2026-11-20 suite run recorded in earlier revisions was
-the last local heavy job (297/297 under `nice -n 15`, 33 s).
+**The release channel changed on 2026-11-23.** The board answered card
+`8400bb25` and the answer replaces the store path:
 
-Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, store
-submission and release-notes publication.
+> "we are only releasing the downloads on github. no where else. no app store
+> release." — and, for Apple, "not getting apple dev acocunt yet"; Play Console
+> "No console access yet".
 
-## Task structure (board plan, comment `653ee48a`, 2026-11-17)
+So v1 ships as **GitHub Release downloads only**. There is no App Store
+submission, no Play submission, no Apple Developer Program enrolment and no Play
+Console access in scope. That removes the signed iOS archive and all store
+metadata from the definition of done, and it replaces them with: a **signed
+Android release APK**, an **unsigned iOS IPA for sideloading**, release notes and
+install instructions — all published only with explicit board approval.
 
-| Issue | Task | Owner | Blocked by |
+**Release commit:** `361bc63` — PR #4 squash-merged 2026-11-23 01:24:24Z under
+board approval `9520dd25`. `git diff 5544b23 361bc63` is empty, so the merged
+tree is byte-identical to the PR head CI verified. The app tree built below is
+identical to that commit (`git diff --quiet 361bc63 HEAD -- app`).
+
+**DoD 1** is met on `361bc63` from its own push CI run: `flutter` job
+`Analyze: No issues found! (ran in 15.6s)` and **297 tests passed**; `android`,
+`unsigned-ipa` and `changes` all success ([mobile 45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320),
+[iOS build 45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)).
+
+**Artifacts (built this heartbeat, staged locally, nothing published):**
+
+| Asset | Size | SHA-256 | Provenance |
 |---|---|---|---|
-| THE-106 | Land `feat/on-device-lfm3` (analyze/test, push approval, PR) | Maya | — |
-| THE-42 | Desktop "Mobile access" card (in review) | Dash | — |
-| THE-38 | Install full Xcode (board action, critical) | board | — |
-| THE-48 | Device QA over `wss://` on hardware | Maya | THE-38 |
-| THE-107 | v1 release build: AAB + iOS archive, signing, store metadata | Maya | THE-106, THE-42, THE-48 |
-| THE-108 | Go/no-go review with evidence | Dash | THE-107 |
+| `acoder-mobile-1.0.0.apk` | 126,544,319 B (120.7 MiB) | `3c32595161dc5148ad8f644765b37aada63095f44eea3c43fa2718ca893456e5` | `flutter build apk --release --build-name=1.0.0 --build-number=1` from the `361bc63` app tree, 2026-11-23 14:41 NZDT, 314.0 s |
+| `acoder-mobile-1.0.0-unsigned.ipa` | 17,804,523 B (17.0 MiB) | `16d123bf20db1492ca7e48668714108fa26d5a9bcce32e530690ad7a03f466e5` | CI artifact `A-Coder-unsigned-ipa` from [run 45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363) — the `361bc63` push run |
+
+Both are staged in `app/build/releases/v1.0.0+1/` with `SHA256SUMS`
+(`app/build/` is git-ignored; binaries are not committed).
+
+Signing evidence for the APK:
+
+- `apksigner verify --print-certs` -> `CN=A-Coder Mobile, OU=Mobile, O=A-Coder,
+  C=NZ`, SHA-256 `de28f41d46f95dbd3c46d58ee290656d4be3cfc6bab5e7d5659f046ffc3d83b4`
+- the same fingerprint as alias `upload` in `app/android/app/upload-keystore.jks`
+  (valid 2026-09-25 -> 2054-02-10) — **not** `CN=Android Debug`
+- `apksigner verify --verbose` -> **APK Signature Scheme v2: true** (v1 not
+  needed at `minSdkVersion 24`)
+- `aapt2 dump badging` -> `package dev.acoder.mobile`, `versionName 1.0.0`,
+  `versionCode 1`, `minSdkVersion 24`, `targetSdkVersion 36`
+- ABIs present: `arm64-v8a`, `armeabi-v7a`, `x86_64` — a universal APK, so one
+  download works on every Android phone and on an x86_64 emulator
+
+The IPA is **unsigned**: `CFBundleIdentifier dev.acoder.mobile.acoderMobile`,
+`1.0.0`/`1`, `MinimumOSVersion 15.0`. Without an Apple Developer account it
+cannot be installed as downloaded — see Gap 10.
+
+**Resource gate (2026-11-23 14:31 NZDT):** free memory **74%**, swap
+**3512 MB of 5120 MB (69%)**, load **6.04/12** on 12 cores. Swap *usage* is over
+the 25% hard-stop line but swap *I/O* was measured at **4 pages out / 0 pages in
+over 6 s** (≈64 KB), i.e. no active thrashing, and free memory was 74%. On that
+evidence this heartbeat ran exactly **one** heavy job — the release APK build,
+`nice -n 10`, 314 s — and no second job alongside it. That is a recorded,
+bounded deviation from the literal swap figure, not a licence for parallel
+builds: the next heavy job waits for this one to finish and for the same
+measurement to pass.
+
+Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, and **any
+publication** — including a GitHub Release, which is public because the
+repository is public.
+
+## Task structure (board plan, comment `653ee48a`, 2026-11-17; scoped to the GitHub channel on 2026-11-23)
+
+| Issue | Task | Owner | Blocked by | State |
+|---|---|---|---|---|
+| THE-106 | Land `feat/on-device-lfm3` (analyze/test, push approval, PR) | Maya | — | **done** — PR #3 `9de316d`, follow-ups + THE-110 in PR #4 `361bc63` |
+| THE-42 | Desktop "Mobile access" card | Dash | — | `in_progress` — copy fix outstanding (Gap 12) |
+| THE-38 | Install full Xcode | board | — | **done** — Xcode 27.2, SDK 27.2, license accepted 2026-11-17 |
+| THE-48 | Device QA over `wss://` on hardware | Maya | THE-38 | `blocked` — simulator pass done, physical device missing (Gap 8) |
+| THE-107 | **GitHub release build**: signed APK + unsigned IPA, notes, checksums | Maya | THE-48 (install proof only) | **build done**; install proof open |
+| THE-108 | Go/no-go review with evidence | Dash | THE-107 | blocked; rubric drops store readiness, adds artifact/install evidence |
+| THE-109 | Store metadata/screenshots drafts | Dash | — | **superseded** by the channel change (Gap 2); only the release-notes text is reusable |
 
 Deferred past v1: **THE-40** push relay, **THE-47** scanner polish.
-Delegated slices under THE-107: **THE-109** store metadata/screenshots/release
-notes drafts (Dash, drafts only), **THE-110** iOS on-device gate (Maya).
+Delegated slices: **THE-110** iOS on-device gate (merged in `361bc63`).
 
-**Critical path moved past the merge.** Xcode installed 11-17, PR #3 went green
-11-17, the six answers landed 11-19 12:47Z and **PR #3 merged at 12:47:58Z**
-(board-authorised one-time admin bypass; branch protection was not changed).
-THE-106 is landed, so the gate is now the **follow-up PR**, the
-**THE-42 copy fix** (checked 2026-11-20: not yet in the desktop branch), the
-**physical-device pass** (THE-48) and the **three operator lookups** that only
-signing and submission need.
+**Critical path now:**
 
-## Board decisions applied (card `30ec2894`, answered 2026-11-19 12:47Z)
+```
+361bc63 (release commit) ─> APK signed + verified DONE ─> install/unpack proof
+                                        │                    (THE-48 hardware, or an
+                                        │                     operator install)
+                                        ├─> GitHub release approval (board, publication)
+                                        └─> Dash go/no-go (THE-108) ─> final v1.0.0
+THE-42 copy fix (Dash) ─> desktop QA build only; not on the mobile artifact
+```
+
+Nothing else on this issue can move the date. There is no signing lead time left
+to lose: the only credential the Android artifact needs is local and valid, and
+iOS has no signed-distribution path in scope at all.
+
+## Board decisions applied
+
+### 2026-11-19 — scope and identity (card `30ec2894`)
 
 | # | Question | Answer | Effect |
 |---|---|---|---|
-| 1 | Bundle identity | **Keep `dev.acoder.mobile` / `dev.acoder.mobile.acoderMobile`** | No rename, no new Play listing, no upload-key detachment. THE-107 builds on the shipping ids; its brief's `com.atech.*` is superseded. |
-| 2 | iOS on-device scope | **Gate on-device models to Android for v1** | Approved scope for **THE-110**. iOS v1 ships pairing + chat. THE-106 has merged, so the gate can be implemented on `main` and only needs a verified analyze/test run. |
-| 3 | Apple Developer Program team/status | **Not recorded** — operator must supply Team ID, account-holder status and whether an App Store Connect record exists | Blocks the *signed* iOS archive and any upload only; an unsigned archive stays buildable. |
-| 4 | Google Play Console | **Unknown** — board to confirm | Blocks submission only, but approval can take days, so confirm before RC week. |
-| 5 | Physical QA devices | **Not recorded** — Android phone + iPhone models, and whether the Android phone can join the bridge LAN | Blocks DoD 2 on hardware; simulator interim evidence does not substitute. |
-| 6 | Upload-keystore backup | **Unsure** — paths and steps requested | Paths and a secret-free backup procedure are in Gap 3 below. Losing the key blocks every future update to the same listing. |
+| 1 | Bundle identity | **Keep `dev.acoder.mobile` / `dev.acoder.mobile.acoderMobile`** | No rename, no new listing, no upload-key detachment. THE-107's brief's `com.atech.*` is superseded. |
+| 2 | iOS on-device scope | **Gate on-device models to Android for v1** | THE-110, merged in `361bc63`. iOS v1 ships pairing + chat. |
+| 3 | Apple Developer Program | Not recorded then — **answered 2026-11-23: not enrolling yet** | No signed iOS archive, no TestFlight, no App Store. |
+| 4 | Google Play Console | Unknown then — **answered 2026-11-23: no access yet** | No Play upload, no AAB requirement. |
+| 5 | Physical QA devices | Not recorded then — **answered 2026-11-23 with the channel decision (no device named)** | DoD 2's hardware row stays open (Gap 8). |
+| 6 | Upload-keystore backup | Unsure then — **answered 2026-11-23: operator will copy it off-machine** | Procedural item closed; the key is still single-copy until that happens. |
+
+### 2026-11-23 — release channel (card `8400bb25`, answered 01:31Z)
+
+| # | Question | Answer | Effect now |
+|---|---|---|---|
+| 1 | Apple Developer Program | **Not getting an Apple dev account yet** | Signed iOS archive, TestFlight and App Store leave scope. iOS ships as an **unsigned IPA for sideloading** plus source build instructions. |
+| 2 | Google Play Console | **No console access yet** | No Play submission. An AAB has no consumer here; the **APK is the Android artifact**. |
+| 3 | Release channel | **"we are only releasing the downloads on github. no where else. no app store release"** | Distribution = GitHub Releases on `hamishfromatech/a-coder-mobile` (public repository). Board approval is required before the Release is created. |
+| 4 | Keystore backup | **Operator will copy it off-machine** | No agent action. Procedure kept in Gap 3 for reference. |
+
+### 2026-11-23 — branch protection fix (approval `6fe3aff7`, approved 01:31:37Z)
+
+Executed this heartbeat. Before: required contexts `mobile / flutter`,
+`mobile / android`, `iOS build / unsigned-ipa` (legacy statuses, `app_id: null`),
+which no workflow publishes, so every PR returned `405 — 3 of 3 required status
+checks are expected`. After: required contexts **`flutter`, `android`,
+`unsigned-ipa`**, which GitHub resolved to app-bound checks from the GitHub
+Actions app (`app_id: 15368`), `strict: true`. The two objects were diffed field
+by field: only `required_status_checks` differs. `required_approving_review_count
+1`, `require_last_push_approval`, `dismiss_stale_reviews`, `enforce_admins`,
+linear history, no force-push/deletion and conversation resolution are all
+unchanged. See Gap 9.
 
 ---
 
@@ -70,261 +141,209 @@ signing and submission need.
 
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
-| 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on `361bc63` (PR #4 merge)** — re-confirmed by the push CI run at that commit | Maya | PR #4 head `5544b23`: `flutter` -> `No issues found!` + **297 tests passed**; `changes`, `android`, `unsigned-ipa` all pass ([run 44534309166](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/44534309166) / [44534309291](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/44534309291)). Squash-merged as `361bc63`; `git diff 5544b23 361bc63` is **empty**, so the merged tree is byte-identical to the verified head. DoD 1 is confirmed by the push CI run at `361bc63` (2026-11-23 01:26-01:30Z): `Analyze: No issues found! (ran in 15.6s)` and **`297 tests passed`** ([run 45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320), job `137430850317`), iOS `unsigned-ipa`/`changes` success ([run 45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)), android success. PR #3's `9de316d` run (289 tests) remains recorded for history. |
-| 2 | THE-48 device QA on a physical device, with evidence | **Interim simulator pass executed 2026-11-20; physical device still missing** | Maya | iPhone 18 Pro / iOS 27.2 simulator against `a-coder-cli serve` 0.80.202 with the fixture cert: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered), wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`, self-signed chain so the pin really was consulted). **One turn is PARTIAL:** streaming works (`agent_start -> message_update xN -> turn_end -> agent_end`) and the engine executed bash, but **no `tool_execution_start`/`tool_execution_end` frames reached the client**, so tool cards had nothing to render — a real defect, filed as a THE-48 follow-up. QR capture not run (simulator has no camera; pairing was seeded via debug `SEED_HOST_TLS`/`SEED_HOST_PIN`, same `PairedHost -> HostRegistry.wsUrl -> RpcClient` path). `devicectl` still **0 devices**, so DoD 2's hardware row is open. This evidence is committed locally on `feat/on-device-lfm3` (`3d0d925`, QA.md + integration test + debug seed) and is **not yet on `main`** — it needs a push approval when the physical run happens. |
-| 3 | Android AAB + iOS archive, release version/signing, installable by QA | **Open** | Maya | Android signing material is present and valid (see below); no AAB built yet. Bundle identity is now fixed by the 2026-11-19 decision, so the first AAB will not need an identity rebuild. iOS still needs an Apple team (none set in the Xcode project). |
-| 4 | Store metadata + release notes ready (submission board-gated) | **Drafts complete — review open** | Dash (THE-109), reviewed by Maya | Drafts committed on branch `the-109-store-docs` @ `94f19d7` (separate worktree): app-store, play-store, privacy policy, screenshot shot-list, README with 12 board decisions. Remaining: privacy-policy legal review + hosted URL, four screenshots (blocked by swap and, for iOS, the toolchain), and Dash's own 12 doc decisions. Identity and iOS scope are now settled for it by the 2026-11-19 answers. Nothing published. |
-| 5 | Dash go/no-go review PASS on every line | **Not started** | Dash | Rubric to be issued with the RC. |
+| 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on `361bc63`** | Maya | Push CI at the merge commit: `No issues found! (ran in 15.6s)`, **297 tests passed**, android / unsigned-ipa / changes success ([45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320), [45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)). No local re-run needed or claimed. |
+| 2 | Device QA on a physical device, with evidence | **Open — no physical device** | Maya | Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered); wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`); one turn **PARTIAL** — streaming completes and bash executes, but no `tool_execution_start`/`tool_execution_end` frames reach the client, so tool cards cannot render (Gap 8). QR capture not run (no camera). `devicectl` 0 devices. Evidence is local commit `3d0d925`, not on `main`. |
+| 3 | Installable v1 artifacts at the release version/signing | **Artifacts met; install proof open** | Maya | Android: signed release APK (v2, upload key `de28f41d…`, `dev.acoder.mobile` 1.0.0+1, universal ABIs, 126.5 MB, sha256 `3c3259…`). iOS: unsigned IPA from the `361bc63` CI run (17.0 MB, sha256 `16d123…`), sideload-only. **Neither has been installed on a physical device from this build.** The signed iOS archive that the original DoD asked for is out of scope by the 2026-11-23 channel decision. |
+| 4 | Release notes + install instructions ready (publication board-gated) | **Rewritten for GitHub; draft needed** | Maya (notes), Dash (copy review) | Store metadata is no longer a gate (Gap 2). Needed for the Release body: what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device models Android-only; tool cards not rendering in a live turn), checksums. THE-109's drafts are input only. |
+| 5 | Dash go/no-go PASS on every line | **Not started** | Dash | Rubric to be reissued for the GitHub channel: DoD 1 evidence, artifact checksums/signature, install evidence, known limitations. |
 
 ## Critical path
 
-```
-PR #3 merged 11-19 (9de316d) ─> PR #4 merged 11-23 (361bc63, 297 tests) = release commit candidate
-  └─> DoD 1 re-read from push CI at 361bc63 ─> AAB + iOS archive rebuilt on it
-THE-42 copy fix (Dash, still outstanding) ──┘
-THE-48: simulator interim pass DONE 11-20 (connect PASS, wrong pin PASS, turn PARTIAL)
-  ├─ tool_execution_* frames missing client-side ─> follow-up defect
-  └─ physical device (missing) ─> DoD 2 + signed iOS archive
-Apple team / Play Console (operator) ─> signed archive + submission
-Gap 9 protection-context fix (board) ─> any future PR merge, incl. THE-107
-Store metadata (Dash, drafts done) ─> DoD 4
-```
-
-- **Xcode install is no longer at risk.** Verified 2026-11-17: `/Applications/Xcode.app`
-  selected, `Xcode 27.2` build `27B52`, iOS SDK 27.2, iOS Simulator SDK 27.2,
-  `xcodebuild -checkFirstLaunchStatus` exit 0 (license accepted). The only
-  missing piece is the simulator **runtime**, which is downloading.
-- **Xcode install dates are moot.** For RC on 12-10 the old guidance was install
-  by 2026-11-26; it landed on 11-17. The date-based risk now belongs to the
-  THE-106 push approval and the THE-42 review.
-- Every artifact must be rebuilt from the **same release commit** after the
-  LFM3 branch lands. Do not ship an AAB built from a dirty or pre-merge tree.
+- **The artifact exists and is verifiable.** The remaining Android work is
+  install proof, not build work.
+- **The date is now gated on two human decisions, not on toolchain:**
+  1. **Publication approval** — create the GitHub Release (`v1.0.0-rc1` as a
+     pre-release, or `v1.0.0` directly) with the APK, the unsigned IPA, the
+     checksum file and the release notes. Recommended: RC pre-release now, final
+     `v1.0.0` after THE-48 and Dash's go/no-go.
+  2. **Install evidence for DoD 2** — either a named Android phone for the QA
+     pass, or the operator installing the APK from the Release and reporting the
+     result. Until one of those happens, DoD 2 is not claimed.
+- **Everything must be rebuilt from the same release commit.** `361bc63` is that
+  commit today. If any commit lands on `main`, the APK is rebuilt and DoD 1 is
+  re-read from the new commit's CI run.
+- **THE-42** is a desktop-app copy fix; it gates the desktop build used for QA,
+  not the mobile artifact.
 
 ## Workstreams
 
 | Workstream | Issue | Owner | State | Next action |
 |---|---|---|---|---|
-| Land `feat/on-device-lfm3` | THE-106 | Maya | **done — merged twice** | PR #3 squash-merged as `9de316d` (2026-11-19, 289 tests). Follow-ups + THE-110 merged as **PR #4 -> `361bc63`** (2026-11-23, 297 tests), so nothing is left unpushed on this path |
-| iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | Xcode 27.2 / iOS SDK 27.2 / license accepted 2026-11-17; **iOS 27.2 simulator runtimes installed 2026-11-19** |
-| Device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | **blocked — physical hardware outstanding** | interim iOS simulator pass executed 2026-11-20: connect PASS, wrong pin PASS, turn PARTIAL (no `tool_execution_*` frames to the client). Evidence is local (`3d0d925`) and unpushed. `devicectl` 0 devices; hardware is still question 5 of `30ec2894` |
-| Release artifacts | THE-107 | Maya | blocked | Android AAB can start on `361bc63`; the signed iOS archive needs an Apple team (none on this Mac) and DoD 2 |
-| Store metadata + release notes | THE-109 | Dash | drafts done | branch `the-109-store-docs` @ `94f19d7`; needs privacy URL/legal sign-off, screenshots and the board decisions |
-| Desktop "Mobile access" card | THE-42 | Dash | in review | Maya code review then board acceptance; ships in the desktop build used for QA |
-| iOS on-device gate | THE-110 | Maya | **done — merged** | Shipped in [PR #4](https://github.com/hamishfromatech/a-coder-mobile/pull/4) -> `361bc63` (2026-11-23). `/local*`, pairing link, home icon and Settings row Android-gated; iOS routes render the gate; widget tests on both platforms; analyze clean, 297/297 tests |
-| Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC; verdict PASS/FAIL per line |
-| Push relay | THE-40 | — | out of scope | design spike only; not part of v1 |
-| Scanner polish | THE-47 | Dash | deferred | backlog; not part of v1 |
+| Land `feat/on-device-lfm3` | THE-106 | Maya | **done** | PR #3 `9de316d` (289 tests), PR #4 `361bc63` (297 tests) |
+| iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | Xcode 27.2 / SDK 27.2 / license accepted; iOS 27.2 simulator runtimes installed 2026-11-19 |
+| Device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | **blocked — hardware** | simulator pass done; tool-frame defect open; physical device unnamed |
+| Release artifacts | THE-107 | Maya | **build done, install proof open** | APK + IPA staged with checksums; awaiting install evidence and the publication decision |
+| Release notes + install instructions | THE-107 / THE-109 | Maya, Dash reviews | **to write** | GitHub-shaped notes; store drafts unused |
+| Desktop "Mobile access" card | THE-42 | Dash | in progress | copy fix (Gap 12) then board acceptance |
+| iOS on-device gate | THE-110 | Maya | **done** | merged in `361bc63` |
+| Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC |
+| Push relay | THE-40 | — | out of scope | design spike only |
+| Scanner polish | THE-47 | Dash | deferred | backlog |
 
 ## Release contents (and what is verified)
 
 - **On-device LFM3** — voice chat, Omni multimodal, model hub/streaming, image
-  composer, speech languages, persistent transcripts. Android arm64 only; see
-  the iOS gap below.
-- **Desktop "Mobile access" card** (THE-42) — changes requested on the Remove-device copy (it revokes, it is not cosmetic); back with Dash.
+  composer, speech languages, persistent transcripts. Android arm64 only; the iOS
+  runtime is gated per THE-110.
+- **Desktop "Mobile access" card** (THE-42) — review asked for a copy correction:
+  removing a device is a durable revoke, not cosmetic.
 - **`wss://` + certificate pinning** — bridge side merged (THE-41); app side is
   `app/lib/core/connection/cert_pinning.dart`. Device verification is THE-48.
 
 ## Gaps found in this audit
 
-1. **iOS on-device gate — implemented (THE-110).** Board answer (2026-11-19):
-   gate on-device to Android for v1. Implemented on
-   `the-110-ios-on-device-gate`: the four `/local*` routes, the pairing-screen
-   link, the home memory icon and the Settings row all check
-   `onDeviceModelsAvailable()`; on iOS the routes stay registered but render an
-   "On-device models are Android-only in v1" screen, and neither
-   `LocalModelsScreen`/`LocalChatScreen` nor a `LlamaEngine.load` is
-   constructed. Coverage: `test/features/local/on_device_gate_test.dart`
-   (platform mapping, all four routes on iOS and Android, home icon both ways)
-   plus a Settings test in `test/features/settings/settings_widget_test.dart`.
-   **The audit premise was partly wrong.** `flutter build ios --release
-   --no-codesign` succeeds (CI run `44527249107`, main, 2026-11-19; PR run
-   `44068833043`), and the unsigned IPA **does** ship
-   `Frameworks/llamadart.framework` — a 15.8 MB iOS-arm64 llama.cpp/ggml/Metal
-   runtime with the `mtmd` audio and `llama_dart_tts_*` LFM3 speech symbols.
-   The gate therefore enforces v1 **scope**, not a missing binary. iOS LFM3 is
-   still unvalidated (load, RAM, thermals, speech) and there is no iPhone in the
-   QA set. No load attempt was run on iOS; if one throws,
-   `LocalChatController.loadModel` catches it into `state.error`.
-2. **Store prerequisites are missing.** No store metadata, screenshots or
-   privacy-policy document/URL; no `DEVELOPMENT_TEAM` in
-   `app/ios/Runner.xcodeproj`; Play Console account status unverified. These
-   block DoD 3 (signed archive) and DoD 4, not the Dart work.
-3. **Android upload key is local-only — paths and backup steps supplied.** Both
-   files exist on this Mac only:
-   - `app/android/app/upload-keystore.jks` (2,664 bytes, alias `upload`, created
-     2026-09-25)
-   - `app/android/key.properties` (137 bytes; keys `storePassword`,
-     `keyPassword`, `keyAlias`, `storeFile`)
-
-   Both are correctly git-ignored (`app/android/.gitignore` lines 12 and 14).
-   Losing the key blocks every future update to the same listing, so the
-   operator should:
-   1. Copy both files, unmodified, into the A-Tech password manager / encrypted
-      vault as one encrypted archive entry (7-Zip or `zip -e`) — not a plain
-      cloud folder, not chat.
-   2. Record **in the vault entry**, never in this repo: the `keyAlias` value,
-      the two passwords from `key.properties`, and the certificate SHA-256
-      fingerprint from
-      `keytool -list -v -keystore app/android/app/upload-keystore.jks -alias upload`
-      (run interactively; do not redirect output into the repo).
-   3. Restore it once on a second machine or a second path before the first
-      upload, so the backup is known-good rather than merely present.
-   4. Name the vault entry after the Play listing (`dev.acoder.mobile`), which
-      the 2026-11-19 decision keeps.
-
-   No agent can perform this step: it needs the operator's vault. Nothing here
-   requires printing, copying or committing a secret.
-4. **Emulator matrix has two open failures** (2026-11-03, pre-LFM3):
-   the offline home's Retry button is a no-op
-   (`lib/features/sessions/screens/home_screen.dart`, `onRetry: _noop`), and
-   background → foreground lands on the Pairing screen. Both need a decision:
-   fix before RC or explicitly accept for v1 with the physical-device pass as
-   cover. The physical-device matrix is required either way.
-5. **Version freeze — identity settled.** `1.0.0+1` is the RC version. After any
-   store upload the build number must increase (`+2`, `+3`); never upload a
-   lower build number. Board answer 2026-11-19: **keep `dev.acoder.mobile`
-   (Android) and `dev.acoder.mobile.acoderMobile` (iOS)**. THE-107's brief said
-   `com.atech.*`; the decision supersedes it, so there is no rename, no new Play
-   listing and no upload-key detachment.
-6. **The follow-up commits and THE-110 are merged — [PR #4](https://github.com/hamishfromatech/a-coder-mobile/pull/4) -> `361bc63` (closed 2026-11-23).**
-   The PR #3 squash landed the contents of `ef2aaff` only. The board approved
-   the push on 2026-11-19 (`f3b168c2`), the branch was rebased onto
-   `origin/main` (`9de316d`) and pushed as `the-110-ios-on-device-gate`:
-   - `454082f`, `c3b2481` — THE-45/46 settings test + injectable prefs seam
-   - `5d4b64f`, `4b5ddbd`, `4abaed1`, `7e4a6bd`, `3d793a6`, `f6aee6f` — release
-     tracker and QA docs
-   - `c2d50a4` — THE-110 iOS on-device gate (rebased from local `d9f0c0e`)
-
-   Rebasing onto `origin/main` dropped the commits already squashed into
-   `9de316d`; the rebased gate commit is tree-identical to the locally verified
-   `d9f0c0e` (`git diff d9f0c0e c2d50a4` is empty), so the 297/297 run still
-   describes the PR head. `git diff --stat origin/main...HEAD` is 13 files, **+730/−190** —
-   the follow-ups plus THE-110, with none of the already-merged LFM3 feature.
-   DoD 1 must be re-run on the PR's merge commit, because the delta changes a
-   settings provider and adds a widget test. Merge is a separate board action.
+1. **iOS on-device gate — implemented (THE-110).** The four `/local*` routes, the
+   pairing-screen link, the home memory icon and the Settings row check
+   `onDeviceModelsAvailable()`; on iOS they render an "On-device models are
+   Android-only in v1" screen and never construct `LlamaEngine`. Coverage:
+   `test/features/local/on_device_gate_test.dart` plus a Settings test. The
+   audit premise was partly wrong: `flutter build ios --release --no-codesign`
+   succeeds and the unsigned IPA **does** ship `Frameworks/llamadart.framework`,
+   a 15.8 MB iOS-arm64 llama.cpp/ggml/Metal runtime. The gate enforces v1
+   **scope**, not a missing binary.
+2. **Store prerequisites are no longer gates.** No metadata, screenshots,
+   privacy-policy URL or `DEVELOPMENT_TEAM` are needed for a GitHub Release. What
+   the Release *does* need: release notes, install steps, known limitations and
+   checksums. THE-109's drafts remain useful as source text only.
+3. **Android upload key is local-only — operator will back it up.** Paths:
+   `app/android/app/upload-keystore.jks` (2,664 B, alias `upload`, cert SHA-256
+   `de28f41d…`) and `app/android/key.properties`; both git-ignored
+   (`app/android/.gitignore` lines 12 and 14). The board answered 2026-11-23 that
+   the operator will copy it off-machine. Until that is confirmed, the key has
+   **one copy**, and losing it means every future APK for the same identity is
+   signed by a different key (Android then refuses to update over the old one).
+   Reference procedure: copy both files into the password manager/vault as one
+   encrypted archive; record `keyAlias`, both passwords and the certificate
+   SHA-256 in the vault entry, never in this repo; restore it once elsewhere to
+   prove the backup works. No agent needs the secret.
+4. **Emulator matrix has two open failures** (2026-11-03, pre-LFM3): the offline
+   home's Retry button is a no-op (`lib/features/sessions/screens/home_screen.dart`,
+   `onRetry: _noop`), and background -> foreground lands on the Pairing screen.
+   Both need a decision: fix before v1 or accept with the hardware pass as cover.
+5. **Version freeze — identity settled.** `1.0.0+1` is the RC version and is what
+   both artifacts carry. For a GitHub channel the only rule is that a **different**
+   binary must carry a higher build number; never ship two different APKs as
+   `1.0.0+1`.
+6. **Follow-up commits merged.** PR #3's squash landed `ef2aaff`'s contents only;
+   the follow-ups (THE-45/46 settings seam + test, release docs) and THE-110 went
+   in with PR #4 as `361bc63`. Nothing is left unpushed on this path.
 7. **Golden baselines drift on macOS 27.2.** 9 golden cases fail locally with
-   identical text-antialiasing diffs on `main`, so they are host-related, not a
-   branch regression. THE-111 settled the policy (`ef2aaff`): baselines stay
-   owned by macos-26 CI and the tolerance now classifies the drift instead of
-   only counting pixels; no baseline PNG was regenerated. No post-change suite
-   run is recorded yet, so DoD 1 still rests on the macos-26 CI run.
-8. **No physical device, and the interim pass found a turn defect.** The
-   simulator `wss://` pass ran on 2026-11-20 (iPhone 18 Pro / iOS 27.2): connect
-   PASS, wrong pin PASS, **turn PARTIAL** — streaming completes, the engine
-   executes the tool, but no `tool_execution_start`/`tool_execution_end` frames
-   reach the client, so tool cards cannot render. That is a product defect now
-   attached to THE-48, not a test gap. `devicectl` still sees 0 devices, so
-   DoD 2's physical-device evidence remains open; the simulator cannot supply
-   it, and neither can it exercise QR capture (no camera). The evidence lives
-   in local commit `3d0d925` and needs a board-approved push to reach `main`.
-
-9. **`main`'s branch protection cannot be satisfied by any workflow.** Found while
-   merging PR #4 (2026-11-23). Protection requires three **legacy status
-   contexts**: `mobile / flutter`, `mobile / android`, `iOS build / unsigned-ipa`.
-   The workflows publish **check runs** named `flutter`, `android`,
-   `unsigned-ipa`, `changes`. The names never match, so GitHub reports the
-   required checks as permanently *expected* and every PR on `main` returns
-   `405 — 3 of 3 required status checks are expected`, regardless of green CI.
-   Verified:
-
-   ```
-   required contexts : mobile / flutter | mobile / android | iOS build / unsigned-ipa  (app_id null → legacy statuses)
-   check runs @5544b23: flutter | android | unsigned-ipa | changes  (all success, github-actions)
-   ```
-
-   This is config, not a code defect: `enforce_admins: true` means even an admin
-   cannot bypass it (`gh pr merge --admin` and the REST merge endpoint both
-   returned 405), which is why PR #4 needed a temporary removal of
-   `required_status_checks` to merge at all — see *Merge mechanics* below.
-   **Fix needs board approval:** change the required contexts to the names the
-   workflows actually publish (`flutter`, `android`, `unsigned-ipa`), or switch
-   the requirement to the three check-run apps. Until then, every future PR
-   needs the same manual bypass, including THE-107's release commits.
+   text-antialiasing diffs that also occur on `main`; baselines stay owned by
+   macos-26 CI and the tolerance classifies the drift (THE-111). Not a branch
+   regression.
+8. **No physical device, and the turn defect.** See DoD 2. The tool-frame defect
+   means a user pairing today sees a reply but no tool cards; it belongs in
+   Dash's go/no-go evidence and in the Release's known limitations until fixed.
+9. **Branch protection contexts — fixed 2026-11-23.** Recorded above. Before the
+   fix, `enforce_admins: true` meant even an admin could not merge (`gh pr merge
+   --admin` and the REST endpoint both returned 405), which is why PR #4 needed a
+   temporary `required_status_checks` removal. The contexts now match the check
+   runs the workflows publish, so the next PR should satisfy protection normally.
+   The approval covered this single settings change and nothing else.
+10. **iOS has no installable signed artifact, by decision.** Without an Apple
+    Developer account there is no certificate or provisioning profile, so the IPA
+    cannot be signed here and iOS users cannot install it as downloaded. The
+    honest options in the Release notes: (a) sideload with the user's own free
+    Apple ID via a tool such as Sideloadly/AltStore, which re-signs the IPA; or
+    (b) build from source with Xcode. Android is the frictionless download.
+    Revisit only if the board enrolls in the Apple Developer Program.
+11. **No install proof yet.** The APK verifies structurally (`apksigner`, v2,
+    upload-key cert) and has never been installed from this build. A green
+    signature is not a green install; DoD 2 covers the difference.
+12. **THE-42 copy is still backwards.** `desktop-app/docs/mobile-access.md:53`
+    still says token rotation is "the only operation that revokes access today",
+    and the Remove copy still reads as cosmetic. Since `serve/clients.ts`,
+    removing a device is a durable 401 revoke. Dash's one-line fix; it gates the
+    desktop build used for QA.
 
 ## Artifact runbook
 
-Run from `app/` after `flutter pub get` on the release commit. Keep every
-artifact under `app/build/releases/v1.0.0+1/` with a SHA-256 file.
+Run from `app/` on the release commit. Artifacts go to
+`app/build/releases/v1.0.0+1/` with a `SHA256SUMS` file (git-ignored).
 
 ```bash
-# Android App Bundle (uses the upload keystore when key.properties is present)
-flutter build appbundle --release
-cp build/app/outputs/bundle/release/app-release.aab \
-   build/releases/v1.0.0+1/acoder-mobile-1.0.0+1.aab
+# 1. Android release APK (universal: arm64-v8a + armeabi-v7a + x86_64)
+flutter build apk --release --build-name=1.0.0 --build-number=1
+cp build/app/outputs/flutter-apk/app-release.apk \
+   build/releases/v1.0.0+1/acoder-mobile-1.0.0.apk
 
-# Android arm64 APK for QA sideload (on-device models need arm64)
-flutter build apk --release --target-platform android-arm64
-cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
-   build/releases/v1.0.0+1/acoder-mobile-1.0.0+1-arm64.apk
+# 2. Prove it is signed with the upload key, not the debug key
+$ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs \
+   build/releases/v1.0.0+1/acoder-mobile-1.0.0.apk
+$ANDROID_HOME/build-tools/36.0.0/aapt2 dump badging \
+   build/releases/v1.0.0+1/acoder-mobile-1.0.0.apk | head -3
 
-# Confirm the AAB is signed with the upload key, not the debug key
-keytool -printcert -jarfile build/releases/v1.0.0+1/acoder-mobile-1.0.0+1.aab | head -20
+# 3. iOS unsigned IPA — take the CI artifact, do not hand-build it
+gh run download 45094390363 -R hamishfromatech/a-coder-mobile \
+   -n A-Coder-unsigned-ipa -D /tmp/ipa-art
+cp /tmp/ipa-art/A-Coder-unsigned.ipa \
+   build/releases/v1.0.0+1/acoder-mobile-1.0.0-unsigned.ipa
 
-# iOS (needs full Xcode; THE-38)
-flutter build ipa --release            # signed archive, requires a team
-./scripts/build_ios.sh unsigned        # CI/sideload fallback
-
-shasum -a 256 build/releases/v1.0.0+1/* > build/releases/v1.0.0+1/SHA256SUMS
+# 4. Checksums
+shasum -a 256 build/releases/v1.0.0+1/*.apk build/releases/v1.0.0+1/*.ipa \
+  > build/releases/v1.0.0+1/SHA256SUMS
 ```
 
-Signing checks that must be recorded with the artifact:
+Recorded signing checks (2026-11-23):
 
-- Android: certificate CN/fingerprint matches the `upload` keystore, not
-  `CN=Android Debug`.
-- iOS: archive built with the release configuration and the A-Tech team, and
-  `Info.plist` carries `CFBundleShortVersionString 1.0.0`, `CFBundleVersion 1`.
+- Android: cert `CN=A-Coder Mobile, OU=Mobile, O=A-Coder, C=NZ`, SHA-256
+  `de28f41d…`, identical to alias `upload`; Signature Scheme **v2**; package
+  `dev.acoder.mobile`, version `1.0.0` (`1`), `minSdk 24`, `targetSdk 36`.
+- iOS: `CFBundleShortVersionString 1.0.0`, `CFBundleVersion 1`, bundle id
+  `dev.acoder.mobile.acoderMobile`, `MinimumOSVersion 15.0`; unsigned.
+
+Publication (board-gated, do not run without an approval):
+
+```bash
+gh release create v1.0.0-rc1 \
+  app/build/releases/v1.0.0+1/acoder-mobile-1.0.0.apk \
+  app/build/releases/v1.0.0+1/acoder-mobile-1.0.0-unsigned.ipa \
+  app/build/releases/v1.0.0+1/SHA256SUMS \
+  -R hamishfromatech/a-coder-mobile --prerelease --title "..." --notes-file ...
+```
 
 ## Timeline
 
 | Week | Dates | Exit criteria |
 |---|---|---|
-| 1 | 11-17 → 11-23 | LFM3 branch green and **merged (11-19 `9de316d`; 11-23 `361bc63`)**; **Xcode installed (11-17)**; **iOS on-device decision (gate to Android)** and **THE-110 merged**; store drafts done. **Not met:** Android AAB built/installed (no build — swap over the hard stop across this window) |
-| 2 | 11-24 → 11-30 | iOS simulator runtime installed (**done 11-19**) + simulator build; physical-device QA (THE-48) with transcript + screenshots; defects triaged |
-| 3 | 12-01 → 12-09 | Release commit frozen; AAB + signed iOS archive rebuilt on it; QA installs both; store metadata + screenshots final; Dash go/no-go PASS by 12-09 |
-| RC | 12-10 | Board approves tag/RC |
-| Ship | 12-12 | Board submits to both stores |
+| 1 | 11-17 -> 11-23 | LFM3 merged (`9de316d`, `361bc63`), Xcode installed, iOS on-device decision + THE-110 merged, **channel decided (GitHub only)**, **release APK built, signed, verified**, branch protection fixed |
+| 2 | 11-24 -> 11-30 | Release notes + install steps written; install proof on a real Android phone (THE-48 hardware or operator install); THE-42 copy fix landed |
+| 3 | 12-01 -> 12-09 | Any defect fixes merged and the APK rebuilt from the new release commit; Dash go/no-go PASS by 12-09 |
+| RC | 12-10 | Board approves the Release (tag + assets + notes) |
+| Ship | 12-12 | Release published; users download from GitHub |
+
+Publishing earlier is possible and recommended: an RC pre-release can go up as
+soon as the notes exist, because nothing about it depends on the store or on
+signing lead time.
 
 ## Board inputs still outstanding
 
-Card `30ec2894` was answered on 2026-11-19; both policy picks are settled above.
-Three operator lookups still stand, and all three gate **signing or submission**,
-never the Dart work:
+Nothing except the **publication decision**. The four 2026-11-23 answers closed
+the Apple, Play, device-identity and keystore questions; the release channel is
+GitHub-only.
 
-1. **Apple Developer Program** — Team ID, account-holder status, and whether an
-   App Store Connect record already exists for `dev.acoder.mobile.acoderMobile`
-   (required for the signed archive / TestFlight).
-2. **Google Play Console** — is the developer account approved, and does an app
-   record / listing already exist for `dev.acoder.mobile`? (Submission only, but
-   approval can take days.)
-3. **Physical QA devices** — Android phone and iPhone models, and whether the
-   Android phone can join the bridge machine's LAN (DoD 2).
+| Decision | Why it is the board's | What it unlocks |
+|---|---|---|
+| Publish `v1.0.0-rc1` (or `v1.0.0`) as a GitHub Release with the APK, unsigned IPA, checksums and notes | Publishing gate: the repository is public, so a Release is a public distribution | A download users can actually install |
+| Name an Android phone for the install check, or install the APK from the Release and report back | Only a human can supply the hardware/observation | DoD 2, and honest install evidence for Dash's go/no-go |
 
-The upload-keystore question is answered procedurally in Gap 3: the operator
-performs and confirms the vault backup; no agent needs the secret.
-
-### Merge mechanics (both merges, for the record)
+### Merge mechanics (for the record)
 
 | Merge | Approval | Mechanism | Result |
 |---|---|---|---|
 | PR #3 | board bypass on THE-114 | one-time admin bypass | `9de316d`, 2026-11-19 12:47:58Z |
 | PR #4 | `9520dd25` (approved 2026-11-23 01:22Z) | one-time bypass: `required_status_checks` and the PR-review requirement removed, merge executed pinned to `5544b23`, both restored from a captured backup seconds later | `361bc63`, 2026-11-23 01:24:24Z |
 
-PR #4 needed one field more than PR #3: because of **Gap 9**, the required
-status contexts can never be satisfied, so the merge was blocked on checks as
-well as on review. The temporary window is disclosed here rather than left
-implicit. Restoration was verified against the pre-merge capture
-`protection-main-backup.json` and the live protection is **identical** to it:
-`required_status_checks` (strict `true`, same three contexts), review
-requirement (1 approval, `require_last_push_approval: true`,
-`dismiss_stale_reviews: true`), `enforce_admins: true`, linear history on,
-force-push and deletion off, conversation resolution on, `lock_branch` off. No
-other setting changed, and nothing was force-pushed.
-
-**Still needs a board decision:** Gap 9's context mismatch, so the next merge
-(THE-107) does not need the same manual intervention.
+PR #4 needed one field more than PR #3 because of Gap 9: the required contexts
+could never be satisfied, so the merge was blocked on checks as well as review.
+The temporary window is disclosed here rather than left implicit. Restoration
+was verified against the pre-merge capture and the live protection was identical
+to it. Gap 9's underlying defect was fixed under approval `6fe3aff7` on
+2026-11-23, with a field-by-field before/after check.
 
 ## Governance
 
-Nothing is pushed, tagged, submitted or published without explicit board
-approval. Release notes and store metadata are drafts until approved. The
-upload keystore password is never written to the repo, a comment or a document.
+Nothing is pushed, tagged, published or otherwise distributed without explicit
+board approval. A GitHub Release is publication. Release notes are drafts until
+approved. The upload-keystore password is never written to the repo, a comment or
+a document. No store submission, App Store or Play Console action is in scope.
