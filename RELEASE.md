@@ -3,7 +3,7 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-23 17:58 NZDT (plan rev 15). **Published:** `v1.0.0-rc1`
+**Snapshot:** 2026-11-23 18:00 NZDT (plan rev 16). **Published:** `v1.0.0-rc1`
 pre-release created 2026-11-23 04:57:42Z under board approval `4a364c5c` —
 <https://github.com/hamishfromatech/a-coder-mobile/releases/tag/v1.0.0-rc1>.
 
@@ -96,7 +96,7 @@ repository is public.
 | THE-106 | Land `feat/on-device-lfm3` (analyze/test, push approval, PR) | Maya | — | **done** — PR #3 `9de316d`, follow-ups + THE-110 in PR #4 `361bc63` |
 | THE-42 | Desktop "Mobile access" card | Dash | — | `in_progress` — copy fix outstanding (Gap 12) |
 | THE-38 | Install full Xcode | board | — | **done** — Xcode 27.2, SDK 27.2, license accepted 2026-11-17 |
-| THE-48 | Device QA over `wss://` on hardware | Maya | THE-38 | `blocked` — simulator pass done, physical device missing (Gap 8) |
+| THE-48 | Device QA over `wss://` on hardware | Maya | THE-125 (tool-card re-check) + a physical phone | `blocked` — simulator pass done; **THE-105 removed as a blocker 2026-11-23** because the publishable artifact now exists, so it was deadlocking against this issue's own DoD 2 row (Gap 8) |
 | THE-107 | **GitHub release build**: signed APK + unsigned IPA, notes, checksums | Maya | THE-48 (physical install only) | **built, signed, installed on emulator**; physical install open |
 | THE-108 | Go/no-go review with evidence | Dash | THE-107 | blocked; rubric drops store readiness, adds artifact/install evidence |
 | THE-109 | Store metadata/screenshots drafts | Dash | — | **superseded** by the channel change (Gap 2); only the release-notes text is reusable |
@@ -160,6 +160,32 @@ artifact hashes (`3c3259…` APK, `16d123…` IPA, `2eb31a…` SHA256SUMS); the
 release page returns HTTP 200 and all three assets return `206` to an
 anonymous ranged GET.
 
+### 2026-11-23 — post-publication disposition (card `c3712f2c`, pending)
+
+With the RC live, the only unmet gate is DoD 2, and it needs either hardware or
+an acceptance decision. Checked again this heartbeat: `xcrun devicectl list
+devices` shows one entry, iPhone 18 Pro, **`Reality: simulated`, state
+`shutdown`** — no physical phone attached, and no Android device present. No
+install was attempted and no build or test was run.
+
+Raised **one human-only question card, `c3712f2c`**, because the choice is the
+board's and no agent can supply a phone:
+
+| Option | Effect if chosen |
+|---|---|
+| Install the published APK on an Android phone and report | Closes DoD 2 with real evidence; unblocks THE-108 |
+| Accept the emulator install as the v1 evidence | DoD 2 recorded as waived **by board decision**; THE-105 closes and THE-108 starts. Nothing claims a physical-device pass |
+| Leave v1 open until hardware is available | THE-105 stays `in_review`, no claim, no further work |
+
+The card's second question is optional and takes an install result if one
+already exists. THE-105 stays `in_review` on this pending card — that is its
+durable waiting path.
+
+Also fixed this heartbeat: THE-48's blockers. It listed **THE-105** as a blocker
+while THE-105's DoD 2 row needs THE-48's evidence, so neither could move. THE-105
+was removed (the artifact it was waiting for is published); THE-48 now blocks on
+**THE-125** only, plus a human-supplied device.
+
 ### 2026-11-23 — branch protection fix (approval `6fe3aff7`, approved 01:31:37Z)
 
 Executed this heartbeat. Before: required contexts `mobile / flutter`,
@@ -204,7 +230,9 @@ place, so approval `6fe3aff7` is fully resolved — nothing further is owed on i
      DoD 2 and Dash's go/no-go.
   2. **Install evidence for DoD 2** — either a named Android phone for the QA
      pass, or the operator installing the published APK and reporting the
-     result. Until one of those happens, DoD 2 is not claimed.
+     result. Until one of those happens, DoD 2 is not claimed. This is now one
+     saved board card, **`c3712f2c`**, which also offers the alternative of
+     formally accepting the emulator evidence if no phone is available.
 - **Everything must be rebuilt from the same release commit.** `361bc63` is that
   commit today. If any commit lands on `main`, the APK is rebuilt and DoD 1 is
   re-read from the new commit's CI run.
@@ -398,7 +426,7 @@ questions. The release channel is GitHub-only and the RC pre-release is live.
 
 | Decision | Why it is the board's | What it unlocks |
 |---|---|---|
-| Name an Android phone for the install check, or install the `v1.0.0-rc1` APK from the Release and report back | Only a human can supply the hardware/observation | DoD 2, and honest install evidence for Dash's go/no-go |
+| **`c3712f2c` (pending)** — install the `v1.0.0-rc1` APK on a phone and report, or accept the emulator evidence, or hold | Only a human can supply the hardware/observation or waive the row | DoD 2, and honest install evidence for Dash's go/no-go |
 | Approve a **final `v1.0.0`** tag/release once DoD 2 and THE-108 pass (only if the artifact changes; approval `4a364c5c` covered the pre-release only) | Publishing gate | The non-pre-release download |
 
 ### Merge mechanics (for the record)
