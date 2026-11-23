@@ -69,15 +69,20 @@ If neither is acceptable, use the Android client or the desktop app.
 
 - The Mac (or Linux host) running **`a-coder-cli serve`**, reachable on the same
   network. TLS is required for `wss://`; the app pins the bridge certificate.
+  For live tool cards, the bridge must be a build that includes the THE-125
+  fix (released `0.80.202` predates it).
 - Android 7.0+ / iOS 15.0+.
 
 ## Known limitations in 1.0.0
 
 - **On-device models are Android-only.** Every iOS on-device entry point is
   gated and shows an explanatory screen (scope decision, THE-110).
-- **Live-turn tool cards do not render yet.** A turn streams and tools execute on
-  the bridge, but the `tool_execution_start` / `tool_execution_end` frames are not
-  surfaced to the client, so tool activity is not shown as cards (THE-48).
+- **Live-turn tool cards need a newer bridge.** The app renders tool activity
+  from the bridge's `tool_execution_start` / `tool_execution_end` frames. Bridge
+  builds up to `0.80.202` do not send those frames to phone clients, so a turn
+  shows its reply but no tool cards (THE-125). The fix is committed to the CLI
+  source but is not in a released bridge yet; once your bridge includes it, the
+  cards appear with no app update.
 - **The offline home screen's Retry does nothing**, and returning to the app from
   the background can land on the Pairing screen (known, pre-existing).
 - **No auto-update.** Check this repository for a newer Release.

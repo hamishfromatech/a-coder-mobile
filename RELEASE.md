@@ -152,6 +152,13 @@ by field: only `required_status_checks` differs. `required_approving_review_coun
 linear history, no force-push/deletion and conversation resolution are all
 unchanged. See Gap 9.
 
+Re-read after the approval resolved (later run, same day): live protection returns
+`required_status_checks.contexts` = `flutter`, `android`, `unsigned-ipa`, each
+app-bound to `app_id: 15368`, with `strict: true`; reviews (1 approval, last-push
+approval, dismiss stale), `enforce_admins`, linear history, no force-push or
+deletion, and conversation resolution are unchanged. The approved change is in
+place, so approval `6fe3aff7` is fully resolved — nothing further is owed on it.
+
 ---
 
 ## Definition of done — current state
@@ -159,9 +166,9 @@ unchanged. See Gap 9.
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on `361bc63`** | Maya | Push CI at the merge commit: `No issues found! (ran in 15.6s)`, **297 tests passed**, android / unsigned-ipa / changes success ([45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320), [45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)). No local re-run needed or claimed. |
-| 2 | Device QA on a physical device, with evidence | **Open — no physical device** | Maya | Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered); wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`); one turn **PARTIAL** — streaming completes and bash executes, but no `tool_execution_start`/`tool_execution_end` frames reach the client, so tool cards cannot render (Gap 8). QR capture not run (no camera). `devicectl` 0 devices. Evidence is local commit `3d0d925`, not on `main`. |
+| 2 | Device QA on a physical device, with evidence | **Open — no physical device** | Maya | Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered); wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`); one turn **PARTIAL** — streaming completes and bash executes, but no `tool_execution_start`/`tool_execution_end` frames reached the client; root cause is the **bridge**, not the app (THE-125). Fix committed in `a-coder-cli` `c2997793f` (branch `feat/desktop-unified-release`, not yet pushed or released) and its regression test passes locally (2/2). A re-run against a fixed bridge is still owed before a full turn can be claimed (Gap 8). QR capture not run (no camera). `devicectl` 0 devices. Evidence is local commit `3d0d925`, not on `main`. |
 | 3 | Installable v1 artifacts at the release version/signing | **Met for Android (emulator install + launch); iOS sideload-only by decision** | Maya | Android: signed release APK (v2, upload key `de28f41d…`, `dev.acoder.mobile` 1.0.0+1, universal ABIs, 126.5 MB, sha256 `3c3259…`) — **installed and launched on Android 15 / API 35 emulator**, pairing screen and on-device hub render, no crash. iOS: unsigned IPA from the `361bc63` CI run (17.0 MB, sha256 `16d123…`), sideload-only, not installed. Physical-device install is DoD 2, not this row. The signed iOS archive the original DoD asked for is out of scope by the 2026-11-23 channel decision. |
-| 4 | Release notes + install instructions ready (publication board-gated) | **Rewritten for GitHub; draft needed** | Maya (notes), Dash (copy review) | Store metadata is no longer a gate (Gap 2). Needed for the Release body: what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device models Android-only; tool cards not rendering in a live turn), checksums. THE-109's drafts are input only. |
+| 4 | Release notes + install instructions ready (publication board-gated) | **Met — draft written and current; publication approval pending** | Maya (notes), Dash (copy review) | `docs/release-notes-v1.0.0.md` (local commit `365c3e8`): what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device Android-only; tool cards need a bridge carrying THE-125), checksums. Store metadata is not a gate (Gap 2). Board publication approval `4a364c5c` is pending; nothing is published. |
 | 5 | Dash go/no-go PASS on every line | **Not started** | Dash | Rubric to be reissued for the GitHub channel: DoD 1 evidence, artifact checksums/signature, install evidence, known limitations. |
 
 ## Critical path
@@ -179,6 +186,11 @@ unchanged. See Gap 9.
 - **Everything must be rebuilt from the same release commit.** `361bc63` is that
   commit today. If any commit lands on `main`, the APK is rebuilt and DoD 1 is
   re-read from the new commit's CI run.
+- **Bridge version for tool cards.** The app renders tool cards from
+  `tool_execution_*` frames, which released `a-coder-cli` `0.80.202` does not
+  emit to mobile clients (THE-125, fixed in `c2997793f`, unreleased). The notes
+  state the dependency; shipping the fix is the CLI team's release train, not a
+  mobile change.
 - **THE-42** is a desktop-app copy fix; it gates the desktop build used for QA,
   not the mobile artifact.
 
@@ -248,9 +260,23 @@ unchanged. See Gap 9.
    text-antialiasing diffs that also occur on `main`; baselines stay owned by
    macos-26 CI and the tolerance classifies the drift (THE-111). Not a branch
    regression.
-8. **No physical device, and the turn defect.** See DoD 2. The tool-frame defect
-   means a user pairing today sees a reply but no tool cards; it belongs in
-   Dash's go/no-go evidence and in the Release's known limitations until fixed.
+8. **No physical device, and the turn defect — root-caused.** See DoD 2. The
+   missing tool cards came from the **bridge**: rpc-mode withheld
+   `tool_execution_*` from clients that never negotiated capabilities, and the
+   Flutter `RpcClient` sends no `client_info`. That is **THE-125** in the
+   a-coder-cli repo, fixed by commit `c2997793f` ("fix(rpc): emit
+   tool_execution_* to contract-1 clients") on local branch
+   `feat/desktop-unified-release` — **not pushed, not released**; `0.80.202`
+   predates it. Verified here by running that fix's own regression file:
+   `npx vitest run packages/coding-agent/test/rpc-tool-lifecycle.test.ts` ->
+   **2/2 passed**, asserting a capability-less client receives
+   `tool_execution_start` then `tool_execution_end` carrying the tool output, in
+   that order before `agent_end`, while a `tool-progress` client gets the compact
+   frames instead. The app side already routes and renders those frames
+   (`event_router.dart`, `tool_card.dart`; covered by `event_router_test.dart`),
+   so no mobile change is needed. Consequence for v1: tool cards depend on the
+   user's bridge build, and the Release notes say so until THE-125 ships in a
+   released version.
 9. **Branch protection contexts — fixed 2026-11-23.** Recorded above. Before the
    fix, `enforce_admins: true` meant even an admin could not merge (`gh pr merge
    --admin` and the REST endpoint both returned 405), which is why PR #4 needed a
