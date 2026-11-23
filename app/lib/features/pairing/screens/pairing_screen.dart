@@ -13,6 +13,7 @@ import '../../../core/connection/cert_pinning.dart';
 import '../../../core/connection/host_registry.dart';
 import '../../../design/theme.dart';
 import '../../../design/components/status_dot.dart';
+import '../../local/on_device_availability.dart';
 import '../providers/pairing_providers.dart';
 import '../providers/connection_providers.dart';
 
@@ -315,17 +316,21 @@ class _PairingScreenState extends ConsumerState<PairingScreen>
           _buildDiscoverTab(c),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-          child: TextButton.icon(
-            onPressed: () => Navigator.of(context).pushNamed('/local'),
-            icon: const Icon(Icons.memory_outlined, size: 18),
-            label: const Text('Use on-device chat'),
-          ),
-        ),
-      ),
+      // On-device LFM3 has no iOS native runtime in v1 (THE-110), so the
+      // entry point is not offered where it cannot work.
+      bottomNavigationBar: onDeviceModelsAvailable()
+          ? SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/local'),
+                  icon: const Icon(Icons.memory_outlined, size: 18),
+                  label: const Text('Use on-device chat'),
+                ),
+              ),
+            )
+          : null,
     );
   }
 

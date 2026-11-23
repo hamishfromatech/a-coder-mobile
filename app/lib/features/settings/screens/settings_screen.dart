@@ -15,6 +15,7 @@ import '../../../design/theme.dart';
 import '../../../design/components/status_dot.dart';
 import '../../pairing/providers/connection_providers.dart';
 import '../../chat/providers/chat_providers.dart';
+import '../../local/on_device_availability.dart';
 import '../../pairing/providers/pairing_providers.dart';
 import '../../sessions/providers/session_pins.dart';
 import '../providers/settings_providers.dart';
@@ -466,20 +467,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       children: [
         _sectionLabel('ON-DEVICE'),
         const SizedBox(height: 8),
-        Text(
-          'Run LFM3 locally for chat and voice. No desktop bridge or cloud '
-          'connection is used.',
-          style: TextStyle(fontSize: 11, color: PiColors.textMuted),
-        ),
-        const SizedBox(height: 10),
-        PiButton(
-          label: 'Open on-device chat',
-          icon: Icons.memory_outlined,
-          variant: PiButtonVariant.outline,
-          size: PiButtonSize.lg,
-          expanded: true,
-          onPressed: () => Navigator.of(context).pushNamed('/local'),
-        ),
+        if (onDeviceModelsAvailable()) ...[
+          Text(
+            'Run LFM3 locally for chat and voice. No desktop bridge or cloud '
+            'connection is used.',
+            style: TextStyle(fontSize: 11, color: PiColors.textMuted),
+          ),
+          const SizedBox(height: 10),
+          PiButton(
+            label: 'Open on-device chat',
+            icon: Icons.memory_outlined,
+            variant: PiButtonVariant.outline,
+            size: PiButtonSize.lg,
+            expanded: true,
+            onPressed: () => Navigator.of(context).pushNamed('/local'),
+          ),
+        ] else
+          // No `llamadart` native runtime on iOS in v1 (THE-110): show the
+          // state instead of a button that cannot reach a working screen.
+          Text(
+            '$onDeviceUnavailableTitle. $onDeviceUnavailableHint',
+            style: TextStyle(
+              fontSize: 11,
+              color: PiColors.textMuted,
+              height: 1.45,
+            ),
+          ),
         const Divider(height: 28),
         _sectionLabel('DIAGNOSTICS'),
         const SizedBox(height: 8),

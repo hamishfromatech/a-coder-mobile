@@ -3,8 +3,40 @@
 A-Coder Mobile can run LFM3 locally. No desktop bridge, no cloud, no network
 after setup.
 
-The on-device hub lives at **On-device** in the app (also reachable from the
-pairing screen, the home memory icon and Settings). Omni is recommended.
+The on-device hub lives at **On-device** in the app, on Android only in v1
+(also reachable there from the pairing screen, the home memory icon and
+Settings). Omni is recommended.
+
+## Platform support (v1)
+
+The on-device surface is **Android-only in v1**. That is a board scope decision
+(2026-11-19, THE-105 card `30ec2894`), not a build failure. Every iOS entry
+point is gated: the four `/local*` routes, the pairing-screen link, the home
+memory icon and the Settings row. On iOS the routes stay registered but resolve
+to an "On-device models are Android-only in v1" screen instead of the hub, and
+no `LocalModelsScreen`/`LocalChatScreen` is constructed. iOS v1 ships pairing +
+chat. The gate and its widget test are THE-110.
+
+Verified for THE-110 on 2026-11-20:
+
+- `flutter build ios --release --no-codesign` **succeeds**. CI job
+  `iOS build / unsigned-ipa` run `44527249107` (`main`, 2026-11-19) and run
+  `44068833043` (PR #3, 2026-11-17) both concluded success.
+- The unsigned IPA **does contain a native runtime**.
+  `Payload/Runner.app/Frameworks/llamadart.framework` is a 15.8 MB Mach-O arm64
+  library carrying llama.cpp/ggml, `mtmd` audio and the `llama_dart_tts_*` LFM3
+  speech symbols, built for
+  `target=iOS-arm64-iphoneos-arm64; backends=cpu,metal`. The `llamadart` build
+  hook supplies it even though `pubspec.yaml` only names Android below
+  `llamadart_native_backends.platforms`.
+- No load attempt was executed on iOS: there is no iOS device in the QA set.
+  `LocalChatController.loadModel` wraps `LlamaEngine.load` in a try/catch and
+  surfaces failures as `state.error`, but v1 never exercises that path because
+  the UI cannot reach it.
+
+The runtime being present does not put iOS in scope. iOS LFM3 is unvalidated
+(load time, RAM headroom, thermals, speech output), and the release QA set has
+no iPhone. Revisit after v1 if the board wants on-device models on iOS.
 
 ## Models
 
@@ -89,7 +121,8 @@ on failure). Import is the preferred path for low-bandwidth users.
   the desktop coding agent.
 - Phone performance (tokens/s, thermal behaviour, RAM headroom) is still being
   measured on physical devices.
-- iOS on-device support is not wired in this pass.
+- iOS is gated in v1: the entry points are hidden and the `/local*` routes
+  render the gate screen. See *Platform support (v1)*.
 
 ## Building the APK
 

@@ -95,6 +95,17 @@ The drift is wider than the failures suggested: 39 further goldens drift by
 48 affected goldens no frame has more than 7 pixels above Δ16 and none has a
 pixel at Δ64.
 
+**Baseline provenance — `session_row_populated_*` (THE-46):** the two session
+row baselines were produced on this **macOS 27.2** build host on 2026-11-03/04,
+not on `macos-26`. They are exactly the frames listed in the drift table above
+(242 px / 0.074 % each), which the comparator accepts as host antialiasing
+jitter, so the suite is green here and expected green in CI. Under the policy
+below they are still off-host baselines and need one `macos-26` regeneration
+pass (Flutter 3.47.5) at the next baseline refresh; do not refresh them with a
+local `--update-goldens`. The `ListTile` title/subtitle Roboto pin added for
+these goldens lives in the test harness only; production theming and rendering
+are unchanged.
+
 **Policy** (`app/test/support/golden_comparator.dart`):
 
 - Pixels whose largest channel delta is ≤ 16 count as antialiasing noise.
@@ -241,10 +252,25 @@ device. The static half is done, so a device run should not fail on a missing
 - Chat bubbles (user/assistant/thinking), the approval card, the queue card and
   the jump-to-latest pill are now public and covered by deterministic goldens
   (`test/golden/components_golden_test.dart`, 390x844 dark/light).
-- Home session row (`_SessionRow`) is private; empty state is covered via
-  `EmptyState`.
-- Settings screen sections were not made golden because they depend on shared
-  prefs / secure storage; `SettingsScreen` remains untested.
+- Home session row is a public `SessionRow`
+  (`app/lib/features/sessions/widgets/session_row.dart`) with 390x844
+  dark/light goldens and widget tests in
+  `test/golden/session_row_golden_test.dart`; `HomeScreen`'s empty-list copy is
+  asserted in `test/features/sessions/home_screen_test.dart`, and the generic
+  `EmptyState` golden still covers the visual.
+- Settings screen sections are covered by **widget tests, not goldens**
+  (`app/test/features/settings/settings_widget_test.dart`, THE-45,
+  commit `74a0bc1`). The `settingsProviderWith(prefs:, initial:)` /
+  `SettingsNotifier(prefs:, initial:)` seam lets the real `SettingsScreen`
+  render Appearance, Alerts and About over in-memory prefs and exercises every
+  persisted setter; production still resolves the shared
+  `SharedPreferences.getInstance()` through the default `settingsProvider`.
+  No golden was added on purpose: baselines are owned by the macOS 26 golden
+  host (*Golden baselines vs host OS*) and the screen is stateful over host and
+  session providers. `SettingsNotifier` also guards its async `_load()` with
+  `if (state == _initial)`, which is an identity check today because
+  `AppSettings` has no `operator ==`; if value equality is ever added, switch
+  that guard to `identical(state, _initial)`.
 - Pairing manual-form goldens emit a `MissingPluginException` during teardown
   because the scan tab instantiates `MobileScanner` without a platform impl
   in the test runner; the golden pixels are still produced and compared.

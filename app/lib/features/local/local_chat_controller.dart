@@ -136,6 +136,11 @@ final localChatControllerProvider =
 class LocalChatController extends StateNotifier<LocalChatState> {
   LocalChatController(this._store, this._spec) : super(const LocalChatState());
 
+  /// Test seam (THE-110): counts native engine load attempts so the iOS gate
+  /// can be proven not to reach `llamadart`.
+  @visibleForTesting
+  static int engineLoadAttempts = 0;
+
   final LocalModelStore _store;
   final LocalModelSpec _spec;
 
@@ -367,6 +372,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
     }
     state = state.copyWith(loadingModel: true, error: null);
     try {
+      engineLoadAttempts++;
       final engine = await LlamaEngine.load(
         LlamaModel(
           ModelSource.path(path),
@@ -647,8 +653,7 @@ Be concise, practical and honest. If you are unsure, say so.''';
       final end = cleanAnswer.lastIndexOf(_thinkingClose);
       if (end >= 0) {
         cleanThinking = cleanAnswer.substring(0, end).trim();
-        cleanAnswer =
-            cleanAnswer.substring(end + _thinkingClose.length).trim();
+        cleanAnswer = cleanAnswer.substring(end + _thinkingClose.length).trim();
       }
     }
     return (thinking: cleanThinking, answer: cleanAnswer);
