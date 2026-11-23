@@ -1,7 +1,4 @@
-# A-Coder Mobile v1.0.0 — release notes (draft)
-
-> **Draft.** This text is prepared for a GitHub Release body. Nothing here is
-> published; creating the Release needs an explicit board approval.
+# A-Coder Mobile v1.0.0 — release notes
 
 A-Coder Mobile is the phone client for the A-Coder bridge: pair with the machine
 running `a-coder-cli serve`, then read sessions, send prompts, watch responses

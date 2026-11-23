@@ -3,7 +3,9 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-23 14:5x NZDT (plan rev 13).
+**Snapshot:** 2026-11-23 17:58 NZDT (plan rev 15). **Published:** `v1.0.0-rc1`
+pre-release created 2026-11-23 04:57:42Z under board approval `4a364c5c` —
+<https://github.com/hamishfromatech/a-coder-mobile/releases/tag/v1.0.0-rc1>.
 
 **The release channel changed on 2026-11-23.** The board answered card
 `8400bb25` and the answer replaces the store path:
@@ -29,7 +31,7 @@ identical to that commit (`git diff --quiet 361bc63 HEAD -- app`).
 `unsigned-ipa` and `changes` all success ([mobile 45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320),
 [iOS build 45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)).
 
-**Artifacts (built this heartbeat, staged locally, nothing published):**
+**Artifacts (built from `361bc63`, published on the `v1.0.0-rc1` pre-release):**
 
 | Asset | Size | SHA-256 | Provenance |
 |---|---|---|---|
@@ -105,11 +107,12 @@ Delegated slices: **THE-110** iOS on-device gate (merged in `361bc63`).
 **Critical path now:**
 
 ```
-361bc63 (release commit) ─> APK signed + verified DONE ─> install/unpack proof
-                                        │                    (THE-48 hardware, or an
-                                        │                     operator install)
-                                        ├─> GitHub release approval (board, publication)
-                                        └─> Dash go/no-go (THE-108) ─> final v1.0.0
+361bc63 (release commit) ─> APK signed + verified DONE ─> v1.0.0-rc1 PUBLISHED
+                                        │                    (pre-release, approval 4a364c5c)
+                                        │
+                                        ├─> install proof on a physical phone (DoD 2 / THE-48)
+                                        └─> Dash go/no-go (THE-108) ─> final v1.0.0 tag
+                                                                      (needs its own board approval)
 THE-42 copy fix (Dash) ─> desktop QA build only; not on the mobile artifact
 ```
 
@@ -138,6 +141,24 @@ iOS has no signed-distribution path in scope at all.
 | 2 | Google Play Console | **No console access yet** | No Play submission. An AAB has no consumer here; the **APK is the Android artifact**. |
 | 3 | Release channel | **"we are only releasing the downloads on github. no where else. no app store release"** | Distribution = GitHub Releases on `hamishfromatech/a-coder-mobile` (public repository). Board approval is required before the Release is created. |
 | 4 | Keystore backup | **Operator will copy it off-machine** | No agent action. Procedure kept in Gap 3 for reference. |
+
+### 2026-11-23 — publication (approval `4a364c5c`, approved 04:56:37Z)
+
+Executed after the approval resolved. Created **one GitHub pre-release**: tag
+`v1.0.0-rc1` at `361bc63c49f9108012fedbde7ed6221070e34246`, title *A-Coder
+Mobile v1.0.0-rc1*, body = `docs/release-notes-v1.0.0.md`, assets
+`acoder-mobile-1.0.0.apk`, `acoder-mobile-1.0.0-unsigned.ipa`, `SHA256SUMS`.
+Nothing else was published — no store listing, no AAB, no TestFlight, no final
+`v1.0.0` tag. The board's decision note required exactly this scope and kept the
+"no physical-device install evidence" caveat; the notes carry it under Known
+limitations and DoD 2 stays open. The draft-only banner was removed from the
+notes file so the published body does not claim to be unpublished.
+
+Verification after publication: `prerelease: true`, `draft: false`, tag object
+`361bc63` (`commit`); asset sizes and GitHub-computed digests match the local
+artifact hashes (`3c3259…` APK, `16d123…` IPA, `2eb31a…` SHA256SUMS); the
+release page returns HTTP 200 and all three assets return `206` to an
+anonymous ranged GET.
 
 ### 2026-11-23 — branch protection fix (approval `6fe3aff7`, approved 01:31:37Z)
 
@@ -168,20 +189,21 @@ place, so approval `6fe3aff7` is fully resolved — nothing further is owed on i
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on `361bc63`** | Maya | Push CI at the merge commit: `No issues found! (ran in 15.6s)`, **297 tests passed**, android / unsigned-ipa / changes success ([45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320), [45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)). No local re-run needed or claimed. |
 | 2 | Device QA on a physical device, with evidence | **Open — no physical device** | Maya | Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered); wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`); one turn **PARTIAL** — streaming completes and bash executes, but no `tool_execution_start`/`tool_execution_end` frames reached the client; root cause is the **bridge**, not the app (THE-125). Fix committed in `a-coder-cli` `c2997793f` (branch `feat/desktop-unified-release`, not yet pushed or released) and its regression test passes locally (2/2). A re-run against a fixed bridge is still owed before a full turn can be claimed (Gap 8). QR capture not run (no camera). `devicectl` 0 devices. Evidence is local commit `3d0d925`, not on `main`. |
 | 3 | Installable v1 artifacts at the release version/signing | **Met for Android (emulator install + launch); iOS sideload-only by decision** | Maya | Android: signed release APK (v2, upload key `de28f41d…`, `dev.acoder.mobile` 1.0.0+1, universal ABIs, 126.5 MB, sha256 `3c3259…`) — **installed and launched on Android 15 / API 35 emulator**, pairing screen and on-device hub render, no crash. iOS: unsigned IPA from the `361bc63` CI run (17.0 MB, sha256 `16d123…`), sideload-only, not installed. Physical-device install is DoD 2, not this row. The signed iOS archive the original DoD asked for is out of scope by the 2026-11-23 channel decision. |
-| 4 | Release notes + install instructions ready (publication board-gated) | **Met — draft written and current; publication approval pending** | Maya (notes), Dash (copy review) | `docs/release-notes-v1.0.0.md` (local commit `365c3e8`): what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device Android-only; tool cards need a bridge carrying THE-125), checksums. Store metadata is not a gate (Gap 2). Board publication approval `4a364c5c` is pending; nothing is published. |
+| 4 | Release notes + install instructions ready (publication board-gated) | **Met — published as the `v1.0.0-rc1` pre-release body** | Maya (notes), Dash (copy review) | `docs/release-notes-v1.0.0.md`: what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device Android-only; tool cards need a bridge carrying THE-125), checksums. Board approval `4a364c5c` (approved 2026-11-23 04:56:37Z, pre-release only) authorised exactly this publication; it is live at <https://github.com/hamishfromatech/a-coder-mobile/releases/tag/v1.0.0-rc1>. Store metadata is not a gate (Gap 2). |
 | 5 | Dash go/no-go PASS on every line | **Not started** | Dash | Rubric to be reissued for the GitHub channel: DoD 1 evidence, artifact checksums/signature, install evidence, known limitations. |
 
 ## Critical path
 
 - **The artifact exists, is verifiable, and launches.** The remaining Android
   work is a **physical** install, not build work or a re-sign.
-- **The date is now gated on two human decisions, not on toolchain:**
-  1. **Publication approval** — create the GitHub Release (`v1.0.0-rc1` as a
-     pre-release, or `v1.0.0` directly) with the APK, the unsigned IPA, the
-     checksum file and the release notes. Recommended: RC pre-release now, final
-     `v1.0.0` after THE-48 and Dash's go/no-go.
+- **The publication decision is done; the date is now gated on install evidence.**
+  1. **Publication — DONE.** Approval `4a364c5c` authorised one pre-release, and
+     `v1.0.0-rc1` is live (tag at `361bc63`) with the APK, unsigned IPA,
+     `SHA256SUMS` and the notes. The approval explicitly excludes a final
+     `v1.0.0` tag, so **final `v1.0.0` needs a separate board approval** after
+     DoD 2 and Dash's go/no-go.
   2. **Install evidence for DoD 2** — either a named Android phone for the QA
-     pass, or the operator installing the APK from the Release and reporting the
+     pass, or the operator installing the published APK and reporting the
      result. Until one of those happens, DoD 2 is not claimed.
 - **Everything must be rebuilt from the same release commit.** `361bc63` is that
   commit today. If any commit lands on `main`, the APK is rebuilt and DoD 1 is
@@ -201,8 +223,8 @@ place, so approval `6fe3aff7` is fully resolved — nothing further is owed on i
 | Land `feat/on-device-lfm3` | THE-106 | Maya | **done** | PR #3 `9de316d` (289 tests), PR #4 `361bc63` (297 tests) |
 | iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | Xcode 27.2 / SDK 27.2 / license accepted; iOS 27.2 simulator runtimes installed 2026-11-19 |
 | Device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | **blocked — hardware** | simulator pass done; tool-frame defect open; physical device unnamed |
-| Release artifacts | THE-107 | Maya | **built + emulator install done; physical install open** | APK + IPA staged with checksums; awaiting a physical install and the publication decision |
-| Release notes + install instructions | THE-107 / THE-109 | Maya, Dash reviews | **to write** | GitHub-shaped notes; store drafts unused |
+| Release artifacts | THE-107 | Maya | **published as `v1.0.0-rc1`; physical install open** | APK + IPA + `SHA256SUMS` on the pre-release; DoD 2 still needs a physical install |
+| Release notes + install instructions | THE-107 / THE-109 | Maya, Dash reviews | **published** | GitHub-shaped notes are the live pre-release body; store drafts unused |
 | Desktop "Mobile access" card | THE-42 | Dash | in progress | copy fix (Gap 12) then board acceptance |
 | iOS on-device gate | THE-110 | Maya | **done** | merged in `361bc63` |
 | Go/no-go review | THE-108 | Dash | blocked (THE-107) | rubric at RC |
@@ -338,40 +360,46 @@ Recorded signing checks (2026-11-23):
 - iOS: `CFBundleShortVersionString 1.0.0`, `CFBundleVersion 1`, bundle id
   `dev.acoder.mobile.acoderMobile`, `MinimumOSVersion 15.0`; unsigned.
 
-Publication (board-gated, do not run without an approval):
+Publication — **executed 2026-11-23 04:57:42Z** under board approval `4a364c5c`
+(pre-release only). The command used was equivalent to:
 
 ```bash
 gh release create v1.0.0-rc1 \
+  --repo hamishfromatech/a-coder-mobile \
+  --target 361bc63c49f9108012fedbde7ed6221070e34246 \
+  --title "A-Coder Mobile v1.0.0-rc1" --prerelease \
+  --notes-file docs/release-notes-v1.0.0.md \
   app/build/releases/v1.0.0+1/acoder-mobile-1.0.0.apk \
   app/build/releases/v1.0.0+1/acoder-mobile-1.0.0-unsigned.ipa \
-  app/build/releases/v1.0.0+1/SHA256SUMS \
-  -R hamishfromatech/a-coder-mobile --prerelease --title "..." --notes-file ...
+  app/build/releases/v1.0.0+1/SHA256SUMS
 ```
+
+Do not create a final `v1.0.0` tag or release without a fresh board approval.
 
 ## Timeline
 
 | Week | Dates | Exit criteria |
 |---|---|---|
-| 1 | 11-17 -> 11-23 | LFM3 merged (`9de316d`, `361bc63`), Xcode installed, iOS on-device decision + THE-110 merged, **channel decided (GitHub only)**, **release APK built, signed, verified**, branch protection fixed |
-| 2 | 11-24 -> 11-30 | Release notes + install steps written; install proof on a real Android phone (THE-48 hardware or operator install); THE-42 copy fix landed |
+| 1 | 11-17 -> 11-23 | LFM3 merged (`9de316d`, `361bc63`), Xcode installed, iOS on-device decision + THE-110 merged, **channel decided (GitHub only)**, **release APK built, signed, verified**, branch protection fixed, **`v1.0.0-rc1` pre-release published** |
+| 2 | 11-24 -> 11-30 | Install proof on a real Android phone (THE-48 hardware or operator install); THE-42 copy fix landed |
 | 3 | 12-01 -> 12-09 | Any defect fixes merged and the APK rebuilt from the new release commit; Dash go/no-go PASS by 12-09 |
-| RC | 12-10 | Board approves the Release (tag + assets + notes) |
-| Ship | 12-12 | Release published; users download from GitHub |
+| RC | 12-10 | Board approves a final `v1.0.0` (tag + assets) if the fixes changed the artifact |
+| Ship | 12-12 | Final `v1.0.0` published; users download from GitHub (the RC pre-release is already live) |
 
-Publishing earlier is possible and recommended: an RC pre-release can go up as
-soon as the notes exist, because nothing about it depends on the store or on
-signing lead time.
+`v1.0.0-rc1` went up ahead of this schedule because nothing about it depended on
+the store or on signing lead time. The remaining date risk is install evidence,
+not publication.
 
 ## Board inputs still outstanding
 
-Nothing except the **publication decision**. The four 2026-11-23 answers closed
-the Apple, Play, device-identity and keystore questions; the release channel is
-GitHub-only.
+The publication decision is **resolved** (`4a364c5c`, executed 2026-11-23) and
+the four 2026-11-23 answers closed the Apple, Play, device-identity and keystore
+questions. The release channel is GitHub-only and the RC pre-release is live.
 
 | Decision | Why it is the board's | What it unlocks |
 |---|---|---|
-| Publish `v1.0.0-rc1` (or `v1.0.0`) as a GitHub Release with the APK, unsigned IPA, checksums and notes | Publishing gate: the repository is public, so a Release is a public distribution | A download users can actually install |
-| Name an Android phone for the install check, or install the APK from the Release and report back | Only a human can supply the hardware/observation | DoD 2, and honest install evidence for Dash's go/no-go |
+| Name an Android phone for the install check, or install the `v1.0.0-rc1` APK from the Release and report back | Only a human can supply the hardware/observation | DoD 2, and honest install evidence for Dash's go/no-go |
+| Approve a **final `v1.0.0`** tag/release once DoD 2 and THE-108 pass (only if the artifact changes; approval `4a364c5c` covered the pre-release only) | Publishing gate | The non-pre-release download |
 
 ### Merge mechanics (for the record)
 
