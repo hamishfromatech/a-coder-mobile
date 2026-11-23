@@ -3,7 +3,7 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-23 14:4x NZDT (plan rev 12).
+**Snapshot:** 2026-11-23 14:5x NZDT (plan rev 13).
 
 **The release channel changed on 2026-11-23.** The board answered card
 `8400bb25` and the answer replaces the store path:
@@ -56,6 +56,22 @@ The IPA is **unsigned**: `CFBundleIdentifier dev.acoder.mobile.acoderMobile`,
 `1.0.0`/`1`, `MinimumOSVersion 15.0`. Without an Apple Developer account it
 cannot be installed as downloaded — see Gap 10.
 
+**Install evidence (emulator, 2026-11-23 14:43 NZDT):** the release APK was
+installed and launched on the `acoder_pixel_api35` emulator (Android 15 /
+API 35, arm64-v8a, headless):
+
+| Step | Result |
+|---|---|
+| `adb install acoder-mobile-1.0.0.apk` over the old QA build | **FAILED as expected** — `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, signatures differ (old build was debug-signed; the release APK is upload-key signed). Confirms the key really changed. |
+| uninstall, then `adb install` | **Success** |
+| launch `dev.acoder.mobile/.acoder_mobile.MainActivity` | **Running** (pid stable), **0** `FATAL EXCEPTION` / `E AndroidRuntime` lines |
+| pairing screen | renders: Scan QR / Manual / Network tabs; camera permission prompt shown, and on denial the QR pane shows "Camera permission denied." without crashing |
+| on-device entry point | "Use on-device chat" opens the **On-device** hub: LFM3-Omni-2B (recommended), LFM3-1.7B, LFM3-Audio-2B with sizes |
+
+Evidence screenshots: `build/releases/v1.0.0+1/` and the issue attachments. This
+is **emulator** install evidence, not the physical-device row of DoD 2 — see
+Gap 11.
+
 **Resource gate (2026-11-23 14:31 NZDT):** free memory **74%**, swap
 **3512 MB of 5120 MB (69%)**, load **6.04/12** on 12 cores. Swap *usage* is over
 the 25% hard-stop line but swap *I/O* was measured at **4 pages out / 0 pages in
@@ -64,7 +80,8 @@ evidence this heartbeat ran exactly **one** heavy job — the release APK build,
 `nice -n 10`, 314 s — and no second job alongside it. That is a recorded,
 bounded deviation from the literal swap figure, not a licence for parallel
 builds: the next heavy job waits for this one to finish and for the same
-measurement to pass.
+measurement to pass. That is what happened — the headless emulator boot for the
+install check ran **after** the build finished, alone, and was killed when done.
 
 Owner: Maya. Go/no-go reviewer: Dash. Board owns push, merge, tag, and **any
 publication** — including a GitHub Release, which is public because the
@@ -78,7 +95,7 @@ repository is public.
 | THE-42 | Desktop "Mobile access" card | Dash | — | `in_progress` — copy fix outstanding (Gap 12) |
 | THE-38 | Install full Xcode | board | — | **done** — Xcode 27.2, SDK 27.2, license accepted 2026-11-17 |
 | THE-48 | Device QA over `wss://` on hardware | Maya | THE-38 | `blocked` — simulator pass done, physical device missing (Gap 8) |
-| THE-107 | **GitHub release build**: signed APK + unsigned IPA, notes, checksums | Maya | THE-48 (install proof only) | **build done**; install proof open |
+| THE-107 | **GitHub release build**: signed APK + unsigned IPA, notes, checksums | Maya | THE-48 (physical install only) | **built, signed, installed on emulator**; physical install open |
 | THE-108 | Go/no-go review with evidence | Dash | THE-107 | blocked; rubric drops store readiness, adds artifact/install evidence |
 | THE-109 | Store metadata/screenshots drafts | Dash | — | **superseded** by the channel change (Gap 2); only the release-notes text is reusable |
 
@@ -143,14 +160,14 @@ unchanged. See Gap 9.
 |---|---|---|---|---|
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on `361bc63`** | Maya | Push CI at the merge commit: `No issues found! (ran in 15.6s)`, **297 tests passed**, android / unsigned-ipa / changes success ([45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320), [45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)). No local re-run needed or claimed. |
 | 2 | Device QA on a physical device, with evidence | **Open — no physical device** | Maya | Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered); wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`); one turn **PARTIAL** — streaming completes and bash executes, but no `tool_execution_start`/`tool_execution_end` frames reach the client, so tool cards cannot render (Gap 8). QR capture not run (no camera). `devicectl` 0 devices. Evidence is local commit `3d0d925`, not on `main`. |
-| 3 | Installable v1 artifacts at the release version/signing | **Artifacts met; install proof open** | Maya | Android: signed release APK (v2, upload key `de28f41d…`, `dev.acoder.mobile` 1.0.0+1, universal ABIs, 126.5 MB, sha256 `3c3259…`). iOS: unsigned IPA from the `361bc63` CI run (17.0 MB, sha256 `16d123…`), sideload-only. **Neither has been installed on a physical device from this build.** The signed iOS archive that the original DoD asked for is out of scope by the 2026-11-23 channel decision. |
+| 3 | Installable v1 artifacts at the release version/signing | **Met for Android (emulator install + launch); iOS sideload-only by decision** | Maya | Android: signed release APK (v2, upload key `de28f41d…`, `dev.acoder.mobile` 1.0.0+1, universal ABIs, 126.5 MB, sha256 `3c3259…`) — **installed and launched on Android 15 / API 35 emulator**, pairing screen and on-device hub render, no crash. iOS: unsigned IPA from the `361bc63` CI run (17.0 MB, sha256 `16d123…`), sideload-only, not installed. Physical-device install is DoD 2, not this row. The signed iOS archive the original DoD asked for is out of scope by the 2026-11-23 channel decision. |
 | 4 | Release notes + install instructions ready (publication board-gated) | **Rewritten for GitHub; draft needed** | Maya (notes), Dash (copy review) | Store metadata is no longer a gate (Gap 2). Needed for the Release body: what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device models Android-only; tool cards not rendering in a live turn), checksums. THE-109's drafts are input only. |
 | 5 | Dash go/no-go PASS on every line | **Not started** | Dash | Rubric to be reissued for the GitHub channel: DoD 1 evidence, artifact checksums/signature, install evidence, known limitations. |
 
 ## Critical path
 
-- **The artifact exists and is verifiable.** The remaining Android work is
-  install proof, not build work.
+- **The artifact exists, is verifiable, and launches.** The remaining Android
+  work is a **physical** install, not build work or a re-sign.
 - **The date is now gated on two human decisions, not on toolchain:**
   1. **Publication approval** — create the GitHub Release (`v1.0.0-rc1` as a
      pre-release, or `v1.0.0` directly) with the APK, the unsigned IPA, the
@@ -172,7 +189,7 @@ unchanged. See Gap 9.
 | Land `feat/on-device-lfm3` | THE-106 | Maya | **done** | PR #3 `9de316d` (289 tests), PR #4 `361bc63` (297 tests) |
 | iOS toolchain | THE-38 | Board installs, Maya verifies | **done** | Xcode 27.2 / SDK 27.2 / license accepted; iOS 27.2 simulator runtimes installed 2026-11-19 |
 | Device QA (`wss://`, pinned cert, one turn) | THE-48 | Maya | **blocked — hardware** | simulator pass done; tool-frame defect open; physical device unnamed |
-| Release artifacts | THE-107 | Maya | **build done, install proof open** | APK + IPA staged with checksums; awaiting install evidence and the publication decision |
+| Release artifacts | THE-107 | Maya | **built + emulator install done; physical install open** | APK + IPA staged with checksums; awaiting a physical install and the publication decision |
 | Release notes + install instructions | THE-107 / THE-109 | Maya, Dash reviews | **to write** | GitHub-shaped notes; store drafts unused |
 | Desktop "Mobile access" card | THE-42 | Dash | in progress | copy fix (Gap 12) then board acceptance |
 | iOS on-device gate | THE-110 | Maya | **done** | merged in `361bc63` |
@@ -247,9 +264,12 @@ unchanged. See Gap 9.
     Apple ID via a tool such as Sideloadly/AltStore, which re-signs the IPA; or
     (b) build from source with Xcode. Android is the frictionless download.
     Revisit only if the board enrolls in the Apple Developer Program.
-11. **No install proof yet.** The APK verifies structurally (`apksigner`, v2,
-    upload-key cert) and has never been installed from this build. A green
-    signature is not a green install; DoD 2 covers the difference.
+11. **Install proof is emulator-only.** The APK verifies structurally
+    (`apksigner`, v2, upload-key cert) and now installs and launches on an
+    Android 15 / API 35 arm64 emulator, rendering the pairing screen and the
+    on-device hub without a crash. An emulator is not a phone: no physical
+    device has installed this build, so DoD 2's hardware row stays open. A green
+    signature and a green emulator launch are not a green physical install.
 12. **THE-42 copy is still backwards.** `desktop-app/docs/mobile-access.md:53`
     still says token rotation is "the only operation that revokes access today",
     and the Remove copy still reads as cosmetic. Since `serve/clients.ts`,
