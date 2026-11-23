@@ -88,3 +88,9 @@ flutter analyze       # No issues found
 Golden tests: `flutter test test/golden`.
 Integration harness (needs a device/emulator): `flutter test integration_test`.
 See [`../QA.md`](../QA.md) for the device matrix and known coverage gaps.
+
+## Join the community
+
+Building with local AI? Join the **Open Source AI Builders Club** - courses, builds
+and support for people running open models on their own hardware:
+[skool.com/open-source-ai-builders-club](https://www.skool.com/open-source-ai-builders-club/about)

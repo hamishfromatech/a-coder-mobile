@@ -113,6 +113,13 @@ the accent avatar, hairline tool cards, and flat dense lists.
   SHA-256 pin and the app rejects a mismatched certificate. Off-LAN access
   still belongs on a VPN/Tailscale.
 
+## Join the community
+
+Building with local AI? Join the **Open Source AI Builders Club** - courses, builds
+and support for people running open models on their own hardware:
+[skool.com/open-source-ai-builders-club](https://www.skool.com/open-source-ai-builders-club/about)
+
+
 ## License
 
 Dual-licensed by The A-Tech Corporation PTY LTD, mirroring
