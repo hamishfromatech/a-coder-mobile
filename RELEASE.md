@@ -206,6 +206,33 @@ approval, dismiss stale), `enforce_admins`, linear history, no force-push or
 deletion, and conversation resolution are unchanged. The approved change is in
 place, so approval `6fe3aff7` is fully resolved — nothing further is owed on it.
 
+### 2026-11-26 — re-verification of the live pre-release (no work moved the gate)
+
+Checked the published object again rather than assuming it survived the four
+days since publication. Nothing was rebuilt, no test suite was run, and the
+board card `c3712f2c` was **not** repeated.
+
+| Check | Result |
+|---|---|
+| Release page `…/releases/tag/v1.0.0-rc1` | **HTTP 200** |
+| `prerelease` / `draft` | `true` / `false` |
+| `published_at` | `2026-11-23T04:57:42Z` (unchanged) |
+| `acoder-mobile-1.0.0.apk` | 126,544,319 B, `sha256:3c325951…456e5` — **matches** this file |
+| `acoder-mobile-1.0.0-unsigned.ipa` | 17,804,523 B, `sha256:16d123bf…66e5` — **matches** this file |
+| `SHA256SUMS` | 189 B, `sha256:2eb31a82…76b1` — **matches** this file |
+| `docs/release-notes-v1.0.0.md` vs the live release body | identical apart from GitHub's trailing newline; the file was **not yet in the repository** and is landed by this change |
+
+DoD 1–5 are unchanged from the table below: 1 and 4 met, 3 met for Android with
+iOS sideload-only by decision, 2 open on a physical device, 5 not started. The
+only gate that can move is DoD 2, and it moves when `c3712f2c` is answered.
+
+Resource gate this run: free memory **78 %**, load **6.02** on 12 cores, swap
+**9314 MB of 10240 MB (91 %)** but swap I/O measured at **0 pageouts, 0 swapins,
+0 swapouts over 6 s** — no active thrashing. Under the 25 %-swap hard-stop line
+the only permitted job was one bounded, non-build task, so **nothing heavy ran**:
+no Flutter build, no test suite, no emulator. The re-verification above is HTTP
+and git metadata only.
+
 ---
 
 ## Definition of done — current state
