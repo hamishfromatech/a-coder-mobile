@@ -371,9 +371,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _emptyState(BuildContext context, List<RpcSessionInfo> scoped,
       List<RpcSessionInfo> all, bool connected) {
     if (!connected) {
-      return const ErrorState(
+      // Retry has to actually retry: before this it was wired to a no-op, so
+      // the offline pane offered a button that did nothing (Gap 4).
+      // forceReconnectNow() is a guarded no-op while the link is healthy and
+      // resets backoff otherwise; the ready listener above then runs the sync
+      // because `_syncedOnce` was cleared when the state left `ready`.
+      return ErrorState(
         message: 'Offline — reconnect to load sessions.',
-        onRetry: _noop,
+        onRetry: () =>
+            ref.read(sessionControllerProvider(widget.activeHostId).notifier)
+                .forceReconnectNow(),
       );
     }
     if (_syncError != null && all.isEmpty) {
@@ -407,8 +414,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     return const SizedBox.shrink();
   }
-
-  static void _noop() {}
 
   /// Branch navigation without a new RPC: siblings share the same parent
   /// session path (desktop's session tree, flattened for a phone).
