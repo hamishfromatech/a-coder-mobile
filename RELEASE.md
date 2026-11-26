@@ -3,9 +3,16 @@
 **Target:** release candidate built and verified **Thu 2026-12-10**; ship
 **Sat 2026-12-12**.
 
-**Snapshot:** 2026-11-23 18:00 NZDT (plan rev 16). **Published:** `v1.0.0-rc1`
+**Snapshot:** 2026-11-27 12:30 NZDT (plan rev 17). **Published:** `v1.0.0-rc1`
 pre-release created 2026-11-23 04:57:42Z under board approval `4a364c5c` —
 <https://github.com/hamishfromatech/a-coder-mobile/releases/tag/v1.0.0-rc1>.
+
+**DoD 2 install evidence arrived 2026-11-26** (operator answer on
+`c3712f2c`): the published `v1.0.0-rc1` APK was installed on a **Nothing Phone
+2a, Android 17**. The same report found a v1 defect — the phone connects but
+never appears in the desktop **Mobile access** device registry (Gap 13). Fix
+landed in the app on 2026-11-27; it changes `app/`, so `main` moves off
+`361bc63` and the artifact must be rebuilt before a final `v1.0.0`.
 
 **The release channel changed on 2026-11-23.** The board answered card
 `8400bb25` and the answer replaces the store path:
@@ -71,8 +78,45 @@ API 35, arm64-v8a, headless):
 | on-device entry point | "Use on-device chat" opens the **On-device** hub: LFM3-Omni-2B (recommended), LFM3-1.7B, LFM3-Audio-2B with sizes |
 
 Evidence screenshots: `build/releases/v1.0.0+1/` and the issue attachments. This
-is **emulator** install evidence, not the physical-device row of DoD 2 — see
-Gap 11.
+is **emulator** install evidence; the physical-device row of DoD 2 was still
+open at the time of writing (Gap 11) and closes with the operator install below.
+
+**Physical install evidence (DoD 2) — operator, reported 2026-11-26 23:24Z:**
+
+> "Installed on a nothing phone 2a android 17."
+
+| Check | Result |
+|---|---|
+| Install of the published `v1.0.0-rc1` APK | **PASS** — Nothing Phone 2a, Android 17, operator-installed |
+| Launch / pairing | implied by the report (the phone connected to the bridge) |
+| Appears in the bridge device registry / desktop Mobile access card | **FAIL** — the card lists no devices while the phone is connected (Gap 13) |
+| One verified end-to-end turn on hardware | **not claimed** — the operator reported the registry defect, not a completed turn |
+
+DoD 2's hardware row is therefore **met for install**, and the row is not
+closed as *device QA passed*: the registry defect found by that install is a
+v1 defect, and the turn-level rows (pairing over `wss://` with the pin, one
+engine turn, tool cards) still rest on the simulator pass plus the bridge fix
+in Gap 8. Nothing here claims more than the operator reported.
+
+**Defect found by the physical install: no device ever enters the registry
+(Gap 13).** Root-caused and fixed in the app this heartbeat. The bridge records
+a device only when the client presents one of the identities in
+`plan/04-bridge-spec.md` §5.4 — `x-acoder-device-id` (+ name/platform) on the
+upgrade, `device_id` query parameters, or a first `{"type":"hello"}` frame.
+The Flutter client sent **none of the three**: `RpcClient.connect()` built
+`{Authorization: Bearer …}` and nothing else. So every phone connected
+anonymously, `serve/clients.json` was never created, and `serve_devices()` in
+the desktop read an empty registry. Confirmed on this machine: the serve
+directory holds `token` and **no `clients.json`**.
+
+Fix: `app/lib/core/connection/device_identity.dart` generates one opaque id per
+install (`mobile-<uuid v4>`, valid under the bridge's
+`[A-Za-z0-9._:-]{1,128}` rule), keeps it in `shared_preferences`, and
+`RpcClient` now sends `x-acoder-device-id` / `-name` / `-platform` on both the
+plain and the pinned-`HttpClient` upgrade paths. `SessionController.start()`
+loads it before connecting. No bridge change was needed — the registry, the
+401 revoke path, the desktop reader and its path (`~/.a-coder/cli/agent/serve/
+clients.json`, identical to the bridge's `serveDir()`) were already correct.
 
 **Resource gate (2026-11-23 14:31 NZDT):** free memory **74%**, swap
 **3512 MB of 5120 MB (69%)**, load **6.04/12** on 12 cores. Swap *usage* is over
@@ -257,7 +301,7 @@ EOF
 | # | Gate | State | Owner | Evidence |
 |---|---|---|---|---|
 | 1 | `flutter analyze` + `flutter test` green on the release commit | **Met on `361bc63`** | Maya | Push CI at the merge commit: `No issues found! (ran in 15.6s)`, **297 tests passed**, android / unsigned-ipa / changes success ([45094390320](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390320), [45094390363](https://github.com/hamishfromatech/a-coder-mobile/actions/runs/45094390363)). No local re-run needed or claimed. |
-| 2 | Device QA on a physical device, with evidence | **Open — no physical device** | Maya | Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS** (`[conn] ready`, 501 sessions, Home rendered); wrong pin **PASS** (all-zero pin -> `CERTIFICATE_VERIFY_FAILED`); one turn **PARTIAL** — streaming completes and bash executes, but no `tool_execution_start`/`tool_execution_end` frames reached the client; root cause is the **bridge**, not the app (THE-125). Fix committed in `a-coder-cli` `c2997793f` (branch `feat/desktop-unified-release`, not yet pushed or released) and its regression test passes locally (2/2). A re-run against a fixed bridge is still owed before a full turn can be claimed (Gap 8). QR capture not run (no camera). `devicectl` 0 devices. Evidence is local commit `3d0d925`, not on `main`. |
+| 2 | Device QA on a physical device, with evidence | **Physical install met (Nothing Phone 2a, Android 17); device QA not closed** | Maya | Operator installed the published `v1.0.0-rc1` APK on a **Nothing Phone 2a, Android 17** (2026-11-26 23:24Z) and reported one defect: the phone connects but does not appear in the desktop Mobile access registry (Gap 13, fixed 2026-11-27 in `app/`). The same install found no crash, no signing failure and no pairing-token failure. Still owed on hardware: a re-install of the rebuilt APK, the registry row appearing, and one end-to-end turn. Simulator interim pass 2026-11-20: pinned `wss://` connect **PASS**; wrong pin **PASS**; one turn **PARTIAL** — no `tool_execution_*` frames, bridge-side (THE-125, fixed in `c2997793f`, unreleased). QR capture not run (no camera). Evidence is local commit `3d0d925`, not on `main`. |
 | 3 | Installable v1 artifacts at the release version/signing | **Met for Android (emulator install + launch); iOS sideload-only by decision** | Maya | Android: signed release APK (v2, upload key `de28f41d…`, `dev.acoder.mobile` 1.0.0+1, universal ABIs, 126.5 MB, sha256 `3c3259…`) — **installed and launched on Android 15 / API 35 emulator**, pairing screen and on-device hub render, no crash. iOS: unsigned IPA from the `361bc63` CI run (17.0 MB, sha256 `16d123…`), sideload-only, not installed. Physical-device install is DoD 2, not this row. The signed iOS archive the original DoD asked for is out of scope by the 2026-11-23 channel decision. |
 | 4 | Release notes + install instructions ready (publication board-gated) | **Met — published as the `v1.0.0-rc1` pre-release body** | Maya (notes), Dash (copy review) | `docs/release-notes-v1.0.0.md`: what v1 is, Android install steps, iOS sideload caveat, known limitations (on-device Android-only; tool cards need a bridge carrying THE-125), checksums. Board approval `4a364c5c` (approved 2026-11-23 04:56:37Z, pre-release only) authorised exactly this publication; it is live at <https://github.com/hamishfromatech/a-coder-mobile/releases/tag/v1.0.0-rc1>. Store metadata is not a gate (Gap 2). |
 | 5 | Dash go/no-go PASS on every line | **Not started** | Dash | Rubric to be reissued for the GitHub channel: DoD 1 evidence, artifact checksums/signature, install evidence, known limitations. |
@@ -406,7 +450,28 @@ EOF
     still says token rotation is "the only operation that revokes access today",
     and the Remove copy still reads as cosmetic. Since `serve/clients.ts`,
     removing a device is a durable 401 revoke. Dash's one-line fix; it gates the
-    desktop build used for QA.
+    desktop build used for QA. (The copy fix is committed on the CLI branch as
+    `83a99590d`; it is not in a released build.)
+13. **No device ever reached the registry — found by the physical install, fixed
+    2026-11-27.** The operator's Nothing Phone 2a connected but the desktop
+    Mobile access card stayed empty. Cause: the app never presented device
+    identity (bridge spec §5.4), so `serve/clients.json` was never written;
+    the bridge and the desktop reader were both correct. Fix
+    `app/lib/core/connection/device_identity.dart` + `RpcClient(device:)` +
+    `SessionController.start()`; regression tests
+    `test/core/connection/device_identity_test.dart` and
+    `test/core/connection/rpc_client_device_headers_test.dart`. Consequence: an
+    `app/` change means `main` moves off `361bc63`, so the final `v1.0.0`
+    artifact must be **rebuilt** and DoD 1 re-read from the new commit. Until
+    that rebuild, the shipped RC still shows an empty registry, and per-device
+    revocation (Remove on the desktop card) cannot be exercised at all because
+    no device record exists to remove.
+14. **Device label is honest but generic.** The app ships no device-model
+    plugin, so the registry name is `Android phone (a1b2)` / `iPhone (c3d4)` —
+    platform plus a short id suffix, not "Nothing Phone 2a". The suffix keeps
+    two phones in one registry distinguishable. A user-facing rename would need
+    either `device_info_plus` (a new platform plugin, so a rebuild of both
+    artifacts) or a Settings field; neither is in v1 scope.
 
 ## Artifact runbook
 
@@ -482,7 +547,7 @@ questions. The release channel is GitHub-only and the RC pre-release is live.
 
 | Decision | Why it is the board's | What it unlocks |
 |---|---|---|
-| **`c3712f2c` (pending)** — install the `v1.0.0-rc1` APK on a phone and report, or accept the emulator evidence, or hold | Only a human can supply the hardware/observation or waive the row | DoD 2, and honest install evidence for Dash's go/no-go |
+| **`c3712f2c` — answered 2026-11-26:** install and report | Answered "install the published APK on a phone and report" | DoD 2 hardware row **met** (Nothing Phone 2a, Android 17); the report also produced Gap 13 |
 | Approve a **final `v1.0.0`** tag/release once DoD 2 and THE-108 pass (only if the artifact changes; approval `4a364c5c` covered the pre-release only) | Publishing gate | The non-pre-release download |
 
 ### Merge mechanics (for the record)
