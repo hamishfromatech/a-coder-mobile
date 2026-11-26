@@ -209,8 +209,8 @@ place, so approval `6fe3aff7` is fully resolved — nothing further is owed on i
 ### 2026-11-26 — re-verification of the live pre-release (no work moved the gate)
 
 Checked the published object again rather than assuming it survived the four
-days since publication. Nothing was rebuilt, no test suite was run, and the
-board card `c3712f2c` was **not** repeated.
+days since publication. No artifact was rebuilt, no emulator ran, and the board
+card `c3712f2c` was **not** repeated.
 
 | Check | Result |
 |---|---|
@@ -220,18 +220,35 @@ board card `c3712f2c` was **not** repeated.
 | `acoder-mobile-1.0.0.apk` | 126,544,319 B, `sha256:3c325951…456e5` — **matches** this file |
 | `acoder-mobile-1.0.0-unsigned.ipa` | 17,804,523 B, `sha256:16d123bf…66e5` — **matches** this file |
 | `SHA256SUMS` | 189 B, `sha256:2eb31a82…76b1` — **matches** this file |
-| `docs/release-notes-v1.0.0.md` vs the live release body | identical apart from GitHub's trailing newline; the file was **not yet in the repository** and is landed by this change |
+| `docs/release-notes-v1.0.0.md` vs the live release body | identical apart from GitHub's trailing newline; the file was **absent from `main`** and is proposed for it by PR #6 |
 
 DoD 1–5 are unchanged from the table below: 1 and 4 met, 3 met for Android with
 iOS sideload-only by decision, 2 open on a physical device, 5 not started. The
 only gate that can move is DoD 2, and it moves when `c3712f2c` is answered.
 
 Resource gate this run: free memory **78 %**, load **6.02** on 12 cores, swap
-**9314 MB of 10240 MB (91 %)** but swap I/O measured at **0 pageouts, 0 swapins,
-0 swapouts over 6 s** — no active thrashing. Under the 25 %-swap hard-stop line
-the only permitted job was one bounded, non-build task, so **nothing heavy ran**:
-no Flutter build, no test suite, no emulator. The re-verification above is HTTP
-and git metadata only.
+**9290 MB of 10240 MB (91 %)** — over the 25 % hard-stop line — but swap I/O
+measured **0 pageouts, 0 swapins, 0 swapouts over 6 s**, so there was no active
+thrashing. Bounded deviation, recorded and enforced: exactly **one** heavy job ran
+at a time and nothing was built. The re-verification and PR work above are HTTP
+and git metadata only; the only compute was, in order and alone,
+`flutter analyze` (3.7 s) then `flutter test --concurrency=2` (**298 passed**) on
+the Gap 4 branch. No APK/IPA build and no emulator ran.
+
+**The merge wall (new, 2026-11-26).** GitHub Actions is disabled at the repo level
+(`enabled: false`), so the three required contexts on `main` can never be produced
+and **no pull request can merge — code or documentation**. Two are open:
+**PR #6** (these release records plus `docs/release-notes-v1.0.0.md`, which was
+absent from `main`) and **PR #7** (the Gap 4 Retry fix). Both report
+`MERGEABLE` / `BLOCKED` / `REVIEW_REQUIRED`. Nothing was bypassed: protection is
+unchanged and no admin merge, tag or publication was attempted. The unblock is
+the board's own recorded command from THE-136:
+
+```sh
+gh api -X PUT repos/hamishfromatech/a-coder-mobile/actions/permissions --input - <<'EOF'
+{"enabled": true}
+EOF
+```
 
 ---
 
@@ -322,10 +339,22 @@ and git metadata only.
    encrypted archive; record `keyAlias`, both passwords and the certificate
    SHA-256 in the vault entry, never in this repo; restore it once elsewhere to
    prove the backup works. No agent needs the secret.
-4. **Emulator matrix has two open failures** (2026-11-03, pre-LFM3): the offline
-   home's Retry button is a no-op (`lib/features/sessions/screens/home_screen.dart`,
-   `onRetry: _noop`), and background -> foreground lands on the Pairing screen.
-   Both need a decision: fix before v1 or accept with the hardware pass as cover.
+4. **Emulator matrix had two open failures** (2026-11-03, pre-LFM3).
+   - *Offline home's Retry button is a no-op* (`home_screen.dart`, `onRetry:
+     _noop`). **Decided and fixed 2026-11-26:** the button now calls
+     `SessionController.forceReconnectNow()`, which already existed and is
+     documented as a guarded no-op while healthy; the screen's ready-listener
+     then syncs. Verified `flutter analyze` clean + **298 tests passed**, with a
+     new regression test that counts reconnect requests (0 on the old wiring).
+     Fix is **PR #7**, deliberately unmerged: an `app/` change moves `main` off
+     `361bc63`, which forces an artifact rebuild and a fresh DoD 1 — that belongs
+     to the final-build decision. The shipped RC therefore still contains the
+     dead button.
+   - *Background -> foreground lands on the Pairing screen.* **Not fixed, not
+     waived.** Not reproduced since 2026-11-03 (pre-LFM3); the gate is
+     host-driven, and the suspect lifecycle path needs a real resume cycle on a
+     device. Recorded rather than guessed at; it resolves with the physical pass
+     that DoD 2 is waiting for.
 5. **Version freeze — identity settled.** `1.0.0+1` is the RC version and is what
    both artifacts carry. For a GitHub channel the only rule is that a **different**
    binary must carry a higher build number; never ship two different APKs as
