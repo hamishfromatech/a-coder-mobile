@@ -230,7 +230,23 @@ not appear in the desktop Mobile access registry**.
 | Device listed in desktop Settings → Mobile access | **FAIL** — empty registry (root cause: app sent no device identity; fixed 2026-11-27, see below) |
 | One end-to-end turn on hardware | not reported |
 
-**Registry regression to run after the fix ships** — this is the row that was
+### `v1.0.0-rc2` — the rebuild that carries the fix (2026-11-27)
+
+The defect above is fixed and the artifact rebuilt. rc1 cannot be used for the
+registry rows, because it does not send device identity at all; **use rc2**.
+
+| Fact | Value |
+|---|---|
+| Release | <https://github.com/hamishfromatech/a-coder-mobile/releases/tag/v1.0.0-rc2> (pre-release) |
+| Commit | `3758525` (`main`, PR #8) |
+| APK | `acoder-mobile-1.0.0-rc2.apk`, `versionCode` **2**, 126,544,323 B, `sha256:ef40ac58…405d` |
+| Signing | upload key `de28f41d…` — same key as rc1, so it installs **over** rc1 with no uninstall |
+| iOS | `acoder-mobile-1.0.0-rc2-unsigned.ipa`, unsigned, from CI at `3758525` |
+
+Install rc2 before running anything below. If the old rc1 build is still on the
+phone, rc2 replaces it; pairing data and settings are kept.
+
+**Registry regression — run on `v1.0.0-rc2`** — this is the row that was
 missing from every earlier matrix, because the bridge-side registry had never
 been exercised from the app:
 
