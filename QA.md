@@ -216,6 +216,39 @@ below is the part that can be checked without Xcode.
 3. Background → foreground landed on the Pairing screen instead of resyncing;
    confirm on the 4 GB emulator profile and on a physical device.
 
+### Physical install — Nothing Phone 2a (reported 2026-11-26, operator)
+
+The operator installed the published `v1.0.0-rc1` release APK on a **Nothing
+Phone 2a running Android 17** and reported one defect. Recorded verbatim in
+substance: installed successfully; connected to the bridge; **the device does
+not appear in the desktop Mobile access registry**.
+
+| Check | Result |
+|---|---|
+| Install the published APK on hardware | **PASS** — Nothing Phone 2a, Android 17 |
+| Launch / connect to `serve` | **PASS** (implied by the registry observation) |
+| Device listed in desktop Settings → Mobile access | **FAIL** — empty registry (root cause: app sent no device identity; fixed 2026-11-27, see below) |
+| One end-to-end turn on hardware | not reported |
+
+**Registry regression to run after the fix ships** — this is the row that was
+missing from every earlier matrix, because the bridge-side registry had never
+been exercised from the app:
+
+1. Pair the phone, then open desktop **Settings → Mobile access**.
+2. Within ~5 s (the card polls `serve/clients.json` every 5 000 ms) the phone
+   must appear as `Android phone (xxxx)` with platform `Android` and
+   "Last seen …".
+3. Tap **Remove**; the phone's next reconnect must be refused (`401 device
+   revoked`, app shows the connection error) and must not re-appear in the list.
+4. Re-pair with the token to confirm the remove is about the device id, not the
+   token (the token keeps working for other/new devices).
+
+Automated coverage for the fix (no device needed):
+`app/test/core/connection/device_identity_test.dart` (id is generated once,
+persists, and matches the bridge's `[A-Za-z0-9._:-]{1,128}` rule) and
+`app/test/core/connection/rpc_client_device_headers_test.dart` (the upgrade
+carries `x-acoder-device-id` / `-name` / `-platform` beside the bearer token).
+
 ### iOS device matrix — pre-flight only (2026-11-17)
 
 Nothing below has been executed: it needs full Xcode (THE-38) and a physical
