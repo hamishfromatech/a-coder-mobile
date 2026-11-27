@@ -13,6 +13,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:uuid/uuid.dart';
 import '../protocol/wire.dart' as wire;
 import 'cert_pinning.dart';
+import 'device_identity.dart';
 import '../protocol/events.dart';
 import 'connection_state.dart';
 
@@ -99,6 +100,10 @@ class RpcClient {
   /// SHA-256 certificate pin (lowercase hex) used for wss:// bridges with a
   /// self-signed cert. Null = normal system trust (public CA).
   final String? certFingerprint;
+
+  /// Stable per-install identity sent as `x-acoder-device-*` on the upgrade.
+  /// Null keeps the old behaviour (connects, but the bridge records no device).
+  final DeviceIdentity? device;
   HttpClient? _httpClient;
 
   RpcClient({
@@ -106,6 +111,7 @@ class RpcClient {
     this.token,
     this.channelFactory,
     this.certFingerprint,
+    this.device,
   });
   bool get isConnected => _isConnected;
   ConnectionInfo get connectionState => _connectionState;
@@ -119,6 +125,10 @@ class RpcClient {
     try {
       final headers = <String, dynamic>{
         if (token != null) 'Authorization': 'Bearer $token',
+        // `plan/04-bridge-spec.md` §5.4: without these the bridge admits the
+        // socket but writes no `serve/clients.json` record, so the desktop
+        // Mobile access card lists no devices.
+        ...?device?.headers,
       };
       final uri = Uri.parse(wsUrl);
       final factory = channelFactory;

@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/connection/connection_manager.dart';
 import '../../../core/connection/connection_state.dart';
+import '../../../core/connection/device_identity.dart';
 import '../../../core/connection/host_registry.dart';
 import '../../../core/connection/rpc_client.dart';
 import '../../../core/protocol/events.dart' as proto;
@@ -126,10 +127,15 @@ class SessionController extends StateNotifier<SessionControllerState> {
     }
     _host = host;
     final token = await HostRegistry().getToken(hostId);
+    // Identity is what puts this phone in the bridge's device registry and on
+    // the desktop Mobile access card; without it the socket still connects but
+    // no record is written (bridge spec §5.4).
+    final device = await DeviceIdentityStore().load();
     final client = RpcClient(
       wsUrl: host.wsUrl,
       token: token,
       certFingerprint: host.certFingerprint,
+      device: device,
     );
     final manager = ConnectionManager(client: client, hostUrl: host.wsUrl);
 
