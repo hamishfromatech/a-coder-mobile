@@ -33,6 +33,24 @@ class _FakeSessionController extends SessionController {
   Future<void> refreshSessions() async {}
 }
 
+/// Offline host. Records reconnect requests so the Retry button's wiring can
+/// be asserted: it used to be bound to a no-op (Gap 4).
+class _OfflineSessionController extends SessionController {
+  int reconnectRequests = 0;
+
+  _OfflineSessionController(super.ref, super.hostId) {
+    state = const SessionControllerState(
+      connection: cs.ConnectionInfo(state: cs.ConnectionState.disconnected),
+    );
+  }
+
+  @override
+  Future<void> refreshSessions() async {}
+
+  @override
+  void forceReconnectNow() => reconnectRequests++;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -81,5 +99,55 @@ void main() {
 
     expect(find.text('No sessions yet'), findsOneWidget);
     expect(find.text('Start one from the + button.'), findsOneWidget);
+  });
+
+  testWidgets('offline state offers a Retry that actually reconnects',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final host = PairedHost(
+      id: _hostId,
+      name: 'Dev MacBook',
+      host: '127.0.0.1',
+      port: 4317,
+      tls: false,
+      lastConnected: DateTime(2026, 1, 1),
+    );
+    late _OfflineSessionController controller;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeHostProvider.overrideWith((ref) async => host),
+          sessionControllerProvider.overrideWith(
+            (ref, hostId) => controller = _OfflineSessionController(ref, hostId),
+          ),
+        ],
+        child: MaterialApp(
+          theme: PiTheme.dark,
+          builder: (context, child) => PiColorsScope(
+            skin: 'aurora',
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: const HomeScreen(activeHostId: _hostId),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Offline — reconnect to load sessions.'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+
+    expect(controller.reconnectRequests, 1,
+        reason: 'Retry must request a reconnect, not be a no-op');
   });
 }
